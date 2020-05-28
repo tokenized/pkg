@@ -1,0 +1,6 @@
+
+*.exe
+*.test
+*.prof
+*.log
+tmp
