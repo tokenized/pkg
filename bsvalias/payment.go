@@ -88,7 +88,8 @@ type PaymentRequest struct {
 func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID string,
 	amount uint64, senderKey *bitcoin.Key) (PaymentRequest, error) {
 
-	if len(i.Site.Capabilities.PaymentRequest) == 0 {
+	if !i.Site.Capabilities.PaymentRequest.Flag ||
+		len(i.Site.Capabilities.PaymentRequest.Endpoint) == 0 {
 		return PaymentRequest{}, errors.Wrap(ErrNotCapable, "payment-request")
 	}
 
@@ -129,7 +130,7 @@ func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID 
 		Outputs        []string `json:"outputs"`
 	}
 
-	url := strings.ReplaceAll(i.Site.Capabilities.PaymentRequest, "{alias}", i.Alias)
+	url := strings.ReplaceAll(i.Site.Capabilities.PaymentRequest.Endpoint, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
 	if err := post(url, request, &response); err != nil {
 		return PaymentRequest{}, errors.Wrap(err, "http get")
