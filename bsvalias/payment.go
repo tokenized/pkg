@@ -19,8 +19,9 @@ import (
 func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose string,
 	amount uint64, senderKey *bitcoin.Key) ([]byte, error) {
 
-	if len(i.Site.Capabilities.PaymentDestination) == 0 {
-		return nil, errors.Wrap(ErrNotCapable, "payment-destination")
+	url, err := i.Site.Capabilities.GetURL(URLNamePaymentDestination)
+	if err != nil {
+		return nil, errors.Wrap(err, "payment request")
 	}
 
 	request := struct {
@@ -57,7 +58,7 @@ func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose strin
 		Output string `json:"output"`
 	}
 
-	url := strings.ReplaceAll(i.Site.Capabilities.PaymentDestination, "{alias}", i.Alias)
+	url = strings.ReplaceAll(url, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
 	if err := post(url, request, &response); err != nil {
 		return nil, errors.Wrap(err, "http get")
@@ -88,9 +89,9 @@ type PaymentRequest struct {
 func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID string,
 	amount uint64, senderKey *bitcoin.Key) (PaymentRequest, error) {
 
-	if !i.Site.Capabilities.PaymentRequest.Flag ||
-		len(i.Site.Capabilities.PaymentRequest.Endpoint) == 0 {
-		return PaymentRequest{}, errors.Wrap(ErrNotCapable, "payment-request")
+	url, err := i.Site.Capabilities.GetURL(URLNamePaymentRequest)
+	if err != nil {
+		return PaymentRequest{}, errors.Wrap(err, "payment request")
 	}
 
 	request := struct {
@@ -130,7 +131,7 @@ func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID 
 		Outputs        []string `json:"outputs"`
 	}
 
-	url := strings.ReplaceAll(i.Site.Capabilities.PaymentRequest.Endpoint, "{alias}", i.Alias)
+	url = strings.ReplaceAll(url, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
 	if err := post(url, request, &response); err != nil {
 		return PaymentRequest{}, errors.Wrap(err, "http get")

@@ -44,8 +44,10 @@ func NewIdentity(ctx context.Context, handle string) (Identity, error) {
 }
 
 func (i *Identity) GetPublicKey(ctx context.Context) (bitcoin.PublicKey, error) {
-	if len(i.Site.Capabilities.PKI) == 0 {
-		return bitcoin.PublicKey{}, errors.Wrap(ErrNotCapable, "pki")
+
+	url, err := i.Site.Capabilities.GetURL(URLNamePKI)
+	if err != nil {
+		return bitcoin.PublicKey{}, errors.Wrap(err, URLNamePKI)
 	}
 
 	var response struct {
@@ -54,7 +56,7 @@ func (i *Identity) GetPublicKey(ctx context.Context) (bitcoin.PublicKey, error) 
 		PublicKey string `json:"pubkey"`
 	}
 
-	url := strings.ReplaceAll(i.Site.Capabilities.PKI, "{alias}", i.Alias)
+	url = strings.ReplaceAll(url, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
 	if err := get(url, &response); err != nil {
 		return bitcoin.PublicKey{}, errors.Wrap(err, "http get")
