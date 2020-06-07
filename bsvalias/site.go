@@ -8,17 +8,20 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	URLNamePKI                = "pki"
+	URLNamePaymentDestination = "paymentDestination"
+	URLNamePaymentRequest     = "f7ecaab847eb"
+)
+
+type Capabilities struct {
+	Version      string                 `json:"bsvalias"`
+	Capabilities map[string]interface{} `json:"capabilities"`
+}
+
 type Site struct {
+	Capabilities Capabilities
 	URL          string `json:"url"`
-	Version      string `json:"bsvalias"`
-	Capabilities struct {
-		PKI                string `json:"pki"`
-		PaymentDestination string `json:"paymentDestination"`
-		PaymentRequest     struct {
-			Endpoint string `json:"endpoint"`
-			Flag     bool   `json:"flag"`
-		} `json:"f7ecaab847eb"` // BRFC ID for Payment Request Transaction
-	} `json:"capabilities"`
 }
 
 func GetSite(ctx context.Context, domain string) (Site, error) {
@@ -35,18 +38,32 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 		}
 
 		url := fmt.Sprintf("https://%s:%d/.well-known/bsvalias", records[0].Target, records[0].Port)
-		if err := get(url, &site); err == nil {
+		if err := get(url, &site.Capabilities); err == nil {
 			site.URL = fmt.Sprintf("https://%s:%d", records[0].Target, records[0].Port)
 			return site, nil
 		}
-		// return site, errors.Wrap(err, "http get capabilites")
 	}
 
 	url := fmt.Sprintf("https://%s/.well-known/bsvalias", domain)
-	if err := get(url, &site); err != nil {
+	if err := get(url, &site.Capabilities); err != nil {
 		return site, errors.Wrap(err, "http get capabilites")
 	}
 
 	site.URL = fmt.Sprintf("https://%s", domain)
 	return site, nil
+}
+
+// GetURL returns the URL for the specified capability.
+func (c Capabilities) GetURL(name string) (string, error) {
+	value, exists := c.Capabilities[name]
+	if !exists {
+		return "", ErrNotCapable
+	}
+
+	url, ok := value.(string)
+	if !ok || len(url) == 0 {
+		return "", ErrNotCapable
+	}
+
+	return url, nil
 }
