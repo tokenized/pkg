@@ -14,7 +14,10 @@ type Site struct {
 	Capabilities struct {
 		PKI                string `json:"pki"`
 		PaymentDestination string `json:"paymentDestination"`
-		PaymentRequest     string `json:"paymentRequest"`
+		PaymentRequest     struct {
+			Endpoint string `json:"endpoint"`
+			Flag     bool   `json:"flag"`
+		} `json:"f7ecaab847eb"` // BRFC ID for Payment Request Transaction
 	} `json:"capabilities"`
 }
 
