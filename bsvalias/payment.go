@@ -34,14 +34,14 @@ func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose strin
 	}{
 		SenderName:   senderName,
 		SenderHandle: senderHandle,
-		DateTime:     time.Now().UTC().Format(time.RFC3339),
+		DateTime:     time.Now().UTC().Format("2006-01-02T15:04:05.999Z"),
 		Amount:       amount,
 		Purpose:      purpose,
 	}
 
 	if senderKey != nil {
-		sigHash, err := SignatureHashForMessage(request.SenderHandle + request.DateTime +
-			strconv.FormatUint(request.Amount, 10) + request.Purpose)
+		sigHash, err := SignatureHashForMessage(request.SenderHandle +
+			strconv.FormatUint(request.Amount, 10) + request.DateTime + request.Purpose)
 		if err != nil {
 			return nil, errors.Wrap(err, "signature hash")
 		}
@@ -105,15 +105,15 @@ func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID 
 	}{
 		SenderName:   senderName,
 		SenderHandle: senderHandle,
-		DateTime:     time.Now().UTC().Format(time.RFC3339),
+		DateTime:     time.Now().UTC().Format("2006-01-02T15:04:05.999Z"),
 		AssetID:      assetID,
 		Amount:       amount,
 		Purpose:      purpose,
 	}
 
 	if senderKey != nil {
-		sigHash, err := SignatureHashForMessage(request.SenderHandle + request.DateTime +
-			request.AssetID + strconv.FormatUint(request.Amount, 10) + request.Purpose)
+		sigHash, err := SignatureHashForMessage(request.SenderHandle + request.AssetID +
+			strconv.FormatUint(request.Amount, 10) + request.DateTime + request.Purpose)
 		if err != nil {
 			return PaymentRequest{}, errors.Wrap(err, "signature hash")
 		}

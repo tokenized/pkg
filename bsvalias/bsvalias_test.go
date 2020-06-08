@@ -2,6 +2,7 @@ package bsvalias
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -144,4 +145,44 @@ func TestBRFCID(t *testing.T) {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f7ecaab847eb")
 	}
 	t.Logf("BRFC ID : %s", hash.String()[:12])
+}
+
+func TestMessageSignature(t *testing.T) {
+	request := struct {
+		SenderName   string
+		SenderHandle string
+		DateTime     string
+		Amount       uint64
+		Purpose      string
+		Signature    string
+	}{
+		SenderName:   "Curtis Ellis",
+		SenderHandle: "loosethinker@moneybutton.com",
+		DateTime:     "2020-06-08T20:25:38.199Z",
+		Amount:       0,
+		Purpose:      "Payment with Money Button",
+		Signature:    "H5+9lO39t20kL5GaGJFjauX9by/o4ljlYRMIIIVKY4JqLFPVMVfVCb8nxPOotSJZUppNsckleoqF2VaylpOQYeI=",
+	}
+
+	hash, err := SignatureHashForMessage(request.SenderHandle +
+		strconv.FormatUint(request.Amount, 10) + request.DateTime + request.Purpose)
+	if err != nil {
+		t.Fatalf("Failed to create sig hash : %s", err)
+	}
+
+	pubKey, err := bitcoin.PublicKeyFromStr("037d391ec99f5fbc48894986391d3d2388045bcf85409ce2e2a92a683dc7a76581")
+	if err != nil {
+		t.Fatalf("Failed to parse pub key : %s", err)
+	}
+
+	sig, err := bitcoin.SignatureFromCompact(request.Signature)
+	if err != nil {
+		t.Fatalf("Failed to parse sig : %s", err)
+	}
+
+	if !sig.Verify(hash.Bytes(), pubKey) {
+		t.Fatalf("Failed to verify sig")
+	}
+
+	t.Logf("Signature is valid")
 }
