@@ -51,7 +51,7 @@ func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose strin
 			return nil, errors.Wrap(err, "sign")
 		}
 
-		request.Signature = sig.String()
+		request.Signature = sig.ToCompact()
 	}
 
 	var response struct {
@@ -123,7 +123,7 @@ func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID 
 			return PaymentRequest{}, errors.Wrap(err, "sign")
 		}
 
-		request.Signature = sig.String()
+		request.Signature = sig.ToCompact()
 	}
 
 	var response struct {
