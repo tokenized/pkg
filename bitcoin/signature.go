@@ -6,11 +6,13 @@ import (
 	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"hash"
 	"math/big"
+
+	"github.com/pkg/errors"
 )
 
 // Signature is an elliptic curve signature using the secp256k1 elliptic curve.
@@ -29,7 +31,7 @@ func (s Signature) Verify(hash []byte, pubkey PublicKey) bool {
 	return ecdsa.Verify(ecPubKey, hash, &s.R, &s.S)
 }
 
-// SignatureFromStr converts key text to a key.
+// SignatureFromStr converts signature text to a signature.
 func SignatureFromStr(s string) (Signature, error) {
 	b, err := hex.DecodeString(s)
 	if err != nil {
@@ -141,6 +143,56 @@ func SignatureFromBytes(b []byte) (Signature, error) {
 	}
 
 	return Signature{R: r, S: s}, nil
+}
+
+// SignatureFromCompact converts base64 "compact" signature text to a signature.
+// This is apparently a signature format used in old software to sign text messages.
+func SignatureFromCompact(s string) (Signature, error) {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return Signature{}, errors.Wrap(err, "base64 decode")
+	}
+
+	if len(b) != 65 {
+		return Signature{}, fmt.Errorf("Wrong length : %d should be 65", len(b))
+	}
+
+	recovery := int(b[0]) - 27 - 4
+	if recovery < 0 {
+		recovery += 4
+	}
+
+	if recovery < 0 || recovery > 3 {
+		return Signature{}, fmt.Errorf("Invalid recover value : %d should be (0 >= r <= 3)", recovery)
+	}
+
+	var result Signature
+	result.R.SetBytes(b[1:33])
+	result.S.SetBytes(b[33:])
+
+	return result, nil
+}
+
+// ToCompact converts a signature to a base64 "compact" signature encoding.
+func (s Signature) ToCompact() string {
+	b := make([]byte, 0, 65)
+	b = append(b, byte(27+4+1)) // recovery=1, not sure how to choose recovery (0-3) --ce
+
+	rb := s.R.Bytes()
+	if len(rb) < 32 {
+		extra := make([]byte, 32-len(rb))
+		rb = append(extra, rb...)
+	}
+	b = append(b, rb...)
+
+	sb := s.S.Bytes()
+	if len(sb) < 32 {
+		extra := make([]byte, 32-len(sb))
+		sb = append(extra, sb...)
+	}
+	b = append(b, sb...)
+
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 // String returns the signature data with a checksum, encoded with Base58.
