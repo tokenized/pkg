@@ -24,14 +24,7 @@ func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose strin
 		return nil, errors.Wrap(err, "payment request")
 	}
 
-	request := struct {
-		SenderName   string `json:"senderName"`
-		SenderHandle string `json:"senderHandle"`
-		DateTime     string `json:"dt"`
-		Amount       uint64 `json:"amount"`
-		Purpose      string `json:"purpose"`
-		Signature    string `json:"signature"`
-	}{
+	request := PaymentDestinationRequest{
 		SenderName:   senderName,
 		SenderHandle: senderHandle,
 		DateTime:     time.Now().UTC().Format("2006-01-02T15:04:05.999Z"),
@@ -54,12 +47,10 @@ func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose strin
 		request.Signature = sig.ToCompact()
 	}
 
-	var response struct {
-		Output string `json:"output"`
-	}
-
 	url = strings.ReplaceAll(url, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
+
+	var response PaymentDestinationResponse
 	if err := post(url, request, &response); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
@@ -76,11 +67,6 @@ func (i *Identity) GetPaymentDestination(senderName, senderHandle, purpose strin
 	return result, nil
 }
 
-type PaymentRequest struct {
-	Tx      wire.MsgTx
-	Outputs []wire.TxOut
-}
-
 // GetPaymentRequest gets a payment request from the identity.
 //   senderHandle is required.
 //   assetID can be empty or "BSV" to request bitcoin.
@@ -94,15 +80,7 @@ func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID 
 		return PaymentRequest{}, errors.Wrap(err, "payment request")
 	}
 
-	request := struct {
-		SenderName   string `json:"senderName"`
-		SenderHandle string `json:"senderHandle"`
-		DateTime     string `json:"dt"`
-		AssetID      string `json:"assetID"`
-		Amount       uint64 `json:"amount"`
-		Purpose      string `json:"purpose"`
-		Signature    string `json:"signature"`
-	}{
+	request := PaymentRequestRequest{
 		SenderName:   senderName,
 		SenderHandle: senderHandle,
 		DateTime:     time.Now().UTC().Format("2006-01-02T15:04:05.999Z"),
@@ -126,13 +104,10 @@ func (i *Identity) GetPaymentRequest(senderName, senderHandle, purpose, assetID 
 		request.Signature = sig.ToCompact()
 	}
 
-	var response struct {
-		PaymentRequest string   `json:"paymentRequest"`
-		Outputs        []string `json:"outputs"`
-	}
-
 	url = strings.ReplaceAll(url, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
+
+	var response PaymentRequestResponse
 	if err := post(url, request, &response); err != nil {
 		return PaymentRequest{}, errors.Wrap(err, "http get")
 	}
