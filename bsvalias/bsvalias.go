@@ -10,16 +10,10 @@ import (
 )
 
 var (
-	ErrInvalidHandle = errors.New("Invalid handle") // handle is badly formatted
-	ErrNotCapable    = errors.New("Not capable")    // host site doesn't support a function
+	ErrInvalidHandle    = errors.New("Invalid handle")    // handle is badly formatted
+	ErrNotCapable       = errors.New("Not capable")       // host site doesn't support a function
+	ErrInvalidSignature = errors.New("Invalid signature") // The signature in a request is invalid
 )
-
-type Identity struct {
-	Handle   string
-	Site     Site
-	Alias    string
-	Hostname string
-}
 
 func NewIdentity(ctx context.Context, handle string) (Identity, error) {
 	result := Identity{
@@ -50,14 +44,10 @@ func (i *Identity) GetPublicKey(ctx context.Context) (bitcoin.PublicKey, error) 
 		return bitcoin.PublicKey{}, errors.Wrap(err, URLNamePKI)
 	}
 
-	var response struct {
-		Version   string `json:"bsvalias"`
-		Handle    string `json:"handle"`
-		PublicKey string `json:"pubkey"`
-	}
-
 	url = strings.ReplaceAll(url, "{alias}", i.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
+
+	var response PublicKeyResponse
 	if err := get(url, &response); err != nil {
 		return bitcoin.PublicKey{}, errors.Wrap(err, "http get")
 	}

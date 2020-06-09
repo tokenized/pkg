@@ -14,16 +14,6 @@ const (
 	URLNamePaymentRequest     = "f7ecaab847eb"
 )
 
-type Capabilities struct {
-	Version      string                 `json:"bsvalias"`
-	Capabilities map[string]interface{} `json:"capabilities"`
-}
-
-type Site struct {
-	Capabilities Capabilities
-	URL          string `json:"url"`
-}
-
 func GetSite(ctx context.Context, domain string) (Site, error) {
 	// Lookup SRV record for possible hosting other than specified domain
 	_, records, _ := net.LookupSRV("bsvalias", "tcp", domain)
