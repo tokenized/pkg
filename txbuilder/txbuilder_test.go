@@ -33,14 +33,14 @@ func TestBasic(t *testing.T) {
 		t.Errorf("Failed to create pkh address 2 : %s", err)
 	}
 
-	inputTx := NewTxBuilder(500, 1.0)
+	inputTx := NewTxBuilder(1.1, 1.0)
 	inputTx.SetChangeAddress(address2, "")
 	err = inputTx.AddPaymentOutput(address, 10000, true)
 	if err != nil {
 		t.Errorf("Failed to add output : %s", err)
 	}
 
-	tx := NewTxBuilder(500, 1.0)
+	tx := NewTxBuilder(1.0, 1.0)
 	tx.SetChangeAddress(address, "")
 
 	err = tx.AddInput(wire.OutPoint{Hash: *inputTx.MsgTx.TxHash(), Index: 0},
@@ -85,7 +85,7 @@ func TestBasic(t *testing.T) {
 	t.Logf("Tx Fee : %d", tx.Fee())
 
 	// Test bad PkScript
-	txMalformed := NewTxBuilder(500, 1.0)
+	txMalformed := NewTxBuilder(1.0, 1.0)
 	txMalformed.SetChangeAddress(address, "")
 	err = txMalformed.AddInput(wire.OutPoint{Hash: *inputTx.MsgTx.TxHash(), Index: 0},
 		append(inputTx.MsgTx.TxOut[0].PkScript, 5), uint64(inputTx.MsgTx.TxOut[0].Value))
@@ -111,8 +111,8 @@ func TestSample(t *testing.T) {
 	//   was encoded for the currently specified network.
 	changeAddress, _ := bitcoin.DecodeAddress("mq4htwkZSAG9isuVbEvcLaAiNL59p26W64")
 
-	// Create an instance of the TxBuilder using 512 as the dust limit and 1.1 sat/byte fee rate.
-	builder := NewTxBuilder(512, 1.1)
+	// Create an instance of the TxBuilder using 1.1 as the dust rate and 1.1 sat/byte fee rate.
+	builder := NewTxBuilder(1.1, 1.0)
 	builder.SetChangeAddress(bitcoin.NewRawAddressFromAddress(changeAddress), "")
 
 	// Add an input
@@ -171,7 +171,7 @@ func TestTxSigHash(t *testing.T) {
 
 	inputs := []*wire.MsgTx{msg1, msg2}
 
-	tx, err := NewTxBuilderFromWire(546, 1.1, msg, inputs)
+	tx, err := NewTxBuilderFromWire(1.1, 1.0, msg, inputs)
 	if err != nil {
 		t.Fatalf("Failed to build tx : %s", err)
 	}
@@ -201,6 +201,14 @@ func randomTxId() *bitcoin.Hash32 {
 	return result
 }
 
+func randomLockingScript() []byte {
+	rb := make([]byte, 20)
+	rand.Read(rb)
+	ra, _ := bitcoin.NewRawAddressPKH(rb)
+	result, _ := ra.LockingScript()
+	return result
+}
+
 func randomAddress() bitcoin.RawAddress {
 	rb := make([]byte, 20)
 	rand.Read(rb)
@@ -211,22 +219,25 @@ func randomAddress() bitcoin.RawAddress {
 func TestAddFunding(t *testing.T) {
 	utxos := []bitcoin.UTXO{
 		bitcoin.UTXO{
-			Hash:  *randomTxId(),
-			Index: 0,
-			Value: 10000,
-			KeyID: "m/0/1",
+			Hash:          *randomTxId(),
+			Index:         0,
+			Value:         10000,
+			LockingScript: randomLockingScript(),
+			KeyID:         "m/0/1",
 		},
 		bitcoin.UTXO{
-			Hash:  *randomTxId(),
-			Index: 0,
-			Value: 2000,
-			KeyID: "m/0/2",
+			Hash:          *randomTxId(),
+			Index:         0,
+			Value:         2000,
+			LockingScript: randomLockingScript(),
+			KeyID:         "m/0/2",
 		},
 		bitcoin.UTXO{
-			Hash:  *randomTxId(),
-			Index: 0,
-			Value: 1000,
-			KeyID: "m/0/3",
+			Hash:          *randomTxId(),
+			Index:         0,
+			Value:         1000,
+			LockingScript: randomLockingScript(),
+			KeyID:         "m/0/3",
 		},
 	}
 
@@ -243,7 +254,7 @@ func TestAddFunding(t *testing.T) {
 	}
 
 	// Change address needed ***********************************************************************
-	tx := NewTxBuilder(546, 1.1)
+	tx := NewTxBuilder(1.1, 1.0)
 	if err != nil {
 		t.Fatalf("Failed to build max send tx : %s", err)
 	}
@@ -278,7 +289,7 @@ func TestAddFunding(t *testing.T) {
 	}
 
 	// Already has change output *******************************************************************
-	tx = NewTxBuilder(546, 1.1)
+	tx = NewTxBuilder(1.1, 1.0)
 	if err != nil {
 		t.Fatalf("Failed to build max send tx : %s", err)
 	}
@@ -318,7 +329,7 @@ func TestAddFunding(t *testing.T) {
 	}
 
 	// Change is dust ******************************************************************************
-	tx = NewTxBuilder(546, 1.1)
+	tx = NewTxBuilder(1.1, 1.0)
 	if err != nil {
 		t.Fatalf("Failed to build max send tx : %s", err)
 	}
@@ -357,22 +368,25 @@ func TestAddFunding(t *testing.T) {
 func TestSendMax(t *testing.T) {
 	utxos := []bitcoin.UTXO{
 		bitcoin.UTXO{
-			Hash:  *randomTxId(),
-			Index: 0,
-			Value: 10000,
-			KeyID: "m/0/1",
+			Hash:          *randomTxId(),
+			Index:         0,
+			Value:         10000,
+			LockingScript: randomLockingScript(),
+			KeyID:         "m/0/1",
 		},
 		bitcoin.UTXO{
-			Hash:  *randomTxId(),
-			Index: 0,
-			Value: 2000,
-			KeyID: "m/0/2",
+			Hash:          *randomTxId(),
+			Index:         0,
+			Value:         2000,
+			LockingScript: randomLockingScript(),
+			KeyID:         "m/0/2",
 		},
 		bitcoin.UTXO{
-			Hash:  *randomTxId(),
-			Index: 0,
-			Value: 1000,
-			KeyID: "m/0/3",
+			Hash:          *randomTxId(),
+			Index:         0,
+			Value:         1000,
+			LockingScript: randomLockingScript(),
+			KeyID:         "m/0/3",
 		},
 	}
 
@@ -388,13 +402,15 @@ func TestSendMax(t *testing.T) {
 		t.Fatalf("Failed to create locking script : %s", err)
 	}
 
-	tx := NewTxBuilder(546, 1.1)
+	tx := NewTxBuilder(1.1, 1.0)
 	if err != nil {
 		t.Fatalf("Failed to build max send tx : %s", err)
 	}
 
 	tx.AddPaymentOutput(toAddress, 1000, false)
-	tx.AddMaxOutput(toAddress2)
+	if err := tx.AddMaxOutput(toAddress2); err != nil {
+		t.Fatalf("Failed to add max output : %s", err)
+	}
 
 	err = tx.AddFunding(utxos[:1])
 	if err != nil {
@@ -422,7 +438,7 @@ func TestSendMax(t *testing.T) {
 	}
 
 	// Attempt with 3 inputs ***********************************************************************
-	tx = NewTxBuilder(546, 1.1)
+	tx = NewTxBuilder(1.1, 1.0)
 	if err != nil {
 		t.Fatalf("Failed to build max send tx : %s", err)
 	}
@@ -455,7 +471,7 @@ func TestSendMax(t *testing.T) {
 	}
 
 	// Attempt with 2 addresses ********************************************************************
-	tx = NewTxBuilder(546, 1.1)
+	tx = NewTxBuilder(1.1, 1.0)
 	if err != nil {
 		t.Fatalf("Failed to build max send tx : %s", err)
 	}

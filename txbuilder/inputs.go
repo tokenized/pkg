@@ -90,16 +90,35 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 		return tx.CalculateFee() // Already funded
 	}
 
+	if len(utxos) == 0 {
+		return newError(ErrorCodeInsufficientValue, fmt.Sprintf("no more utxos: %d/%d",
+			inputValue, outputValue+estFeeValue))
+	}
+
 	// Calculate additional funding needed. Include cost of first added input.
 	// TODO Add support for input scripts other than P2PKH.
 	neededFunding := estFeeValue + outputValue - inputValue
-
-	estInputFee := uint64(float32(MaximumP2PKHInputSize) * tx.FeeRate)
 	estOutputFee := uint64(float32(P2PKHOutputSize) * tx.FeeRate)
-
-	neededFunding += estInputFee // Add cost of next input
-
 	duplicateValue := uint64(0)
+
+	// Calculate the dust limit used when determining if a change output will be added
+	var changeDustLimit uint64
+	for i, output := range tx.Outputs {
+		if output.IsRemainder {
+			continue
+		}
+		changeDustLimit = DustLimitForOutput(tx.MsgTx.TxOut[i], tx.DustFeeRate)
+		if changeDustLimit > 0 {
+			break
+		}
+	}
+	if changeDustLimit == 0 && !tx.ChangeAddress.IsEmpty() {
+		changeDustLimit = DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
+	}
+	if changeDustLimit == 0 {
+		// Use P2PKH dust limit
+		changeDustLimit = DustLimit(P2PKHOutputSize, tx.DustFeeRate)
+	}
 
 	for _, utxo := range utxos {
 		if err := tx.AddInputUTXO(utxo); err != nil {
@@ -110,6 +129,12 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 			return errors.Wrap(err, "adding input")
 		}
 
+		inputFee, err := tx.utxoFee(utxo)
+		if err != nil {
+			return errors.Wrap(err, "utxo fee")
+		}
+		neededFunding += inputFee // Add cost of input
+
 		if tx.SendMax {
 			continue
 		}
@@ -117,7 +142,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 		if neededFunding <= utxo.Value {
 			// Funding complete
 			change := utxo.Value - neededFunding
-			if change > tx.DustLimit {
+			if change > changeDustLimit {
 				for i, output := range tx.Outputs {
 					if output.IsRemainder {
 						// Updating existing "change" output
@@ -126,11 +151,11 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 					}
 				}
 
-				if change > tx.DustLimit+estOutputFee {
+				if change > changeDustLimit+estOutputFee {
 					// Add new change output
 					change -= estOutputFee
 					if tx.ChangeAddress.IsEmpty() {
-						return errors.New("Change address needed")
+						return errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d", change))
 					}
 
 					if err := tx.AddPaymentOutput(tx.ChangeAddress, change, true); err != nil {
@@ -144,8 +169,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 		}
 
 		// More UTXOs required
-		neededFunding += estInputFee // Add cost of next input
-		neededFunding -= utxo.Value  // Subtract the value this input added
+		neededFunding -= utxo.Value // Subtract the value this input added
 	}
 
 	if tx.SendMax {
@@ -160,4 +184,13 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 	}
 
 	return nil
+}
+
+// utxoFee calculates the tx fee for the input to spend the UTXO.
+func (tx *TxBuilder) utxoFee(utxo bitcoin.UTXO) (uint64, error) {
+	size, err := lockingScriptUnlockSize(utxo.LockingScript)
+	if err != nil {
+		return 0, errors.Wrap(err, "unlock size")
+	}
+	return uint64(float32(size) * tx.FeeRate), nil
 }
