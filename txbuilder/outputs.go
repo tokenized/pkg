@@ -2,28 +2,12 @@ package txbuilder
 
 import (
 	"bytes"
-	"errors"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
-
-// OutputSupplement contains data that is not contained in a tx message, but that is needed to
-//   perform operations on the tx, like fee and change calculation.
-type OutputSupplement struct {
-	// Used when calculating fees to put remaining input value in.
-	IsRemainder bool `json:"is_remainder"`
-
-	// Used as a notification payment, but if value is added, then the previous dust amount isn't
-	//   added to the new amount.
-	IsDust bool `json:"is_dust"`
-
-	// This output was added by the fee calculation and can be removed by the fee calculation.
-	addedForFee bool
-
-	// Optional identifier for external use to track the key needed to spend.
-	KeyID string `json:"key_id,omitempty"`
-}
 
 // DustLimit calculates the dust limit
 func DustLimit(outputSize int, feeRate float32) uint64 {
@@ -46,6 +30,16 @@ func DustLimitForAddress(ra bitcoin.RawAddress, feeRate float32) uint64 {
 		PkScript: lockingScript,
 	}
 	return DustLimitForOutput(output, feeRate)
+}
+
+// OutputFeeAndDustForLockingScript returns the tx fee required to include the locking script as an
+// output in a tx and the dust limit of that output.
+func OutputFeeAndDustForLockingScript(lockingScript []byte, dustFeeRate, feeRate float32) (uint64, uint64) {
+	output := &wire.TxOut{
+		PkScript: lockingScript,
+	}
+	outputSize := output.SerializeSize()
+	return uint64(float32(outputSize) * feeRate), DustLimit(outputSize, dustFeeRate)
 }
 
 // OutputAddress returns the address that the output is paying to.
