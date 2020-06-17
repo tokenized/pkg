@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 )
@@ -75,7 +76,7 @@ func TestBasic(t *testing.T) {
 
 	// Test wrong private key
 	err = tx.Sign([]bitcoin.Key{key2})
-	if IsErrorCode(err, ErrorCodeWrongPrivateKey) {
+	if errors.Cause(err) == ErrWrongPrivateKey {
 		if err != nil {
 			t.Errorf("Failed to return wrong private key error : %s", err)
 		} else {
@@ -89,7 +90,7 @@ func TestBasic(t *testing.T) {
 	txMalformed.SetChangeAddress(address, "")
 	err = txMalformed.AddInput(wire.OutPoint{Hash: *inputTx.MsgTx.TxHash(), Index: 0},
 		append(inputTx.MsgTx.TxOut[0].PkScript, 5), uint64(inputTx.MsgTx.TxOut[0].Value))
-	if IsErrorCode(err, ErrorCodeWrongScriptTemplate) {
+	if errors.Cause(err) == ErrWrongScriptTemplate {
 		if err != nil {
 			t.Errorf("Failed to return \"Not P2PKH Script\" error : %s", err)
 		} else {

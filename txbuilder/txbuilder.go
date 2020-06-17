@@ -17,6 +17,13 @@ const (
 
 var (
 	ErrChangeAddressNeeded = errors.New("Change address needed")
+	ErrInsufficientValue   = errors.New("Insufficient Value")
+	ErrWrongPrivateKey     = errors.New("Wrong Private Key")
+	ErrMissingPrivateKey   = errors.New("Missing Private Key")
+	ErrWrongScriptTemplate = errors.New("Wrong Script Template")
+	ErrBelowDustValue      = errors.New("Below Dust Value")
+	ErrDuplicateInput      = errors.New("Duplicate Input")
+	ErrMissingInputData    = errors.New("Missing Input Data")
 )
 
 type TxBuilder struct {
@@ -75,7 +82,7 @@ func NewTxBuilderFromWire(feeRate, dustFeeRate float32, tx *wire.MsgTx,
 			}
 		}
 		if !found {
-			missingErr = newError(ErrorCodeMissingInputData, "")
+			missingErr = ErrMissingInputData
 		}
 	}
 
@@ -117,7 +124,7 @@ func NewTxBuilderFromWireUTXOs(feeRate, dustFeeRate float32, tx *wire.MsgTx,
 			}
 		}
 		if !found {
-			missingErr = newError(ErrorCodeMissingInputData, "")
+			missingErr = ErrMissingInputData
 		}
 	}
 

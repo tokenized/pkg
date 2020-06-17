@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
-	
+
 	"github.com/pkg/errors"
 )
 

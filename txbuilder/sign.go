@@ -2,11 +2,12 @@ package txbuilder
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 // InputIsSigned returns true if the input at the specified index already has a signature script.
@@ -42,7 +43,7 @@ func (tx *TxBuilder) SignP2PKHInput(index int, key bitcoin.Key, hashCache *SigHa
 	}
 
 	if address.Type() != bitcoin.ScriptTypePKH {
-		return newError(ErrorCodeWrongScriptTemplate, "Not a P2PKH locking script")
+		return errors.Wrap(ErrWrongScriptTemplate, "Not a P2PKH locking script")
 	}
 
 	hash, err := address.Hash()
@@ -50,7 +51,7 @@ func (tx *TxBuilder) SignP2PKHInput(index int, key bitcoin.Key, hashCache *SigHa
 		return err
 	}
 	if !bytes.Equal(hash.Bytes(), bitcoin.Hash160(key.PublicKey().Bytes())) {
-		return newError(ErrorCodeWrongPrivateKey, fmt.Sprintf("Required : %x", hash.Bytes()))
+		return errors.Wrap(ErrWrongPrivateKey, fmt.Sprintf("Required : %x", hash.Bytes()))
 	}
 
 	tx.MsgTx.TxIn[index].SignatureScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
@@ -77,7 +78,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 	}
 
 	if inputValue < outputValue+uint64(estimatedFee) {
-		return newError(ErrorCodeInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 			outputValue+uint64(estimatedFee)))
 	}
 
@@ -87,8 +88,8 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 	currentFee := int64(inputValue) - int64(outputValue)
 	done, err = tx.adjustFee(estimatedFee - currentFee)
 	if err != nil {
-		if IsErrorCode(err, ErrorCodeInsufficientValue) {
-			return newError(ErrorCodeInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+		if errors.Cause(err) == ErrInsufficientValue {
+			return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 				outputValue+uint64(estimatedFee)))
 		}
 		return err
@@ -129,7 +130,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 				}
 
 				if !signed {
-					return newError(ErrorCodeMissingPrivateKey, "")
+					return errors.Wrap(ErrMissingPrivateKey, "")
 				}
 
 			case bitcoin.ScriptTypePK:
@@ -156,11 +157,11 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 				}
 
 				if !signed {
-					return newError(ErrorCodeMissingPrivateKey, "")
+					return errors.Wrap(ErrMissingPrivateKey, "")
 				}
 
 			default:
-				return newError(ErrorCodeWrongScriptTemplate, "Not a P2PKH or P2PK locking script")
+				return errors.Wrap(ErrWrongScriptTemplate, "Not a P2PKH or P2PK locking script")
 			}
 		}
 
@@ -174,7 +175,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 		outputValue = tx.OutputValue(false)
 		changeValue := tx.changeSum()
 		if inputValue < outputValue+uint64(targetFee) {
-			return newError(ErrorCodeInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+			return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 				outputValue+uint64(targetFee)))
 		}
 
@@ -185,8 +186,8 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 
 		done, err = tx.adjustFee(targetFee - currentFee)
 		if err != nil {
-			if IsErrorCode(err, ErrorCodeInsufficientValue) {
-				return newError(ErrorCodeInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+			if errors.Cause(err) == ErrInsufficientValue {
+				return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 					outputValue+uint64(targetFee)))
 			}
 			return err

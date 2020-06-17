@@ -131,7 +131,7 @@ func (tx *TxBuilder) AddOutput(lockScript []byte, value uint64, isRemainder bool
 		txout.Value = dust
 	} else if value < dust && (!tx.SendMax || !isRemainder) && !isUnspendable(lockScript) {
 		// Below dust and not send max output
-		return newError(ErrorCodeBelowDustValue, "")
+		return ErrBelowDustValue
 	}
 
 	tx.Outputs = append(tx.Outputs, output)
@@ -147,7 +147,7 @@ func (tx *TxBuilder) AddValueToOutput(index uint32, value uint64) error {
 
 	if tx.Outputs[index].IsDust {
 		if value < DustLimitForOutput(tx.MsgTx.TxOut[index], tx.DustFeeRate) {
-			return newError(ErrorCodeBelowDustValue, "")
+			return ErrBelowDustValue
 		}
 		tx.Outputs[index].IsDust = false
 		tx.MsgTx.TxOut[index].Value = value

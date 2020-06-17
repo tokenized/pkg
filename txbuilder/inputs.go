@@ -32,7 +32,7 @@ func (tx *TxBuilder) AddInputUTXO(utxo bitcoin.UTXO) error {
 	for _, input := range tx.MsgTx.TxIn {
 		if input.PreviousOutPoint.Hash.Equal(&utxo.Hash) &&
 			input.PreviousOutPoint.Index == utxo.Index {
-			return newError(ErrorCodeDuplicateInput, "")
+			return errors.Wrap(ErrDuplicateInput, "")
 		}
 	}
 
@@ -60,7 +60,7 @@ func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value u
 	for _, input := range tx.MsgTx.TxIn {
 		if input.PreviousOutPoint.Hash.Equal(&outpoint.Hash) &&
 			input.PreviousOutPoint.Index == outpoint.Index {
-			return newError(ErrorCodeDuplicateInput, "")
+			return errors.Wrap(ErrDuplicateInput, "")
 		}
 	}
 
@@ -91,7 +91,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 	}
 
 	if len(utxos) == 0 {
-		return newError(ErrorCodeInsufficientValue, fmt.Sprintf("no more utxos: %d/%d",
+		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("no more utxos: %d/%d",
 			inputValue, outputValue+estFeeValue))
 	}
 
@@ -122,7 +122,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 
 	for _, utxo := range utxos {
 		if err := tx.AddInputUTXO(utxo); err != nil {
-			if IsErrorCode(err, ErrorCodeDuplicateInput) {
+			if errors.Cause(err) == ErrDuplicateInput {
 				duplicateValue += utxo.Value
 				continue
 			}
@@ -179,7 +179,8 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 		for _, input := range tx.Inputs {
 			available += input.Value
 		}
-		return newError(ErrorCodeInsufficientValue, fmt.Sprintf("%d/%d", available-duplicateValue,
+		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available-duplicateValue,
+			outputValue+tx.EstimatedFee()))
 			outputValue+tx.EstimatedFee()))
 	}
 
