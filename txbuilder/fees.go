@@ -201,7 +201,11 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 		// Decrease fee, transfer to change
 		if changeOutputIndex == 0xffffffff {
 			// Add a change output if it would be more than the dust limit
-			if uint64(-amount) > DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate) {
+			dustLimit := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
+			if dustLimit == 0 {
+				dustLimit = DustLimit(P2PKHOutputSize, tx.DustFeeRate)
+			}
+			if uint64(-amount) > dustLimit {
 				if tx.ChangeAddress.IsEmpty() {
 					return false, errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
 						uint64(-amount)))
@@ -213,6 +217,7 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 				tx.Outputs[len(tx.Outputs)-1].KeyID = tx.ChangeKeyID
 				tx.Outputs[len(tx.Outputs)-1].addedForFee = true
 			} else {
+				// Leave less than dust as additional tx fee
 				done = true
 			}
 		} else {
