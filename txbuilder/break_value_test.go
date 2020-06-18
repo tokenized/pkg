@@ -7,7 +7,7 @@ import (
 	"github.com/tokenized/pkg/bitcoin"
 )
 
-func Test_BreakChange(t *testing.T) {
+func Test_BreakValue(t *testing.T) {
 	feeRate := float32(1.0)
 	dustFeeRate := float32(1.0)
 
@@ -47,9 +47,9 @@ func Test_BreakChange(t *testing.T) {
 	breakValue := uint64(10000)
 
 	for _, changeValue := range changeValues {
-		t.Logf("Testing BreakChange %d/%d", changeValue, breakValue)
+		t.Logf("Testing BreakValue %d/%d", changeValue, breakValue)
 
-		outputs, err := BreakChange(changeValue, breakValue, changeAddresses, dustFeeRate, feeRate)
+		outputs, err := BreakValue(changeValue, breakValue, changeAddresses, dustFeeRate, feeRate)
 		if err != nil {
 			t.Fatalf("Failed to break change : %s", err)
 		}

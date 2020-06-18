@@ -12,18 +12,18 @@ var (
 	BreakIncrements = []uint64{1, 2, 5}
 )
 
-// BreakChange breaks the change value up into psuedo random values based on pre-defined increments
-// of powers of the break value.
+// BreakChange breaks the value up into psuedo random values based on pre-defined increments of
+// powers of the break value.
 // It is recommended to provide at least 5 change addresses. More addresses means more privacy, but
 // also more UTXOs and more tx fees.
 // breakValue should be a fairly low value that is the smallest UTXO you want created other than
 // the remainder.
-func BreakChange(changeValue, breakValue uint64, changeAddresses []AddressKeyID,
+func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 	dustFeeRate, feeRate float32) ([]*Output, error) {
 	// Choose random multiples of breakValue until the change is taken up.
 
 	// Find the average value to break the change into the provided addresses
-	average := 2 * (changeValue / uint64(len(changeAddresses)-1))
+	average := 2 * (value / uint64(len(changeAddresses)-1))
 
 	// Find the power to use for choosing random values
 	factor := average / breakValue
@@ -39,7 +39,7 @@ func BreakChange(changeValue, breakValue uint64, changeAddresses []AddressKeyID,
 	}
 
 	// Calculate some random values
-	remaining := changeValue
+	remaining := value
 	rand.Seed(time.Now().UnixNano())
 	result := make([]*Output, 0, len(changeAddresses))
 	nextIndex := 0
@@ -63,28 +63,30 @@ func BreakChange(changeValue, breakValue uint64, changeAddresses []AddressKeyID,
 		}
 
 		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
-		value := breakValue * inc
+		outputValue := breakValue * inc
 		switch rand.Intn(exponent) {
 		case 0: // *= 1
 		case 1:
-			value *= 10
+			outputValue *= 10
 		case 2:
-			value *= 100
+			outputValue *= 100
 		case 3:
-			value *= 1000
+			outputValue *= 1000
 		}
 
-		value = value - (value / 10) + uint64(rand.Int63n(int64(value/5)))
-
-		if value > remaining {
-			value = remaining
+		if rand.Intn(2) == 1 {
+			outputValue = outputValue - (outputValue / 10) + uint64(rand.Int63n(int64(outputValue/5)))
 		}
 
-		remaining -= value
+		if outputValue > remaining {
+			outputValue = remaining
+		}
+
+		remaining -= outputValue
 
 		result = append(result, &Output{
 			TxOut: wire.TxOut{
-				Value:    value,
+				Value:    outputValue,
 				PkScript: lockingScript,
 			},
 			Supplement: OutputSupplement{
@@ -128,4 +130,11 @@ func BreakChange(changeValue, breakValue uint64, changeAddresses []AddressKeyID,
 	})
 
 	return result, nil
+}
+
+func (tx *TxBuilder) AddOutputs(outputs []*Output) {
+	for _, output := range outputs {
+		tx.MsgTx.AddTxOut(&output.TxOut)
+		tx.Outputs = append(tx.Outputs, &output.Supplement)
+	}
 }

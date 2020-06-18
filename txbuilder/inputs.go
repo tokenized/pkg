@@ -268,16 +268,13 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 				return errors.New("Missing remainder that was previously there!")
 			} else {
 				// Break change between supplied addresses.
-				outputs, err := BreakChange(changeValue, breakValue, changeAddresses,
+				outputs, err := BreakValue(changeValue, breakValue, changeAddresses,
 					tx.DustFeeRate, tx.FeeRate)
 				if err != nil {
 					return errors.Wrap(err, "break change")
 				}
 
-				for _, output := range outputs {
-					tx.MsgTx.AddTxOut(&output.TxOut)
-					tx.Outputs = append(tx.Outputs, &output.Supplement)
-				}
+				tx.AddOutputs(outputs)
 			}
 
 			return nil
