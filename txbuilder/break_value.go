@@ -132,9 +132,59 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 	return result, nil
 }
 
+// AddOutputs appends the specified outputs to the tx.
 func (tx *TxBuilder) AddOutputs(outputs []*Output) {
 	for _, output := range outputs {
 		tx.MsgTx.AddTxOut(&output.TxOut)
 		tx.Outputs = append(tx.Outputs, &output.Supplement)
+	}
+}
+
+// RandomizeOutputs randomly sorts the outputs of the tx. Be careful not to do this on txs that
+// depend on outputs being at a specific index.
+func (tx *TxBuilder) RandomizeOutputs() {
+	outputs := make([]*Output, len(tx.MsgTx.TxOut))
+	for i, txout := range tx.MsgTx.TxOut {
+		outputs[i] = &Output{
+			TxOut:      *txout,
+			Supplement: *tx.Outputs[i],
+		}
+	}
+
+	rand.Shuffle(len(outputs), func(i, j int) {
+		outputs[i], outputs[j] = outputs[j], outputs[i]
+	})
+
+	tx.MsgTx.TxOut = make([]*wire.TxOut, len(outputs))
+	tx.Outputs = make([]*OutputSupplement, len(outputs))
+	for i, _ := range outputs {
+		tx.MsgTx.TxOut[i] = &outputs[i].TxOut
+		tx.Outputs[i] = &outputs[i].Supplement
+	}
+}
+
+// RandomizeOutputsAfter randomly sorts only the outputs of the tx after the specified index. For
+// example an index of zero will leave the first output in place. Be careful not to do this on txs
+// that depend on outputs being at a specific index.
+func (tx *TxBuilder) RandomizeOutputsAfter(index int) {
+	randLength := len(tx.MsgTx.TxOut) - (index + 1)
+	randOutputs := make([]*Output, randLength)
+	for i, txout := range tx.MsgTx.TxOut[index+1:] {
+		randOutputs[i] = &Output{
+			TxOut:      *txout,
+			Supplement: *tx.Outputs[i],
+		}
+	}
+
+	tx.MsgTx.TxOut = tx.MsgTx.TxOut[:index+1]
+	tx.Outputs = tx.Outputs[:index+1]
+
+	rand.Shuffle(randLength, func(i, j int) {
+		randOutputs[i], randOutputs[j] = randOutputs[j], randOutputs[i]
+	})
+
+	for i, _ := range randOutputs {
+		tx.MsgTx.TxOut = append(tx.MsgTx.TxOut, &randOutputs[i].TxOut)
+		tx.Outputs = append(tx.Outputs, &randOutputs[i].Supplement)
 	}
 }

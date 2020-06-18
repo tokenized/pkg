@@ -1,10 +1,12 @@
 package txbuilder
 
 import (
+	"bytes"
 	"math/rand"
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/wire"
 )
 
 func Test_BreakValue(t *testing.T) {
@@ -293,5 +295,111 @@ func Test_AddFundingBreakChange(t *testing.T) {
 			}
 		}
 
+	}
+}
+
+func Test_RandomizeOutputs(t *testing.T) {
+	for j := 0; j < 20; j++ {
+		tx := NewTxBuilder(1.0, 1.0)
+
+		for i := 0; i < rand.Intn(10)+1; i++ {
+			key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+			if err != nil {
+				t.Fatalf("Failed to generate key : %s", err)
+			}
+
+			ra, err := key.RawAddress()
+			if err != nil {
+				t.Fatalf("Failed to create raw address : %s", err)
+			}
+
+			if err := tx.AddPaymentOutput(ra, uint64(rand.Intn(20000)+1000), false); err != nil {
+				t.Fatalf("Failed to add payment output : %s", err)
+			}
+		}
+
+		t.Logf("Original Tx : \n%s\n", tx.MsgTx.StringWithAddresses(bitcoin.MainNet))
+
+		txouts := make([]*wire.TxOut, len(tx.MsgTx.TxOut))
+		for i, txout := range tx.MsgTx.TxOut {
+			newTxOut := *txout
+			txouts[i] = &newTxOut
+		}
+
+		tx.RandomizeOutputs()
+
+		t.Logf("Random Tx : \n%s\n", tx.MsgTx.StringWithAddresses(bitcoin.MainNet))
+
+		for _, txout := range txouts {
+			found := false
+			for _, to := range tx.MsgTx.TxOut {
+				if to.Value == txout.Value && bytes.Equal(to.PkScript, txout.PkScript) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("Output not found : %d %x", txout.Value, txout.PkScript)
+			}
+		}
+	}
+}
+
+func Test_RandomizeOutputsAfter(t *testing.T) {
+	for j := 0; j < 20; j++ {
+		tx := NewTxBuilder(1.0, 1.0)
+
+		for i := 0; i < rand.Intn(10)+1; i++ {
+			key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+			if err != nil {
+				t.Fatalf("Failed to generate key : %s", err)
+			}
+
+			ra, err := key.RawAddress()
+			if err != nil {
+				t.Fatalf("Failed to create raw address : %s", err)
+			}
+
+			if err := tx.AddPaymentOutput(ra, uint64(rand.Intn(20000)+1000), false); err != nil {
+				t.Fatalf("Failed to add payment output : %s", err)
+			}
+		}
+
+		t.Logf("Original Tx : \n%s\n", tx.MsgTx.StringWithAddresses(bitcoin.MainNet))
+
+		txouts := make([]*wire.TxOut, len(tx.MsgTx.TxOut))
+		for i, txout := range tx.MsgTx.TxOut {
+			newTxOut := *txout
+			txouts[i] = &newTxOut
+		}
+
+		after := rand.Intn(len(txouts))
+		t.Logf("Randomizing outputs after %d", after)
+		tx.RandomizeOutputsAfter(after)
+
+		t.Logf("Random Tx : \n%s\n", tx.MsgTx.StringWithAddresses(bitcoin.MainNet))
+
+		for i, txout := range txouts {
+			if i <= after {
+				if tx.MsgTx.TxOut[i].Value != txout.Value ||
+					!bytes.Equal(tx.MsgTx.TxOut[i].PkScript, txout.PkScript) {
+					t.Fatalf("Unmoved output %d not matching : %d %x", i, txout.Value, txout.PkScript)
+				}
+				continue
+			}
+
+			found := false
+			for _, to := range tx.MsgTx.TxOut {
+				if to.Value == txout.Value && bytes.Equal(to.PkScript, txout.PkScript) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("Output not found : %d %x", txout.Value, txout.PkScript)
+			}
+		}
 	}
 }
