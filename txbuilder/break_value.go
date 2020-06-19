@@ -12,7 +12,7 @@ var (
 	BreakIncrements = []uint64{1, 2, 5}
 )
 
-// BreakChange breaks the value up into psuedo random values based on pre-defined increments of
+// BreakValue breaks the value up into psuedo random values based on pre-defined increments of
 // powers of the break value.
 // It is recommended to provide at least 5 change addresses. More addresses means more privacy, but
 // also more UTXOs and more tx fees.
@@ -20,9 +20,9 @@ var (
 // the remainder.
 func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 	dustFeeRate, feeRate float32) ([]*Output, error) {
-	// Choose random multiples of breakValue until the change is taken up.
+	// Choose random multiples of breakValue until the value is taken up.
 
-	// Find the average value to break the change into the provided addresses
+	// Find the average value to break the value into the provided addresses
 	average := 2 * (value / uint64(len(changeAddresses)-1))
 
 	// Find the power to use for choosing random values
@@ -59,7 +59,7 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 
 		if remaining <= dustLimit || remaining < breakValue {
 			remaining += outputFee
-			break // remaining amount is less than dust required to include next change address
+			break // remaining amount is less than dust required to include next address
 		}
 
 		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
