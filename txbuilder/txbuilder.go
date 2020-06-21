@@ -16,14 +16,30 @@ const (
 )
 
 var (
+	// ErrChangeAddressNeeded means that a change address is needed to complete the tx.
 	ErrChangeAddressNeeded = errors.New("Change address needed")
-	ErrInsufficientValue   = errors.New("Insufficient Value")
-	ErrWrongPrivateKey     = errors.New("Wrong Private Key")
-	ErrMissingPrivateKey   = errors.New("Missing Private Key")
+
+	// ErrInsufficientValue means that there is not enough bitcoin input to complete the tx.
+	ErrInsufficientValue = errors.New("Insufficient Value")
+
+	// ErrWrongPrivateKey means that the private key doesn't match the script it is being applied to.
+	ErrWrongPrivateKey = errors.New("Wrong Private Key")
+
+	// ErrMissingPrivateKey means that the required private key was not provided.
+	ErrMissingPrivateKey = errors.New("Missing Private Key")
+
+	// ErrWrongScriptTemplate means that the script template is not supported here.
 	ErrWrongScriptTemplate = errors.New("Wrong Script Template")
-	ErrBelowDustValue      = errors.New("Below Dust Value")
-	ErrDuplicateInput      = errors.New("Duplicate Input")
-	ErrMissingInputData    = errors.New("Missing Input Data")
+
+	// ErrBelowDustValue means that a value provided for an output is below the dust limit and not
+	// valid for the network.
+	ErrBelowDustValue = errors.New("Below Dust Value")
+
+	// ErrDuplicateInput means that the same UTXO is attempting to be spent more than once in the tx.
+	ErrDuplicateInput = errors.New("Duplicate Input")
+
+	// ErrMissingInputData means that data required to include an input in a tx was not provided.
+	ErrMissingInputData = errors.New("Missing Input Data")
 )
 
 type TxBuilder struct {
@@ -35,7 +51,7 @@ type TxBuilder struct {
 	SendMax       bool                // When set, AddFunding will add all UTXOs given
 
 	// The fee rate used by miners to calculate dust. It is currently maintained as a different rate
-	//   than min accept and min propagate. Currently 1.0
+	// than min accept and min propagate. Currently 1.0
 	DustFeeRate float32
 
 	// Optional identifier for external use to track the key needed to spend change

@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	// MaximumP2PKHInputSize is the maximum serialized size of a P2PKH tx input based on all of the
+	// variable sized data.
 	// P2PKH/P2SH input size 149
 	//   Previous Transaction ID = 32 bytes
 	//   Previous Transaction Output Index = 4 bytes
@@ -24,6 +26,8 @@ const (
 	//   Sequence number = 4
 	MaximumP2PKHInputSize = 32 + 4 + 1 + 74 + 34 + 4
 
+	// MaximumP2RPHInputSize is the maximum serialized size of a P2RPH tx input based on all of the
+	// variable sized data.
 	// P2PKH/P2SH/P2RPH input size 149
 	//   Previous Transaction ID = 32 bytes
 	//   Previous Transaction Output Index = 4 bytes
@@ -38,6 +42,8 @@ const (
 	//   Sequence number = 4
 	MaximumP2RPHInputSize = 32 + 4 + 1 + 34 + 74 + 4
 
+	// MaximumP2PKInputSize is the maximium serialized size of a P2PK tx input based on all of the
+	// variable sized data.
 	// P2PK input size 115
 	//   Previous Transaction ID = 32 bytes
 	//   Previous Transaction Output Index = 4 bytes
@@ -49,9 +55,10 @@ const (
 	//   Sequence number = 4
 	MaximumP2PKInputSize = 32 + 4 + 1 + 74 + 4
 
-	// Size of output not including script
+	// OutputBaseSize is the size of a tx output not including script
 	OutputBaseSize = 8
 
+	// P2PKHOutputSize is the serialized size of a P2PKH tx output.
 	// P2PKH/P2SH output size 34
 	//   amount = 8 bytes
 	//   script size = 1 byte
@@ -59,6 +66,7 @@ const (
 	//     OP_CHECKSIG
 	P2PKHOutputSize = OutputBaseSize + 26
 
+	// P2PKOutputSize is the serialized size of a P2PK tx output.
 	// P2PK output size 44
 	//   amount = 8 bytes
 	//   script = 36
@@ -74,7 +82,7 @@ const (
 	//   locking scripts.
 	DustInputSize = 148
 
-	// BaseTxFee is the size of the tx not included in inputs and outputs.
+	// BaseTxSize is the size of the tx not included in inputs and outputs.
 	//   Version = 4 bytes
 	//   LockTime = 4 bytes
 	BaseTxSize = 8
@@ -201,8 +209,8 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 		// Decrease fee, transfer to change
 		if changeOutputIndex == 0xffffffff {
 			// Add a change output if it would be more than the dust limit
-			dustLimit := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
-			if dustLimit == 0 {
+			dustLimit, err := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
+			if err != nil {
 				dustLimit = DustLimit(P2PKHOutputSize, tx.DustFeeRate)
 			}
 			if uint64(-amount) > dustLimit {

@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	// BreakIncrements are the base values used to generate random output values.
 	BreakIncrements = []uint64{1, 2, 5}
 )
 

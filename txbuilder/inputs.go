@@ -111,7 +111,10 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 		if err != nil {
 			return errors.Wrap(err, "address output fee")
 		}
-		changeDustLimit = DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
+		addressChangeDustLimit, err := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
+		if err == nil {
+			changeDustLimit = addressChangeDustLimit
+		}
 	}
 	if changeDustLimit == 0 {
 		// Use P2PKH dust limit
@@ -286,16 +289,14 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 	if tx.SendMax {
 		return tx.CalculateFee()
-	} else {
-		available := uint64(0)
-		for _, input := range tx.Inputs {
-			available += input.Value
-		}
-		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available-duplicateValue,
-			outputValue+tx.EstimatedFee()))
 	}
 
-	return nil
+	available := uint64(0)
+	for _, input := range tx.Inputs {
+		available += input.Value
+	}
+	return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available-duplicateValue,
+		outputValue+tx.EstimatedFee()))
 }
 
 // utxoFee calculates the tx fee for the input to spend the UTXO.

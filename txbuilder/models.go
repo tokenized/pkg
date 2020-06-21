@@ -14,6 +14,7 @@ type InputSupplement struct {
 	KeyID string `json:"key_id,omitempty"`
 }
 
+// AddressKeyID is an address and a key ID.
 type AddressKeyID struct {
 	Address bitcoin.RawAddress
 	KeyID   string
@@ -36,6 +37,7 @@ type OutputSupplement struct {
 	KeyID string `json:"key_id,omitempty"`
 }
 
+// Output is all of the data required for a txbuilder output.
 type Output struct {
 	wire.TxOut
 	Supplement OutputSupplement
