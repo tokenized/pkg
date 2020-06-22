@@ -301,7 +301,7 @@ func (msg *MsgTx) TxHash() *bitcoin.Hash32 {
 }
 
 func (msg *MsgTx) String() string {
-	result := fmt.Sprintf("TxId: %s\n", msg.TxHash().String())
+	result := fmt.Sprintf("TxId: %s (%d bytes)\n", msg.TxHash().String(), msg.SerializeSize())
 	result += fmt.Sprintf("  Version: %d\n", msg.Version)
 	result += "  Inputs:\n\n"
 	for _, input := range msg.TxIn {

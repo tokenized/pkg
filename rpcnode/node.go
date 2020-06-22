@@ -34,6 +34,17 @@ const (
 	SubSystem = "RPCNode"
 )
 
+var (
+	// ErrNotSeen means tha the tx is not known to the node and can't be returned. This can happen
+	// if the tx was just sent and hasn't propagated yet, or if it didn't propagate at all.
+	// Possibly because of the mempool tx chain limit or because it is invalid.
+	ErrNotSeen = errors.New("No such mempool or blockchain transaction")
+
+	// ErrMissingInputs means that an input's outpoint has already been spent (double spend) or is
+	// not known yet.
+	ErrMissingInputs = errors.New("Inputs not in UTXO set")
+)
+
 type RPCNode struct {
 	client  *rpcclient.Client
 	txCache map[bitcoin.Hash32]*wire.MsgTx
@@ -69,19 +80,24 @@ func NewNode(config *Config) (*RPCNode, error) {
 	return n, nil
 }
 
-// IsNotSeenError returns true if the error is because a transaction is not known to the RPC node.
-// TODO Determine when error is tx not seen yet --ce
-// -5: No such mempool or blockchain transaction. Use gettransaction for wallet transactions.
-// -5 = RPC_INVALID_ADDRESS_OR_KEY, which is returned when tx is not found
+// ConvertError determines if the error is a known RPC type and converts it to the local error type.
 // Should be formatted as JSON at other end
 //   {"code": -5, "message": "No such mempool or blockchain transaction. Use gettransaction for wallet transactions."}
-func IsNotSeenError(err error) bool {
+func ConvertError(err error) error {
 	c := errors.Cause(err)
 	jsonErr, ok := c.(*btcjson.Error)
 	if !ok {
-		return false
+		return err
 	}
-	return jsonErr.ErrorCode == -5 // RPC_INVALID_ADDRESS_OR_KEY (tx not seen)
+
+	switch jsonErr.ErrorCode {
+	case -5:
+		return ErrNotSeen
+	case -25:
+		return ErrMissingInputs
+	default:
+		return err
+	}
 }
 
 // GetTX requests a tx from the remote server.
@@ -109,7 +125,8 @@ func (r *RPCNode) GetTX(ctx context.Context, id *bitcoin.Hash32) (*wire.MsgTx, e
 			break
 		}
 
-		if IsNotSeenError(err) {
+		err = errors.Wrap(ConvertError(err), id.String())
+		if errors.Cause(err) == ErrNotSeen {
 			logger.Error(ctx, "RPCTxNotSeenYet GetTxs receive tx %s : %v", id.String(), err)
 		} else {
 			logger.Error(ctx, "RPCCallFailed GetTx %s : %v", id.String(), err)
@@ -180,11 +197,12 @@ func (r *RPCNode) GetTXs(ctx context.Context, txids []*bitcoin.Hash32) ([]*wire.
 
 			rawTx, err := request.Receive()
 			if err != nil {
+				err = errors.Wrap(ConvertError(err), txids[i].String())
 				lastError = err
-				if IsNotSeenError(err) {
-					logger.Error(ctx, "RPCTxNotSeenYet GetTxs receive tx %s : %v", txids[i].String(), err)
+				if errors.Cause(err) == ErrNotSeen {
+					logger.Error(ctx, "RPCTxNotSeenYet GetTxs receive tx : %s", err)
 				} else {
-					logger.Error(ctx, "RPCCallFailed GetTxs receive tx %s : %v", txids[i].String(), err)
+					logger.Error(ctx, "RPCCallFailed GetTxs receive tx : %s", err)
 				}
 				continue
 			}
@@ -269,13 +287,12 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 
 			rawTx, err := request.Receive()
 			if err != nil {
+				err = errors.Wrap(ConvertError(err), outpoints[i].Hash.String())
 				lastError = err
-				if IsNotSeenError(err) {
-					logger.Error(ctx, "RPCTxNotSeenYet GetRawTx receive tx %s : %v",
-						outpoints[i].Hash.String(), err)
+				if errors.Cause(err) == ErrNotSeen {
+					logger.Error(ctx, "RPCTxNotSeenYet GetRawTx receive tx : %s", err)
 				} else {
-					logger.Error(ctx, "RPCCallFailed GetRawTx receive tx %s : %v",
-						outpoints[i].Hash.String(), err)
+					logger.Error(ctx, "RPCCallFailed GetRawTx receive tx : %s", err)
 				}
 				continue
 			}
@@ -463,7 +480,8 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 
 		_, err = r.client.SendRawTransaction(nx, false)
 		if err != nil {
-			logger.Error(ctx, "RPCCallFailed SendRawTransaction %s : %v", tx.TxHash().String(), err)
+			err = errors.Wrap(ConvertError(err), tx.TxHash().String())
+			logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
 			continue
 		}
 
@@ -471,8 +489,8 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 	}
 
 	if err != nil {
-		logger.Error(ctx, "RPCCallAborted SendRawTransaction %s : %v", tx.TxHash().String(), err)
-		return errors.Wrap(err, fmt.Sprintf("Failed to SendRawTransaction %s", tx.TxHash().String()))
+		logger.Error(ctx, "RPCCallAborted SendRawTransaction : %s", err)
+		return err
 	}
 
 	return nil
@@ -511,7 +529,8 @@ func (r *RPCNode) SendTX(ctx context.Context, tx *wire.MsgTx) (*bitcoin.Hash32, 
 
 		hash, err = r.client.SendRawTransaction(nx, false)
 		if err != nil {
-			logger.Error(ctx, "RPCCallFailed SendTX %s : %v", tx.TxHash().String(), err)
+			err = errors.Wrap(ConvertError(err), tx.TxHash().String())
+			logger.Error(ctx, "RPCCallFailed SendTX : %s", err)
 			continue
 		}
 
@@ -519,9 +538,8 @@ func (r *RPCNode) SendTX(ctx context.Context, tx *wire.MsgTx) (*bitcoin.Hash32, 
 	}
 
 	if err != nil {
-		logger.Error(ctx, "RPCCallAborted SendTX %s : %v", tx.TxHash().String(), err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to SendRawTransaction %s",
-			tx.TxHash().String()))
+		logger.Error(ctx, "RPCCallAborted SendTX : %s", err)
+		return nil, err
 	}
 
 	return bitcoin.NewHash32(hash[:])
