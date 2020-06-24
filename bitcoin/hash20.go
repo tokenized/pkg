@@ -82,8 +82,8 @@ func (h Hash20) Serialize(w io.Writer) error {
 	return err
 }
 
-func (h *Hash20) Deserialize(buf *bytes.Reader) error {
-	if _, err := buf.Read(h[:]); err != nil {
+func (h *Hash20) Deserialize(r io.Reader) error {
+	if _, err := r.Read(h[:]); err != nil {
 		return err
 	}
 	return nil
