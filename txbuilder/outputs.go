@@ -42,6 +42,17 @@ func OutputFeeAndDustForLockingScript(lockingScript []byte, dustFeeRate, feeRate
 	return uint64(float32(outputSize) * feeRate), DustLimit(outputSize, dustFeeRate)
 }
 
+// OutputFeeAndDustForAddress returns the tx fee required to include the address as an output in a
+// tx and the dust limit of that output.
+func OutputFeeAndDustForAddress(ra bitcoin.RawAddress, dustFeeRate, feeRate float32) (uint64, uint64, error) {
+	lockingScript, err := ra.LockingScript()
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "address locking script")
+	}
+	f, d := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate, feeRate)
+	return f, d, nil
+}
+
 // OutputAddress returns the address that the output is paying to.
 func (tx *TxBuilder) OutputAddress(index int) (bitcoin.RawAddress, error) {
 	if index >= len(tx.MsgTx.TxOut) {

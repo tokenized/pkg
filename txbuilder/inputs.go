@@ -201,24 +201,6 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint64,
 	changeAddresses []AddressKeyID) error {
 
-	inputValue := tx.InputValue()
-	outputValue := tx.OutputValue(true)
-	estFeeValue := tx.EstimatedFee()
-
-	if !tx.SendMax && inputValue > outputValue && inputValue-outputValue >= estFeeValue {
-		return tx.CalculateFee() // Already funded
-	}
-
-	if len(utxos) == 0 {
-		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("no more utxos: %d/%d",
-			inputValue, outputValue+estFeeValue))
-	}
-
-	// Calculate additional funding needed. Include cost of first added input.
-	// TODO Add support for input scripts other than P2PKH.
-	neededFunding := estFeeValue + outputValue - inputValue
-	duplicateValue := uint64(0)
-
 	// Calculate the dust limit used when determining if a change output will be added
 	remainderIncluded := false
 	var remainderDustLimit uint64
@@ -235,6 +217,41 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		}
 		break
 	}
+
+	inputValue := tx.InputValue()
+	outputValue := tx.OutputValue(true)
+	estFeeValue := tx.EstimatedFee()
+
+	changeFee, _, err := OutputFeeAndDustForAddress(changeAddresses[0].Address,
+		tx.DustFeeRate, tx.FeeRate)
+	if err != nil {
+		return errors.Wrap(err, "change address fee")
+	}
+
+	// Check if tx is already funded.
+	if !tx.SendMax && inputValue > outputValue && inputValue-outputValue >= estFeeValue {
+		if !remainderIncluded {
+			// Ensure added change output is funded
+			if inputValue-outputValue >= estFeeValue+changeFee {
+				if err := tx.SetChangeAddress(changeAddresses[0].Address, changeAddresses[0].KeyID); err != nil {
+					return errors.Wrap(err, "set change address")
+				}
+				return tx.CalculateFee() // Already funded
+			}
+		} else {
+			return tx.CalculateFee() // Already funded
+		}
+	}
+
+	if len(utxos) == 0 {
+		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("no more utxos: %d/%d",
+			inputValue, outputValue+estFeeValue))
+	}
+
+	// Calculate additional funding needed. Include cost of first added input.
+	// TODO Add support for input scripts other than P2PKH.
+	neededFunding := estFeeValue + outputValue - inputValue
+	duplicateValue := uint64(0)
 
 	for _, utxo := range utxos {
 		if err := tx.AddInputUTXO(utxo); err != nil {

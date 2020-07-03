@@ -208,17 +208,20 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	} else {
 		// Decrease fee, transfer to change
 		if changeOutputIndex == 0xffffffff {
-			// Add a change output if it would be more than the dust limit
-			dustLimit, err := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
+			// Add a change output if it would be more than the dust limit plus the fee to add the
+			// output
+			changeFee, dustLimit, err := OutputFeeAndDustForAddress(tx.ChangeAddress,
+				tx.DustFeeRate, tx.FeeRate)
 			if err != nil {
+				changeFee = uint64(float32(P2PKHOutputSize) * tx.FeeRate)
 				dustLimit = DustLimit(P2PKHOutputSize, tx.DustFeeRate)
 			}
-			if uint64(-amount) > dustLimit {
+			if uint64(-amount) > dustLimit+changeFee {
 				if tx.ChangeAddress.IsEmpty() {
 					return false, errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
 						uint64(-amount)))
 				}
-				err := tx.AddPaymentOutput(tx.ChangeAddress, uint64(-amount), true)
+				err := tx.AddPaymentOutput(tx.ChangeAddress, uint64(-amount)-changeFee, true)
 				if err != nil {
 					return false, err
 				}
