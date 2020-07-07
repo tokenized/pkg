@@ -28,6 +28,9 @@ func NewDevelopmentLogger() (*SystemConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Turn off stack trace logging for Warn level entries.
+	l = l.WithOptions(zap.AddStacktrace(zapcore.ErrorLevel))
 	return &SystemConfig{l}, nil
 }
 
