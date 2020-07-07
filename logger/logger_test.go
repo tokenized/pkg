@@ -20,6 +20,7 @@ func TestLogger(test *testing.T) {
 		ctx := ContextWithLogConfig(context.Background(), logConfig)
 
 		Log(ctx, LevelInfo, "First main entry")
+		Log(ctx, LevelInfo, "First main entry with value : %d", 101)
 
 		showCtx := ContextWithLogSubSystem(ctx, showsystem)
 		Log(showCtx, LevelInfo, "First Sub entry")

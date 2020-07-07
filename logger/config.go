@@ -1,31 +1,17 @@
 package logger
 
 import (
-	"os"
 	"sync"
 )
 
 // Config defines the logging configuration for the context it is attached to.
 type Config struct {
+	Active             *SystemConfig
 	Main               *SystemConfig
 	IncludedSubSystems map[string]bool          // If true, log in main log
-	SubSystems         map[string]*SystemConfig // SubSystem specific configs
-	IsText             bool                     // If true, log is in plain text, otherwise it is JSON
-	mutex              sync.Mutex
-}
+	SubSystems         map[string]*SystemConfig // SubSystem specific loggers
 
-var DefaultConfig = Config{
-	Main: &SystemConfig{
-		Output:   os.Stdout,
-		MinLevel: LevelInfo,
-		Format:   IncludeDate | IncludeTime | IncludeFile | IncludeLevel,
-	},
-}
-
-var emptyConfig = Config{
-	Main: &SystemConfig{
-		Output: nil,
-	},
+	lock sync.Mutex
 }
 
 // Creates a new config with default production values.
@@ -36,7 +22,8 @@ func NewProductionConfig() *Config {
 		SubSystems:         make(map[string]*SystemConfig),
 	}
 
-	result.Main = NewProductionSystemConfig()
+	result.Main, _ = NewProductionLogger()
+	result.Active = result.Main
 	return &result
 }
 
@@ -48,14 +35,28 @@ func NewDevelopmentConfig() *Config {
 		SubSystems:         make(map[string]*SystemConfig),
 	}
 
-	result.Main = NewDevelopmentSystemConfig()
+	result.Main, _ = NewDevelopmentLogger()
+	result.Active = result.Main
+	return &result
+}
+
+// Creates a new config that doesn't log.
+//   Logs info level and above to stderr.
+func NewEmptyConfig() *Config {
+	result := Config{
+		IncludedSubSystems: make(map[string]bool),
+		SubSystems:         make(map[string]*SystemConfig),
+	}
+
+	result.Main, _ = NewEmptyLogger()
+	result.Active = result.Main
 	return &result
 }
 
 // Enables a subsytem to log to the main log
 func (config *Config) EnableSubSystem(subsystem string) {
-	config.mutex.Lock()
-	defer config.mutex.Unlock()
+	config.lock.Lock()
+	defer config.lock.Unlock()
 
 	config.IncludedSubSystems[subsystem] = true
 }

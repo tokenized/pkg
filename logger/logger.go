@@ -2,7 +2,9 @@ package logger
 
 import (
 	"context"
-	"errors"
+	"fmt"
+
+	"go.uber.org/zap"
 )
 
 // Logger allows you to control logging with message levels and subsystem controls.
@@ -24,6 +26,13 @@ import (
 // // Attach the log config to the context.
 // ctx := logger.ContextWithLogConfig(context.Background(), logConfig)
 //
+
+// Keys for context key/pairs
+type loggerkey int
+
+const (
+	key loggerkey = 1
+)
 
 type Level int
 
@@ -47,39 +56,110 @@ const (
 	IncludeLevel  = 0x20 // level of log entry
 )
 
-// Returns a context with the logging config attached.
+// ContextWithLogConfig returns a context with the specified logging config attached.
 func ContextWithLogConfig(ctx context.Context, config *Config) context.Context {
-	return context.WithValue(ctx, configKey, config)
+	return context.WithValue(ctx, key, config)
 }
 
+// ContextWithNoLogger returns a context with no logging
 func ContextWithNoLogger(ctx context.Context) context.Context {
-	return context.WithValue(ctx, configKey, &emptyConfig)
+	return context.WithValue(ctx, key, NewEmptyConfig())
 }
 
-// Returns a context with the logging subsystem attached.
+// ContextWithLogSubSystem returns a context with the logging subsystem attached.
 func ContextWithLogSubSystem(ctx context.Context, subsystem string) context.Context {
-	return context.WithValue(ctx, subSystemKey, subsystem)
+	configValue := ctx.Value(key)
+	if configValue == nil {
+		return context.WithValue(ctx, key, NewEmptyConfig())
+	}
+
+	config, ok := configValue.(*Config)
+	if !ok {
+		return context.WithValue(ctx, key, NewEmptyConfig())
+	}
+
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	include, includeExists := config.IncludedSubSystems[subsystem]
+	if !includeExists || !include {
+		// Empty logger for this subsystem, but leave the rest of the configuration so it can pop
+		// back up to the main config if it calls through to ContextWithOutLogSubSystem.
+		config.Active, _ = NewEmptyLogger()
+		return context.WithValue(ctx, key, config)
+	}
+
+	// Log to subsystem specific config
+	subConfig, subExists := config.SubSystems[subsystem]
+	if subExists {
+		config.Active = subConfig
+	}
+
+	config.Active.logger = config.Active.logger.Named(subsystem)
+	return context.WithValue(ctx, key, config)
 }
 
-// Returns a context with the logging subsystem cleared. Used when a context is passed back from a
-//   subsystem.
+// ContextWithOutLogSubSystem returns a context with the logging subsystem cleared. Used when a
+// context is passed back from a subsystem.
 func ContextWithOutLogSubSystem(ctx context.Context) context.Context {
-	return context.WithValue(ctx, subSystemKey, nil)
+	configValue := ctx.Value(key)
+	if configValue == nil {
+		// Config not specified. Use default config.
+		return context.WithValue(ctx, key, NewProductionConfig())
+	}
+
+	config, ok := configValue.(*Config)
+	if !ok {
+		// Config invalid. Use default config.
+		return context.WithValue(ctx, key, NewProductionConfig())
+	}
+
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	config.Active = config.Main
+	return context.WithValue(ctx, key, config)
 }
 
-// Returns a context with the logging subsystem cleared. Used when a context is passed back from a
-//   subsystem.
+// ContextWithLogTrace returns a context with the logging subsystem cleared. Used when a context is
+// passed back from a subsystem.
 func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
-	return context.WithValue(ctx, traceKey, trace)
+	config := NewProductionConfig()
+
+	configValue := ctx.Value(key)
+	if configValue != nil {
+		contextConfig, ok := configValue.(*Config)
+		if ok {
+			config = contextConfig
+		}
+	}
+
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	config.Active.logger = config.Active.logger.With(zap.String("trace", trace))
+	return context.WithValue(ctx, key, config)
 }
 
-// Log an entry to the main Outputs if:
-//   There is no subsystem specified or if the current subsystem is included in the attached
-//     Config.IncludedSubSystems.
-//   And the level is equal to or above the specified minimum logging level.
-// Logs to the Config.SubSystems if the level is above minimum.
-func Log(ctx context.Context, level Level, format string, values ...interface{}) error {
-	return LogDepth(ctx, level, 1, format, values...)
+func GetLogger(ctx context.Context) *zap.Logger {
+	configValue := ctx.Value(key)
+	if configValue == nil {
+		// Config not specified. Use default config.
+		sc, _ := NewProductionLogger()
+		return sc.logger
+	}
+
+	config, ok := configValue.(*Config)
+	if !ok {
+		// Config invalid. Use default config.
+		sc, _ := NewProductionLogger()
+		return sc.logger
+	}
+
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	return config.Active.logger
 }
 
 // Debug adds a debug level entry to the log.
@@ -117,84 +197,43 @@ func Panic(ctx context.Context, format string, values ...interface{}) error {
 	return LogDepth(ctx, LevelPanic, 1, format, values...)
 }
 
-func getTrace(ctx context.Context) string {
-	traceValue := ctx.Value(traceKey)
-	if traceValue == nil {
-		return ""
-	}
-
-	trace, ok := traceValue.(string)
-	if !ok {
-		return ""
-	}
-
-	return trace
+// Log an entry to the main Outputs if:
+//   There is no subsystem specified or if the current subsystem is included in the attached
+//     Config.IncludedSubSystems.
+//   And the level is equal to or above the specified minimum logging level.
+// Logs to the Config.SubSystems if the level is above minimum.
+func Log(ctx context.Context, level Level, format string, values ...interface{}) error {
+	return LogDepth(ctx, level, 1, format, values...)
 }
 
-// Same as Log, but the number of levels above the current call in the stack from which to get the
-//   file name/line of code can be specified as depth.
+// LogDepth is the same as Log, but the number of levels above the current call in the stack from
+// which to get the file name/line of code can be specified as depth.
 func LogDepth(ctx context.Context, level Level, depth int, format string, values ...interface{}) error {
-	configValue := ctx.Value(configKey)
-	if configValue == nil {
-		// Config not specified. Use default config.
-		configValue = &DefaultConfig
-	}
+	l := GetLogger(ctx).WithOptions(zap.AddCallerSkip(depth + 1)).Sugar()
 
-	config, ok := configValue.(*Config)
-	if !ok {
-		return errors.New("Invalid Config Type")
-	}
-
-	if config == &emptyConfig {
+	switch level {
+	case LevelDebug:
+		l.Debugf(format, values...)
+		return nil
+	case LevelVerbose:
+		l.Debugf(format, values...) // No zap verbose level
+		return nil
+	case LevelInfo:
+		l.Infof(format, values...)
+		return nil
+	case LevelWarn:
+		l.Warnf(format, values...)
+		return nil
+	case LevelError:
+		l.Errorf(format, values...)
+		return nil
+	case LevelFatal:
+		l.Fatalf(format, values...)
+		return nil
+	case LevelPanic:
+		l.Panicf(format, values...)
 		return nil
 	}
 
-	trace := getTrace(ctx)
-
-	config.mutex.Lock()
-	defer config.mutex.Unlock()
-
-	subsystem := "Main"
-	subsystemValue := ctx.Value(subSystemKey)
-	if subsystemValue != nil {
-		var ok bool
-		subsystem, ok = subsystemValue.(string)
-		if !ok {
-			return errors.New("Invalid SubSystem Type")
-		}
-		// Log to subsystem specific config
-		subConfig, subExists := config.SubSystems[subsystem]
-		if subExists {
-			var err error
-			if config.IsText {
-				err = subConfig.logText(subsystem, level, depth, trace, format, values...)
-			} else {
-				err = subConfig.logJSON(subsystem, level, depth, trace, format, values...)
-			}
-			if err != nil {
-				return err
-			}
-		}
-
-		include, includeExists := config.IncludedSubSystems[subsystem]
-		if !includeExists || !include {
-			return nil // Don't log to main config
-		}
-	}
-
-	// Log to main config
-	if config.IsText {
-		return config.Main.logText(subsystem, level, depth, trace, format, values...)
-	} else {
-		return config.Main.logJSON(subsystem, level, depth, trace, format, values...)
-	}
+	return fmt.Errorf("Unknown log level %d", level)
 }
-
-// Keys for context key/pairs
-type loggerkey int
-
-const (
-	configKey    loggerkey = 1
-	subSystemKey loggerkey = 2
-	traceKey     loggerkey = 3
-)
