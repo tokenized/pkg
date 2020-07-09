@@ -1,8 +1,8 @@
 package bitcoin
 
 import (
-	"bytes"
 	"encoding/hex"
+	"io"
 	"math/big"
 
 	"github.com/pkg/errors"
@@ -92,16 +92,16 @@ func (k PublicKey) Equal(o PublicKey) bool {
 	return k.X.Cmp(&o.X) == 0 && k.Y.Cmp(&o.Y) == 0
 }
 
-func (k PublicKey) Serialize(buf *bytes.Buffer) error {
-	if _, err := buf.Write(k.Bytes()); err != nil {
+func (k PublicKey) Serialize(w io.Writer) error {
+	if _, err := w.Write(k.Bytes()); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (k *PublicKey) Deserialize(buf *bytes.Reader) error {
+func (k *PublicKey) Deserialize(r io.Reader) error {
 	b := make([]byte, PublicKeyCompressedLength)
-	if _, err := buf.Read(b); err != nil {
+	if _, err := r.Read(b); err != nil {
 		return err
 	}
 
