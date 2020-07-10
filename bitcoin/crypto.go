@@ -4,8 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"errors"
 	"math/big"
+
+	"github.com/pkg/errors"
 )
 
 // ECDHSecret returns the secret derived using ECDH (Elliptic Curve Diffie Hellman).
@@ -22,6 +23,17 @@ func ECDHSecret(k Key, pub PublicKey) ([]byte, error) {
 // Encrypt generates a random IV prepends it to the output, then uses AES with the input keysize and
 //   CBC to encrypt the payload.
 func Encrypt(payload, key []byte) ([]byte, error) {
+	// Generate random IV
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		return nil, errors.Wrap(err, "rand iv")
+	}
+
+	return EncryptIV(payload, key, iv)
+}
+
+// EncryptIV uses AES with the input keysize and the specified IV and CBC to encrypt the payload.
+func EncryptIV(payload, key, iv []byte) ([]byte, error) {
 	// Append 0xff to end of payload so padding, for block alignment, can be removed.
 	size := len(payload)
 	newSize := size + 1
@@ -34,19 +46,14 @@ func Encrypt(payload, key []byte) ([]byte, error) {
 
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "new cipher")
 	}
 
 	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-	_, err = rand.Read(ciphertext[:aes.BlockSize]) // IV
-	if err != nil {
-		return nil, err
-	}
+	copy(ciphertext, iv)
 
-	mode := cipher.NewCBCEncrypter(aesCipher, ciphertext[:aes.BlockSize])
+	mode := cipher.NewCBCEncrypter(aesCipher, iv)
 	mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)
-
-	// TODO Append plaintext hash
 
 	return ciphertext, nil
 }
@@ -66,11 +73,9 @@ func Decrypt(payload, key []byte) ([]byte, error) {
 		return nil, errors.New("Payload size doesn't align with decrypt block size")
 	}
 
-	// TODO Check plaintext hash
-
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "new cipher")
 	}
 
 	iv := payload[:aes.BlockSize]
