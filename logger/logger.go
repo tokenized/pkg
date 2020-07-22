@@ -58,41 +58,39 @@ const (
 
 // ContextWithLogConfig returns a context with the specified logging config attached.
 func ContextWithLogConfig(ctx context.Context, config *Config) context.Context {
-	return context.WithValue(ctx, key, config)
+	return context.WithValue(ctx, key, *config)
 }
 
 // ContextWithNoLogger returns a context with no logging
 func ContextWithNoLogger(ctx context.Context) context.Context {
-	return context.WithValue(ctx, key, NewEmptyConfig())
+	return context.WithValue(ctx, key, *NewEmptyConfig())
 }
 
 // ContextWithLogSubSystem returns a context with the logging subsystem attached.
 func ContextWithLogSubSystem(ctx context.Context, subsystem string) context.Context {
 	configValue := ctx.Value(key)
 	if configValue == nil {
-		return context.WithValue(ctx, key, NewEmptyConfig())
+		return context.WithValue(ctx, key, *NewEmptyConfig())
 	}
 
-	config, ok := configValue.(*Config)
+	config, ok := configValue.(Config)
 	if !ok {
-		return context.WithValue(ctx, key, NewEmptyConfig())
+		return context.WithValue(ctx, key, *NewEmptyConfig())
 	}
-
-	config.lock.Lock()
-	defer config.lock.Unlock()
 
 	include, includeExists := config.IncludedSubSystems[subsystem]
 	if !includeExists || !include {
 		// Empty logger for this subsystem, but leave the rest of the configuration so it can pop
 		// back up to the main config if it calls through to ContextWithOutLogSubSystem.
-		config.Active, _ = NewEmptyLogger()
+		n, _ := NewEmptyLogger()
+		config.Active = *n
 		return context.WithValue(ctx, key, config)
 	}
 
 	// Log to subsystem specific config
 	subConfig, subExists := config.SubSystems[subsystem]
 	if subExists {
-		config.Active = subConfig
+		config.Active = *subConfig
 	}
 
 	config.Active.logger = config.Active.logger.Named(subsystem)
@@ -105,37 +103,31 @@ func ContextWithOutLogSubSystem(ctx context.Context) context.Context {
 	configValue := ctx.Value(key)
 	if configValue == nil {
 		// Config not specified. Use default config.
-		return context.WithValue(ctx, key, NewProductionConfig())
+		return context.WithValue(ctx, key, *NewProductionConfig())
 	}
 
-	config, ok := configValue.(*Config)
+	config, ok := configValue.(Config)
 	if !ok {
 		// Config invalid. Use default config.
-		return context.WithValue(ctx, key, NewProductionConfig())
+		return context.WithValue(ctx, key, *NewProductionConfig())
 	}
 
-	config.lock.Lock()
-	defer config.lock.Unlock()
-
-	config.Active = config.Main
+	config.Active = *config.Main
 	return context.WithValue(ctx, key, config)
 }
 
 // ContextWithLogTrace returns a context with the logging subsystem cleared. Used when a context is
 // passed back from a subsystem.
 func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
-	config := NewProductionConfig()
+	config := *NewProductionConfig()
 
 	configValue := ctx.Value(key)
 	if configValue != nil {
-		contextConfig, ok := configValue.(*Config)
+		contextConfig, ok := configValue.(Config)
 		if ok {
 			config = contextConfig
 		}
 	}
-
-	config.lock.Lock()
-	defer config.lock.Unlock()
 
 	config.Active.logger = config.Active.logger.With(zap.String("trace", trace))
 	return context.WithValue(ctx, key, config)
@@ -149,15 +141,12 @@ func GetLogger(ctx context.Context) *zap.Logger {
 		return sc.logger
 	}
 
-	config, ok := configValue.(*Config)
+	config, ok := configValue.(Config)
 	if !ok {
 		// Config invalid. Use default config.
 		sc, _ := NewProductionLogger()
 		return sc.logger
 	}
-
-	config.lock.Lock()
-	defer config.lock.Unlock()
 
 	return config.Active.logger
 }

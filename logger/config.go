@@ -1,17 +1,11 @@
 package logger
 
-import (
-	"sync"
-)
-
 // Config defines the logging configuration for the context it is attached to.
 type Config struct {
-	Active             *SystemConfig
+	Active             SystemConfig
 	Main               *SystemConfig
 	IncludedSubSystems map[string]bool          // If true, log in main log
 	SubSystems         map[string]*SystemConfig // SubSystem specific loggers
-
-	lock sync.Mutex
 }
 
 // Creates a new config with default production values.
@@ -23,7 +17,7 @@ func NewProductionConfig() *Config {
 	}
 
 	result.Main, _ = NewProductionLogger()
-	result.Active = result.Main
+	result.Active = *result.Main
 	return &result
 }
 
@@ -36,7 +30,7 @@ func NewDevelopmentConfig() *Config {
 	}
 
 	result.Main, _ = NewDevelopmentLogger()
-	result.Active = result.Main
+	result.Active = *result.Main
 	return &result
 }
 
@@ -49,14 +43,11 @@ func NewEmptyConfig() *Config {
 	}
 
 	result.Main, _ = NewEmptyLogger()
-	result.Active = result.Main
+	result.Active = *result.Main
 	return &result
 }
 
 // Enables a subsytem to log to the main log
 func (config *Config) EnableSubSystem(subsystem string) {
-	config.lock.Lock()
-	defer config.lock.Unlock()
-
 	config.IncludedSubSystems[subsystem] = true
 }
