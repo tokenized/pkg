@@ -7,6 +7,7 @@ import (
 	"crypto/sha512"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -102,15 +103,15 @@ func ExtendedKeyFromBytes(b []byte) (ExtendedKey, error) {
 }
 
 // ExtendedKeyFromBytes creates a key from bytes.
-func (k *ExtendedKey) Deserialize(buf *bytes.Reader) error {
-	header, err := buf.ReadByte()
-	if err != nil {
+func (k *ExtendedKey) Deserialize(r io.Reader) error {
+	var header [1]byte
+	if _, err := r.Read(header[:]); err != nil {
 		return errors.Wrap(err, "read header")
 	}
-	if header != ExtendedKeyHeader {
+	if header[0] != ExtendedKeyHeader {
 		// Fall back to BIP-0032 format
 		b := make([]byte, 82)
-		if _, err := buf.Read(b); err != nil {
+		if _, err := r.Read(b); err != nil {
 			return err
 		}
 		bip32Key, err := bip32.Deserialize(b)
@@ -121,7 +122,7 @@ func (k *ExtendedKey) Deserialize(buf *bytes.Reader) error {
 		return k.setFromBIP32(bip32Key)
 	}
 
-	return k.read(buf)
+	return k.read(r)
 }
 
 // ExtendedKeyFromStr creates a key from a hex string.
@@ -195,12 +196,14 @@ func (k ExtendedKey) Bytes() []byte {
 }
 
 // Serialize writes the key data.
-func (k ExtendedKey) Serialize(buf *bytes.Buffer) error {
-	if err := buf.WriteByte(ExtendedKeyHeader); err != nil {
+func (k ExtendedKey) Serialize(w io.Writer) error {
+	var b [1]byte
+	b[0] = ExtendedKeyHeader
+	if _, err := w.Write(b[:]); err != nil {
 		return err
 	}
 
-	if err := k.write(buf); err != nil {
+	if err := k.write(w); err != nil {
 		return err
 	}
 
@@ -490,31 +493,26 @@ func (k *ExtendedKey) setFromBIP32(old *bip32.Key) error {
 }
 
 // read reads just the basic data of the extended key.
-func (k *ExtendedKey) read(buf *bytes.Reader) error {
-	var err error
-
-	k.Depth, err = buf.ReadByte()
-	if err != nil {
+func (k *ExtendedKey) read(r io.Reader) error {
+	var b [1]byte
+	if _, err := r.Read(b[:]); err != nil {
 		return errors.Wrap(err, "reading xkey depth")
 	}
+	k.Depth = b[0]
 
-	_, err = buf.Read(k.FingerPrint[:])
-	if err != nil {
+	if _, err := r.Read(k.FingerPrint[:]); err != nil {
 		return errors.Wrap(err, "reading xkey fingerprint")
 	}
 
-	err = binary.Read(buf, binary.BigEndian, &k.Index)
-	if err != nil {
+	if err := binary.Read(r, binary.BigEndian, &k.Index); err != nil {
 		return errors.Wrap(err, "reading xkey index")
 	}
 
-	_, err = buf.Read(k.ChainCode[:])
-	if err != nil {
+	if _, err := r.Read(k.ChainCode[:]); err != nil {
 		return errors.Wrap(err, "reading xkey chaincode")
 	}
 
-	_, err = buf.Read(k.KeyValue[:])
-	if err != nil {
+	if _, err := r.Read(k.KeyValue[:]); err != nil {
 		return errors.Wrap(err, "reading xkey key")
 	}
 
@@ -522,29 +520,26 @@ func (k *ExtendedKey) read(buf *bytes.Reader) error {
 }
 
 // write writes just the basic data of the extended key.
-func (k ExtendedKey) write(buf *bytes.Buffer) error {
-	err := buf.WriteByte(k.Depth)
-	if err != nil {
+func (k ExtendedKey) write(w io.Writer) error {
+	var b [1]byte
+	b[0] = k.Depth
+	if _, err := w.Write(b[:]); err != nil {
 		return errors.Wrap(err, "writing xkey depth")
 	}
 
-	_, err = buf.Write(k.FingerPrint[:])
-	if err != nil {
+	if _, err := w.Write(k.FingerPrint[:]); err != nil {
 		return errors.Wrap(err, "writing xkey fingerprint")
 	}
 
-	err = binary.Write(buf, binary.BigEndian, k.Index)
-	if err != nil {
+	if err := binary.Write(w, binary.BigEndian, k.Index); err != nil {
 		return errors.Wrap(err, "writing xkey index")
 	}
 
-	_, err = buf.Write(k.ChainCode[:])
-	if err != nil {
+	if _, err := w.Write(k.ChainCode[:]); err != nil {
 		return errors.Wrap(err, "writing xkey chaincode")
 	}
 
-	_, err = buf.Write(k.KeyValue[:])
-	if err != nil {
+	if _, err := w.Write(k.KeyValue[:]); err != nil {
 		return errors.Wrap(err, "writing xkey key")
 	}
 

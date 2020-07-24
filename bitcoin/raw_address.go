@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io"
 
 	"github.com/pkg/errors"
 )
@@ -438,17 +439,17 @@ func (ra RawAddress) IsEmpty() bool {
 	return len(ra.data) == 0
 }
 
-func (ra RawAddress) Serialize(buf *bytes.Buffer) error {
+func (ra RawAddress) Serialize(w io.Writer) error {
 	if ra.IsEmpty() {
-		if err := buf.WriteByte(ScriptTypeEmpty); err != nil {
+		if _, err := w.Write([]byte{ScriptTypeEmpty}); err != nil {
 			return err
 		}
 	}
 
-	if err := buf.WriteByte(ra.scriptType); err != nil {
+	if _, err := w.Write([]byte{ra.scriptType}); err != nil {
 		return err
 	}
-	if _, err := buf.Write(ra.data); err != nil {
+	if _, err := w.Write(ra.data); err != nil {
 		return err
 	}
 	return nil

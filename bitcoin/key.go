@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/btcsuite/btcd/btcec"
@@ -157,6 +158,20 @@ func (k Key) Bytes() []byte {
 	}
 
 	return append([]byte{typeIntPrivKey}, b...)
+}
+
+func (k *Key) Deserialize(r io.Reader) error {
+	b := make([]byte, 33)
+	if _, err := r.Read(b); err != nil {
+		return errors.Wrap(err, "key")
+	}
+
+	return k.SetBytes(b)
+}
+
+func (k Key) Serialize(w io.Writer) error {
+	_, err := w.Write(k.Bytes())
+	return err
 }
 
 // Number returns 32 bytes representing the 256 bit big-endian integer of the private key.
