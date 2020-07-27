@@ -126,24 +126,8 @@ func SignatureFromBytes(b []byte) (Signature, error) {
 		return Signature{}, fmt.Errorf("Signature has bad final length %v != %v", index, len(b))
 	}
 
-	// Verify also checks this, but we can be more sure that we parsed
-	// correctly if we verify here too.
-	// FWIW the ecdsa spec states that R and S must be | 1, N - 1 |
-	// but crypto/ecdsa only checks for Sign != 0. Mirror that.
-	if r.Sign() != 1 {
-		return Signature{}, errors.New("signature R isn't 1 or more")
-	}
-	if s.Sign() != 1 {
-		return Signature{}, errors.New("signature S isn't 1 or more")
-	}
-	if r.Cmp(curveS256Params.N) >= 0 {
-		return Signature{}, errors.New("signature R is >= curve.N")
-	}
-	if s.Cmp(curveS256Params.N) >= 0 {
-		return Signature{}, errors.New("signature S is >= curve.N")
-	}
-
-	return Signature{R: r, S: s}, nil
+	result := Signature{R: r, S: s}
+	return result, result.Validate()
 }
 
 // SignatureFromCompact converts base64 "compact" signature text to a signature.
@@ -171,7 +155,7 @@ func SignatureFromCompact(s string) (Signature, error) {
 	result.R.SetBytes(b[1:33])
 	result.S.SetBytes(b[33:])
 
-	return result, nil
+	return result, result.Validate()
 }
 
 func (s Signature) Serialize(w io.Writer) error {
@@ -297,8 +281,11 @@ func (s *Signature) Deserialize(r io.Reader) error {
 		return fmt.Errorf("Signature has bad final length %v != %v", index, len(b))
 	}
 
-	// Verify also checks this, but we can be more sure that we parsed
-	// correctly if we verify here too.
+	return s.Validate()
+}
+
+// Validate checks the mathematical validity of the signature's R and S values.
+func (s Signature) Validate() error {
 	// FWIW the ecdsa spec states that R and S must be | 1, N - 1 |
 	// but crypto/ecdsa only checks for Sign != 0. Mirror that.
 	if s.R.Sign() != 1 {
