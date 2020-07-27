@@ -3,6 +3,7 @@ package wire
 import (
 	"crypto/sha256"
 	"fmt"
+	"hash"
 
 	"github.com/tokenized/pkg/bitcoin"
 )
@@ -16,6 +17,8 @@ type MerkleTree struct {
 	merkleProofs []*MerkleProof
 }
 
+// NewMerkleTree creates a new merkle tree. When prune is true only the necessary hashes to
+// calculate the root will be maintained as bottom layer hashes are added to the tree.
 func NewMerkleTree(prune bool) *MerkleTree {
 	return &MerkleTree{
 		prune: prune,
@@ -40,7 +43,7 @@ func (t MerkleTree) Print() {
 	}
 }
 
-// AddHash adds a new hash to the merkle tree.
+// AddHash adds a new hash to the bottom level of the merkle tree.
 func (t *MerkleTree) AddHash(hash bitcoin.Hash32) {
 
 	// Check merkle proofs for this hash.
@@ -58,51 +61,32 @@ func (t *MerkleTree) AddHash(hash bitcoin.Hash32) {
 		return
 	}
 
-	next := hash
+	next := &hash
 	t.count++
 
 	// Calculate a new hash up the tree
 	s := sha256.New()
 	for _, layer := range t.layers {
 		// Append to this row
-		layer.addHash(next)
+		layer.addHash(*next)
 
 		l := layer.len()
 		if l%2 != 0 {
 			return // Above layers do not need to be updated.
 		}
 
-		left := layer.nextLastHash()
-		right := next
-
 		// Even number of hashes in layer. Hash last 2 hashes together to add to layer above.
-		s.Write(left[:])
-		s.Write(right[:])
-		b := s.Sum(nil)
-		s.Reset()
-		next = bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
+		next = t.processProofsLayer(s, layer.nextLastHash(), *next, false)
 		if t.prune {
 			layer.clear() // Clear out hashes that aren't needed anymore
-		}
-
-		// Check active merkle proofs for next element in path
-		for _, mp := range t.merkleProofs {
-			if mp.Index == -1 {
-				continue // txid not found yet
-			}
-
-			if mp.root.Equal(&left) {
-				mp.AddHash(right, next)
-			} else if mp.root.Equal(&right) {
-				mp.AddHash(left, next)
-			}
 		}
 	}
 
 	// Append new layer
-	t.layers = append(t.layers, newMerkleNodeLayer(next))
+	t.layers = append(t.layers, newMerkleNodeLayer(*next))
 }
 
+// RootHash calculates and returns the root hash of the merkle tree.
 func (t *MerkleTree) RootHash() bitcoin.Hash32 {
 	if t.count == 0 {
 		return bitcoin.Hash32{} // zero hash should never be valid
@@ -121,22 +105,12 @@ func (t *MerkleTree) RootHash() bitcoin.Hash32 {
 			// Odd layer was below this. So keep calculating up.
 			if l%2 == 0 {
 				// Layer will be odd length with new hash, so hash next hash with itself
-				s.Write(next[:])
-				s.Write(next[:])
-				b := s.Sum(nil)
-				s.Reset()
-				h := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
-				next = &h
+				next = processLayer(s, *next, *next)
 				continue
 			}
 
-			// hash last hash with next hash
-			s.Write(layer.lastBytes())
-			s.Write(next[:])
-			b := s.Sum(nil)
-			s.Reset()
-			h := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
-			next = &h
+			// Hash last hash with next hash
+			next = processLayer(s, layer.lastHash(), *next)
 			continue
 		}
 
@@ -147,12 +121,8 @@ func (t *MerkleTree) RootHash() bitcoin.Hash32 {
 			}
 
 			// Odd length layer. Calculate from here up.
-			s.Write(layer.lastBytes())
-			s.Write(layer.lastBytes())
-			b := s.Sum(nil)
-			s.Reset()
-			h := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
-			next = &h
+			l := layer.lastHash()
+			next = processLayer(s, l, l)
 		}
 	}
 
@@ -160,6 +130,17 @@ func (t *MerkleTree) RootHash() bitcoin.Hash32 {
 		return bitcoin.Hash32{} // zero hash should never be valid
 	}
 	return *next
+}
+
+// processLayer adds a new layer the any merkle proofs appropriate while continuing to
+// calculate the root hash.
+func processLayer(hasher hash.Hash, l, r bitcoin.Hash32) *bitcoin.Hash32 {
+	hasher.Write(l[:])
+	hasher.Write(r[:])
+	b := hasher.Sum(nil)
+	hasher.Reset()
+	newHash := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
+	return &newHash
 }
 
 // FinalizeMerkleProofs finalizes the merkle proofs and returns the root hash and the merkle proofs.
@@ -181,53 +162,14 @@ func (t MerkleTree) FinalizeMerkleProofs() (bitcoin.Hash32, []*MerkleProof) {
 		if next != nil {
 			// Odd layer was below this. So keep calculating up.
 			if l%2 == 0 {
-				left := next
-
 				// Layer will be odd length with new hash, so hash next hash with itself
-				s.Write(next[:])
-				s.Write(next[:])
-				b := s.Sum(nil)
-				s.Reset()
-				h := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
-				next = &h
-
-				// Check active merkle proofs for next element in path
-				for _, mp := range t.merkleProofs {
-					if mp.Index == -1 {
-						continue // txid not found yet
-					}
-
-					if mp.root.Equal(left) {
-						mp.AddDuplicate(*next)
-					}
-				}
+				next = t.processProofsLayer(s, *next, *next, true)
 
 				continue
 			}
 
-			left := layer.lastHash()
-			right := next
-
-			// hash left (last) hash with next hash
-			s.Write(left[:])
-			s.Write(right[:])
-			b := s.Sum(nil)
-			s.Reset()
-			h := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
-			next = &h
-
-			// Check active merkle proofs for next element in path
-			for _, mp := range t.merkleProofs {
-				if mp.Index == -1 {
-					continue // txid not found yet
-				}
-
-				if mp.root.Equal(&left) {
-					mp.AddHash(*right, *next)
-				} else if mp.root.Equal(right) {
-					mp.AddHash(left, *next)
-				}
-			}
+			// Hash left (last) hash with next hash
+			next = t.processProofsLayer(s, layer.lastHash(), *next, false)
 
 			continue
 		}
@@ -238,26 +180,9 @@ func (t MerkleTree) FinalizeMerkleProofs() (bitcoin.Hash32, []*MerkleProof) {
 				return layer.lastHash(), t.merkleProofs
 			}
 
-			duplicate := layer.lastHash()
-
 			// Odd length layer. Calculate from here up.
-			s.Write(duplicate[:])
-			s.Write(duplicate[:])
-			b := s.Sum(nil)
-			s.Reset()
-			h := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
-			next = &h
-
-			// Check active merkle proofs for next element in path
-			for _, mp := range t.merkleProofs {
-				if mp.Index == -1 {
-					continue // txid not found yet
-				}
-
-				if mp.root.Equal(&duplicate) {
-					mp.AddDuplicate(*next)
-				}
-			}
+			duplicate := layer.lastHash()
+			next = t.processProofsLayer(s, duplicate, duplicate, true)
 		}
 	}
 
@@ -268,11 +193,45 @@ func (t MerkleTree) FinalizeMerkleProofs() (bitcoin.Hash32, []*MerkleProof) {
 	return *next, t.merkleProofs
 }
 
+// processProofsLayer adds a new layer the any merkle proofs appropriate while continuing to
+// calculate the root hash.
+func (t MerkleTree) processProofsLayer(hasher hash.Hash, l, r bitcoin.Hash32, isDuplicate bool) *bitcoin.Hash32 {
+	hasher.Write(l[:])
+	hasher.Write(r[:])
+	b := hasher.Sum(nil)
+	hasher.Reset()
+	newHash := bitcoin.Hash32(sha256.Sum256(b)) // Sum again for double SHA256
+
+	// Check active merkle proofs for next element in path
+	for _, mp := range t.merkleProofs {
+		if mp.Index == -1 {
+			continue // txid not found yet
+		}
+
+		if isDuplicate {
+			if mp.root.Equal(&l) {
+				mp.AddDuplicate(newHash)
+			}
+			continue
+		}
+
+		if mp.root.Equal(&l) {
+			mp.AddHash(r, newHash)
+		} else if mp.root.Equal(&r) {
+			mp.AddHash(l, newHash)
+		}
+	}
+
+	return &newHash
+}
+
+// merkleNodeLayer is a level of hashes in a merkle tree.
 type merkleNodeLayer struct {
 	hashes []bitcoin.Hash32
 	count  int
 }
 
+// newMerkleNodeLayer creates a new merkle node layer that starts with the specified hash.
 func newMerkleNodeLayer(hash bitcoin.Hash32) *merkleNodeLayer {
 	return &merkleNodeLayer{
 		hashes: []bitcoin.Hash32{hash},
@@ -289,22 +248,17 @@ func (l *merkleNodeLayer) clear() {
 	l.hashes = nil
 }
 
+// len returns the number of hashes in the merkle node layer.
 func (l merkleNodeLayer) len() int {
 	return l.count
 }
 
+// lastHash returns the last hash in the merkle node layer.
 func (l merkleNodeLayer) lastHash() bitcoin.Hash32 {
 	return l.hashes[len(l.hashes)-1]
 }
 
+// nextLastHash returns the hash previous to the last hash in the merkle node layer.
 func (l merkleNodeLayer) nextLastHash() bitcoin.Hash32 {
 	return l.hashes[len(l.hashes)-2]
-}
-
-func (l merkleNodeLayer) lastBytes() []byte {
-	return l.hashes[len(l.hashes)-1][:]
-}
-
-func (l merkleNodeLayer) nextLastBytes() []byte {
-	return l.hashes[len(l.hashes)-2][:]
 }

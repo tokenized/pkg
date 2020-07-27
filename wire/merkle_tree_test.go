@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"crypto/rand"
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -301,4 +302,40 @@ func TestMerkleProof(t *testing.T) {
 			}
 		})
 	}
+}
+
+func BenchmarkMerkleTree(b *testing.B) {
+	hashes := make([]bitcoin.Hash32, b.N)
+	for i := range hashes {
+		rand.Read(hashes[i][:])
+	}
+
+	b.ResetTimer()
+
+	mt := NewMerkleTree(false)
+	mt.AddMerkleProof(hashes[b.N/2])
+	for _, hash := range hashes {
+		mt.AddHash(hash)
+	}
+
+	mt.RootHash()
+	mt.FinalizeMerkleProofs()
+}
+
+func BenchmarkMerkleTreePruned(b *testing.B) {
+	hashes := make([]bitcoin.Hash32, b.N)
+	for i := range hashes {
+		rand.Read(hashes[i][:])
+	}
+
+	b.ResetTimer()
+
+	mt := NewMerkleTree(true)
+	mt.AddMerkleProof(hashes[b.N/2])
+	for _, hash := range hashes {
+		mt.AddHash(hash)
+	}
+
+	mt.RootHash()
+	mt.FinalizeMerkleProofs()
 }
