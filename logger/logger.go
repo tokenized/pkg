@@ -116,8 +116,7 @@ func ContextWithOutLogSubSystem(ctx context.Context) context.Context {
 	return context.WithValue(ctx, key, config)
 }
 
-// ContextWithLogTrace returns a context with the logging subsystem cleared. Used when a context is
-// passed back from a subsystem.
+// ContextWithLogTrace returns a context with a trace field added to the logger.
 func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
 	config := *NewProductionConfig()
 
