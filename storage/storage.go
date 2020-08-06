@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"strings"
 )
 
 // Storage is the interface combining all storage interfaces.
@@ -45,4 +46,19 @@ type Clearer interface {
 
 type List interface {
 	List(context.Context, string) ([]string, error)
+}
+
+func CreateStorage(bucket, root string, maxRetries, retryDelay int) Storage {
+	config := Config{
+		Bucket:     bucket,
+		Root:       root,
+		MaxRetries: maxRetries,
+		RetryDelay: retryDelay,
+	}
+
+	if strings.ToLower(config.Bucket) == "standalone" {
+		return NewFilesystemStorage(config)
+	} else {
+		return NewS3Storage(config)
+	}
 }

@@ -107,7 +107,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 	}
 	if changeDustLimit == 0 && !tx.ChangeAddress.IsEmpty() {
 		var err error
-		changeOutputFee, err = addressOutputFee(tx.ChangeAddress, tx.DustFeeRate)
+		changeOutputFee, err = AddressOutputFee(tx.ChangeAddress, tx.DustFeeRate)
 		if err != nil {
 			return errors.Wrap(err, "address output fee")
 		}
@@ -131,7 +131,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 			return errors.Wrap(err, "adding input")
 		}
 
-		inputFee, err := utxoFee(utxo, tx.FeeRate)
+		inputFee, err := UTXOFee(utxo, tx.FeeRate)
 		if err != nil {
 			return errors.Wrap(err, "utxo fee")
 		}
@@ -262,7 +262,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 			return errors.Wrap(err, "adding input")
 		}
 
-		inputFee, err := utxoFee(utxo, tx.FeeRate)
+		inputFee, err := UTXOFee(utxo, tx.FeeRate)
 		if err != nil {
 			return errors.Wrap(err, "utxo fee")
 		}
@@ -316,8 +316,8 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		outputValue+tx.EstimatedFee()))
 }
 
-// utxoFee calculates the tx fee for the input to spend the UTXO.
-func utxoFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
+// UTXOFee calculates the tx fee for the input to spend the UTXO.
+func UTXOFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
 	size, err := lockingScriptUnlockSize(utxo.LockingScript)
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
@@ -325,8 +325,8 @@ func utxoFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
 	return uint64(float32(size) * feeRate), nil
 }
 
-// addressOutputFee returns the tx fee to include an address as an output in a tx.
-func addressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
+// AddressOutputFee returns the tx fee to include an address as an output in a tx.
+func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 	lockingScript, err := ra.LockingScript()
 	if err != nil {
 		return 0, errors.Wrap(err, "locking script")

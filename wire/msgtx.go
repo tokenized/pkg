@@ -8,11 +8,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strconv"
 
 	"github.com/tokenized/pkg/bitcoin"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -254,6 +257,49 @@ func (t *TxOut) SerializeSize() int {
 	// Value 8 bytes + serialized varint size for the length of PkScript +
 	// PkScript bytes.
 	return 8 + VarIntSerializeSize(uint64(len(t.PkScript))) + len(t.PkScript)
+}
+
+// MarshalText implements encoding.TextMarshaler for json and other text encoding packages.
+func (t TxOut) MarshalText() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := t.Serialize(&buf, 0, 1); err != nil {
+		return nil, errors.Wrap(err, "serialize txout")
+	}
+
+	return []byte(hex.EncodeToString(buf.Bytes())), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler for json and other text encoding packages.
+func (t *TxOut) UnmarshalText(text []byte) error {
+	b, err := hex.DecodeString(string(text))
+	if err != nil {
+		return errors.Wrap(err, "decode hex")
+	}
+
+	if err := t.Deserialize(bytes.NewReader(b), 0, 1); err != nil {
+		return errors.Wrap(err, "deserialize txout")
+	}
+
+	return nil
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler for binary encoding packages.
+func (t TxOut) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := t.Serialize(&buf, 0, 1); err != nil {
+		return nil, errors.Wrap(err, "serialize txout")
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler for binary encoding packages.
+func (t *TxOut) UnmarshalBinary(b []byte) error {
+	if err := t.Deserialize(bytes.NewReader(b), 0, 1); err != nil {
+		return errors.Wrap(err, "deserialize txout")
+	}
+
+	return nil
 }
 
 // NewTxOut returns a new bitcoin transaction output with the provided
@@ -664,6 +710,49 @@ func (msg *MsgTx) SerializeSize() int {
 	}
 
 	return n
+}
+
+// MarshalText implements encoding.TextMarshaler for json and other text encoding packages.
+func (msg MsgTx) MarshalText() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := msg.Serialize(&buf); err != nil {
+		return nil, errors.Wrap(err, "serialize tx")
+	}
+
+	return []byte(hex.EncodeToString(buf.Bytes())), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler for json and other text encoding packages.
+func (msg *MsgTx) UnmarshalText(text []byte) error {
+	b, err := hex.DecodeString(string(text))
+	if err != nil {
+		return errors.Wrap(err, "decode hex")
+	}
+
+	if err := msg.Deserialize(bytes.NewReader(b)); err != nil {
+		return errors.Wrap(err, "deserialize tx")
+	}
+
+	return nil
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler for binary encoding packages.
+func (msg MsgTx) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := msg.Serialize(&buf); err != nil {
+		return nil, errors.Wrap(err, "serialize tx")
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler for binary encoding packages.
+func (msg *MsgTx) UnmarshalBinary(b []byte) error {
+	if err := msg.Deserialize(bytes.NewReader(b)); err != nil {
+		return errors.Wrap(err, "deserialize tx")
+	}
+
+	return nil
 }
 
 // Command returns the protocol command string for the message.  This is part

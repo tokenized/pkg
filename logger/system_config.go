@@ -49,10 +49,15 @@ func NewProductionTextLogger() (*SystemConfig, error) {
 // NewDevelopmentTextLogger creates a new logger with default development values.
 // Logs verbose level and above to stderr.
 func NewDevelopmentTextLogger() (*SystemConfig, error) {
-	l, err := zap.NewDevelopment()
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+
+	// Turn off stack trace logging for Warn level entries.
+	l, err := config.Build(zap.AddStacktrace(zapcore.ErrorLevel))
 	if err != nil {
 		return nil, err
 	}
+
 	return &SystemConfig{l}, nil
 }
 
