@@ -281,34 +281,39 @@ func (k *ExtendedKeys) Scan(data interface{}) error {
 	return k.SetBytes(c)
 }
 
-func ReadBase128VarInt(r io.ByteReader) (int, error) {
+func ReadBase128VarInt(r io.Reader) (int, error) {
 	value := uint32(0)
 	done := false
 	bitOffset := uint32(0)
 	for !done {
-		subValue, err := r.ReadByte()
-		if err != nil {
+		var subValue [1]byte
+		if _, err := r.Read(subValue[:]); err != nil {
 			return int(value), err
 		}
 
-		done = (subValue & 0x80) == 0 // High bit not set
-		subValue = subValue & 0x7f    // Remove high bit
+		done = (subValue[0] & 0x80) == 0 // High bit not set
+		subValue[0] = subValue[0] & 0x7f // Remove high bit
 
-		value += uint32(subValue) << bitOffset
+		value += uint32(subValue[0]) << bitOffset
 		bitOffset += 7
 	}
 
 	return int(value), nil
 }
 
-func WriteBase128VarInt(w io.ByteWriter, value int) error {
+func WriteBase128VarInt(w io.Writer, value int) error {
 	v := uint32(value)
 	for {
 		if v < 128 {
-			return w.WriteByte(byte(v))
+			var b [1]byte
+			b[0] = byte(v)
+			_, err := w.Write(b[:])
+			return err
 		}
-		subValue := (byte(v&0x7f) | 0x80) // Get last 7 bits and set high bit
-		if err := w.WriteByte(subValue); err != nil {
+
+		var subValue [1]byte
+		subValue[0] = (byte(v&0x7f) | 0x80) // Get last 7 bits and set high bit
+		if _, err := w.Write(subValue[:]); err != nil {
 			return err
 		}
 		v = v >> 7

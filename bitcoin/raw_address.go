@@ -114,13 +114,13 @@ func (ra *RawAddress) Decode(b []byte) error {
 }
 
 // Deserialize reads a binary raw address. It returns an error if there was an issue.
-func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
-	t, err := buf.ReadByte()
-	if err != nil {
+func (ra *RawAddress) Deserialize(r io.Reader) error {
+	var t [1]byte
+	if _, err := r.Read(t[:]); err != nil {
 		return err
 	}
 
-	switch t {
+	switch t[0] {
 	case ScriptTypeEmpty:
 		ra.scriptType = ScriptTypeEmpty
 		ra.data = nil
@@ -133,7 +133,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypePKH:
 		pkh := make([]byte, ScriptHashLength)
-		if _, err := buf.Read(pkh); err != nil {
+		if _, err := r.Read(pkh); err != nil {
 			return err
 		}
 		return ra.SetPKH(pkh)
@@ -145,7 +145,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypePK:
 		pk := make([]byte, PublicKeyCompressedLength)
-		if _, err := buf.Read(pk); err != nil {
+		if _, err := r.Read(pk); err != nil {
 			return err
 		}
 		return ra.SetCompressedPublicKey(pk)
@@ -157,7 +157,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypeSH:
 		sh := make([]byte, ScriptHashLength)
-		if _, err := buf.Read(sh); err != nil {
+		if _, err := r.Read(sh); err != nil {
 			return err
 		}
 		return ra.SetSH(sh)
@@ -171,18 +171,18 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		// Parse required count
 		var required int
 		var err error
-		if required, err = ReadBase128VarInt(buf); err != nil {
+		if required, err = ReadBase128VarInt(r); err != nil {
 			return err
 		}
 		// Parse hash count
 		var count int
-		if count, err = ReadBase128VarInt(buf); err != nil {
+		if count, err = ReadBase128VarInt(r); err != nil {
 			return err
 		}
 		pkhs := make([][]byte, 0, count)
 		for i := 0; i < count; i++ {
 			pkh := make([]byte, ScriptHashLength)
-			if _, err := buf.Read(pkh); err != nil {
+			if _, err := r.Read(pkh); err != nil {
 				return err
 			}
 			pkhs = append(pkhs, pkh)
@@ -196,7 +196,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypeRPH:
 		rph := make([]byte, ScriptHashLength)
-		if _, err := buf.Read(rph); err != nil {
+		if _, err := r.Read(rph); err != nil {
 			return err
 		}
 		return ra.SetRPH(rph)

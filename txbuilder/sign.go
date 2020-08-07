@@ -69,13 +69,6 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 	inputValue := tx.InputValue()
 	outputValue := tx.OutputValue(true)
 	shc := SigHashCache{}
-	pks := make([][]byte, 0, len(keys))
-	pkhs := make([][]byte, 0, len(keys))
-
-	for _, key := range keys {
-		pks = append(pks, key.PublicKey().Bytes())
-		pkhs = append(pkhs, bitcoin.Hash160(key.PublicKey().Bytes()))
-	}
 
 	if inputValue < outputValue+uint64(estimatedFee) {
 		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
@@ -100,68 +93,9 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 		shc.ClearOutputs()
 
 		// Sign all inputs
-		for index, input := range tx.Inputs {
-			address, err := bitcoin.RawAddressFromLockingScript(input.LockingScript)
-			if err != nil {
-				return err
-			}
-
-			switch address.Type() {
-			case bitcoin.ScriptTypePKH:
-				hash, err := address.Hash()
-				if err != nil {
-					return err
-				}
-				signed := false
-				for i, pkh := range pkhs {
-					if !bytes.Equal(pkh, hash.Bytes()) {
-						continue
-					}
-
-					tx.MsgTx.TxIn[index].SignatureScript, err = P2PKHUnlockingScript(keys[i], tx.MsgTx,
-						index, tx.Inputs[index].LockingScript, tx.Inputs[index].Value,
-						SigHashAll+SigHashForkID, &shc)
-
-					if err != nil {
-						return err
-					}
-					signed = true
-					break
-				}
-
-				if !signed {
-					return errors.Wrap(ErrMissingPrivateKey, "")
-				}
-
-			case bitcoin.ScriptTypePK:
-				pubKey, err := address.GetPublicKey()
-				if err != nil {
-					return err
-				}
-				pkb := pubKey.Bytes()
-				signed := false
-				for i, pk := range pks {
-					if !bytes.Equal(pk, pkb) {
-						continue
-					}
-
-					tx.MsgTx.TxIn[index].SignatureScript, err = P2PKUnlockingScript(keys[i], tx.MsgTx,
-						index, tx.Inputs[index].LockingScript, tx.Inputs[index].Value,
-						SigHashAll+SigHashForkID, &shc)
-
-					if err != nil {
-						return err
-					}
-					signed = true
-					break
-				}
-
-				if !signed {
-					return errors.Wrap(ErrMissingPrivateKey, "")
-				}
-
-			default:
-				return errors.Wrap(ErrWrongScriptTemplate, "Not a P2PKH or P2PK locking script")
+		for index, _ := range tx.Inputs {
+			if err := tx.signInput(index, keys, shc); err != nil {
+				return errors.Wrap(err, "sign input")
 			}
 		}
 
@@ -194,6 +128,94 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 		}
 
 		attempt--
+	}
+
+	return nil
+}
+
+// SignOnly signs any unsigned inputs in the tx.
+// It does not adjust the fee or make any other modifications to the tx like Sign.
+func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) error {
+	shc := SigHashCache{}
+
+	for index, _ := range tx.Inputs {
+		if len(tx.MsgTx.TxIn[index].SignatureScript) > 0 {
+			continue // already signed
+		}
+
+		if err := tx.signInput(index, keys, shc); err != nil {
+			return errors.Wrap(err, "sign input")
+		}
+	}
+
+	return nil
+}
+
+// signInput signs an input of the tx.
+func (tx *TxBuilder) signInput(index int, keys []bitcoin.Key, shc SigHashCache) error {
+	address, err := bitcoin.RawAddressFromLockingScript(tx.Inputs[index].LockingScript)
+	if err != nil {
+		return errors.Wrap(err, "locking script")
+	}
+
+	switch address.Type() {
+	case bitcoin.ScriptTypePKH:
+		hash, err := address.Hash()
+		if err != nil {
+			return errors.Wrap(err, "address hash")
+		}
+		signed := false
+		for _, key := range keys {
+			pkh := bitcoin.Hash160(key.PublicKey().Bytes())
+			if !bytes.Equal(pkh, hash.Bytes()) {
+				continue
+			}
+
+			tx.MsgTx.TxIn[index].SignatureScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
+				tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID,
+				&shc)
+
+			if err != nil {
+				return errors.Wrap(err, "unlock script")
+			}
+			signed = true
+			break
+		}
+
+		if !signed {
+			return ErrMissingPrivateKey
+		}
+
+	case bitcoin.ScriptTypePK:
+		pubKey, err := address.GetPublicKey()
+		if err != nil {
+			return err
+		}
+		pkb := pubKey.Bytes()
+		signed := false
+		for _, key := range keys {
+			pk := key.PublicKey().Bytes()
+			if !bytes.Equal(pk, pkb) {
+				continue
+			}
+
+			tx.MsgTx.TxIn[index].SignatureScript, err = P2PKUnlockingScript(key, tx.MsgTx, index,
+				tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID,
+				&shc)
+
+			if err != nil {
+				return errors.Wrap(err, "unlock script")
+			}
+			signed = true
+			break
+		}
+
+		if !signed {
+			return ErrMissingPrivateKey
+		}
+
+	default:
+		return errors.Wrap(ErrWrongScriptTemplate, "Not a P2PKH or P2PK locking script")
 	}
 
 	return nil

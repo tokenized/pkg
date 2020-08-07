@@ -17,7 +17,7 @@ func (tx *TxBuilder) InputAddress(index int) (bitcoin.RawAddress, error) {
 	return bitcoin.RawAddressFromLockingScript(tx.Inputs[index].LockingScript)
 }
 
-// AddInput adds an input to TxBuilder.
+// AddInputUTXO adds an input to TxBuilder using a UTXO.
 func (tx *TxBuilder) AddInputUTXO(utxo bitcoin.UTXO) error {
 	// Check that utxo isn't already an input.
 	for _, input := range tx.MsgTx.TxIn {
@@ -27,18 +27,48 @@ func (tx *TxBuilder) AddInputUTXO(utxo bitcoin.UTXO) error {
 		}
 	}
 
-	input := InputSupplement{
+	input := &InputSupplement{
 		LockingScript: utxo.LockingScript,
 		Value:         utxo.Value,
 		KeyID:         utxo.KeyID,
 	}
-	tx.Inputs = append(tx.Inputs, &input)
+	tx.Inputs = append(tx.Inputs, input)
 
 	txin := wire.TxIn{
 		PreviousOutPoint: wire.OutPoint{Hash: utxo.Hash, Index: utxo.Index},
 		Sequence:         wire.MaxTxInSequenceNum,
 	}
 	tx.MsgTx.AddTxIn(&txin)
+	return nil
+}
+
+// InsertInput inserts an input into TxBuilder at the specified index.
+func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) error {
+	if index > len(tx.MsgTx.TxIn) {
+		return errors.New("Input index out of range")
+	}
+
+	// Check that utxo isn't already an input.
+	for _, input := range tx.MsgTx.TxIn {
+		if input.PreviousOutPoint.Hash.Equal(&utxo.Hash) &&
+			input.PreviousOutPoint.Index == utxo.Index {
+			return errors.Wrap(ErrDuplicateInput, "")
+		}
+	}
+
+	input := &InputSupplement{
+		LockingScript: utxo.LockingScript,
+		Value:         utxo.Value,
+		KeyID:         utxo.KeyID,
+	}
+
+	afterInputs := tx.Inputs[index:]
+	tx.Inputs = append(tx.Inputs[:index], input)
+	tx.Inputs = append(tx.Inputs, afterInputs...)
+
+	afterTxIn := tx.MsgTx.TxIn[index:]
+	tx.MsgTx.TxIn = append(tx.MsgTx.TxIn[:index], txin)
+	tx.MsgTx.TxIn = append(tx.MsgTx.TxIn, afterTxIn...)
 	return nil
 }
 
@@ -66,6 +96,16 @@ func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value u
 		Sequence:         wire.MaxTxInSequenceNum,
 	}
 	tx.MsgTx.AddTxIn(&txin)
+	return nil
+}
+
+func (tx *TxBuilder) RemoveInput(index int) error {
+	if index >= len(tx.Inputs) || index >= len(tx.MsgTx.TxIn) {
+		return errors.New("Input index out of range")
+	}
+
+	tx.Inputs = append(tx.Inputs[:index], tx.Inputs[index+1:]...)
+	tx.MsgTx.TxIn = append(tx.MsgTx.TxIn[:index], tx.MsgTx.TxIn[index+1:]...)
 	return nil
 }
 

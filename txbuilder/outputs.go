@@ -144,6 +144,49 @@ func (tx *TxBuilder) AddOutput(lockScript []byte, value uint64, isRemainder bool
 	return nil
 }
 
+// InsertOutput inserts an output into TxBuilder at the specified index.
+func (tx *TxBuilder) InsertOutput(index int, lockScript []byte, value uint64, isRemainder bool,
+	isDust bool) error {
+
+	output := &OutputSupplement{
+		IsRemainder: isRemainder,
+		IsDust:      isDust,
+	}
+
+	txout := &wire.TxOut{
+		Value:    value,
+		PkScript: lockScript,
+	}
+
+	dust := DustLimitForOutput(txout, tx.DustFeeRate)
+	if isDust {
+		txout.Value = dust
+	} else if value < dust && (!tx.SendMax || !isRemainder) && !isUnspendable(lockScript) {
+		// Below dust and not send max output
+		return ErrBelowDustValue
+	}
+
+	afterOutputs := tx.Outputs[index:]
+	tx.Outputs = append(tx.Outputs[:index], output)
+	tx.Outputs = append(tx.Outputs, afterOutputs...)
+
+	afterTxOut := tx.MsgTx.TxOut[index:]
+	tx.MsgTx.TxOut = append(tx.MsgTx.TxOut[:index], txout)
+	tx.MsgTx.TxOut = append(tx.MsgTx.TxOut, afterTxOut...)
+
+	return nil
+}
+
+func (tx *TxBuilder) RemoveOutput(index int) error {
+	if index >= len(tx.Outputs) || index >= len(tx.MsgTx.TxOut) {
+		return errors.New("Output index out of range")
+	}
+
+	tx.Outputs = append(tx.Outputs[:index], tx.Outputs[index+1:]...)
+	tx.MsgTx.TxOut = append(tx.MsgTx.TxOut[:index], tx.MsgTx.TxOut[index+1:]...)
+	return nil
+}
+
 // AddValueToOutput adds more bitcoin to an existing output.
 func (tx *TxBuilder) AddValueToOutput(index uint32, value uint64) error {
 	if int(index) >= len(tx.MsgTx.TxOut) {
