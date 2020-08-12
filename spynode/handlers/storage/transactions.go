@@ -227,7 +227,7 @@ func (repo *TxRepository) GetUnconfirmed(ctx context.Context) ([]bitcoin.Hash32,
 // RemoveBlock, SetBlock, or ReleaseBlock must be called after this to release the lock
 // Height of -1 is invalid for this function
 func (repo *TxRepository) GetBlock(ctx context.Context, height int) ([]bitcoin.Hash32, error) {
-	logger.Debug(ctx, "Get Block %d", height)
+	// logger.Debug(ctx, "Get Block %d", height)
 	repo.blockLock.Lock()
 	hashes, err := repo.readBlock(ctx, height)
 	if err != nil {
@@ -262,7 +262,7 @@ func (repo *TxRepository) FinalizeUnconfirmed(ctx context.Context, unconfirmed [
 // Releases the lock made in GetBlock
 // Height is invalid for this function
 func (repo *TxRepository) RemoveBlock(ctx context.Context, height int) error {
-	logger.Debug(ctx, "Remove Block %d", height)
+	// logger.Debug(ctx, "Remove Block %d", height)
 	defer repo.blockLock.Unlock()
 
 	err := repo.store.Remove(ctx, repo.buildPath(height))
@@ -282,7 +282,7 @@ func (repo *TxRepository) ReleaseUnconfirmed(ctx context.Context) error {
 // ReleaseBlock releases the lock from GetBlock
 // Must only be called after GetBlock
 func (repo *TxRepository) ReleaseBlock(ctx context.Context, height int) error {
-	logger.Debug(ctx, "Release Block %d", height)
+	// logger.Debug(ctx, "Release Block %d", height)
 	repo.blockLock.Unlock()
 	return nil
 }

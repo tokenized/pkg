@@ -67,8 +67,8 @@ func (node *Node) processUnconfirmedTx(ctx context.Context, tx handlers.TxData) 
 		return nil // Already saw this tx
 	}
 
-	logger.Debug(ctx, "Tx mempool (added %t) (flagged trusted %t) (received trusted %t) : %s",
-		added, trusted, tx.Trusted, hash.String())
+	// logger.Debug(ctx, "Tx mempool (added %t) (flagged trusted %t) (received trusted %t) : %s",
+	// 	added, trusted, tx.Trusted, hash.String())
 
 	if trusted {
 		// Was marked trusted in the mempool by a tx inventory from the trusted node.
@@ -105,7 +105,7 @@ func (node *Node) processUnconfirmedTx(ctx context.Context, tx handlers.TxData) 
 		return nil // tx already processed
 	}
 
-	logger.Debug(ctx, "Tx repo (added %t) (newly safe %t) : %s", added, newlySafe, hash.String())
+	// logger.Debug(ctx, "Tx repo (added %t) (newly safe %t) : %s", added, newlySafe, hash.String())
 
 	isRelevant := false
 	if !handlers.MatchesFilter(ctx, tx.Msg, node.txFilters) {

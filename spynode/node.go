@@ -593,7 +593,7 @@ func (node *Node) handleMessage(ctx context.Context, msg wire.Message) error {
 // Implements handlers.BlockProcessor interface
 // It is responsible for any cleanup as a result of a block.
 func (node *Node) CleanupBlock(ctx context.Context, txids []*bitcoin.Hash32) error {
-	logger.Debug(ctx, "Cleaning up after block")
+	// logger.Debug(ctx, "Cleaning up after block")
 
 	node.txTracker.RemoveList(ctx, txids)
 
@@ -718,7 +718,7 @@ func (node *Node) check(ctx context.Context) error {
 		}
 
 		if node.queueOutgoing(headerRequest) {
-			logger.Debug(ctx, "Requesting headers")
+			logger.Verbose(ctx, "Requesting headers")
 			node.state.MarkHeadersRequested()
 			node.state.SetHandshakeComplete()
 		}
@@ -779,7 +779,7 @@ func (node *Node) check(ctx context.Context) error {
 		}
 
 		if node.queueOutgoing(headerRequest) {
-			logger.Debug(ctx, "Requesting headers after : %s", headerRequest.BlockLocatorHashes[0])
+			logger.Verbose(ctx, "Requesting headers after : %s", headerRequest.BlockLocatorHashes[0])
 			node.state.MarkHeadersRequested()
 		}
 	}
@@ -827,7 +827,7 @@ func (node *Node) checkTxDelays(ctx context.Context) {
 		}
 
 		for _, txid := range txids {
-			logger.Debug(ctx, "Tx is now safe : %s", txid.String())
+			// logger.Debug(ctx, "Tx is now safe : %s", txid.String())
 			node.txStateChannel.Add(handlers.TxState{
 				handlers.ListenerMsgTxStateSafe,
 				txid,

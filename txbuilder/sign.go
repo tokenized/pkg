@@ -95,7 +95,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 		// Sign all inputs
 		for index, _ := range tx.Inputs {
 			if err := tx.signInput(index, keys, shc); err != nil {
-				return errors.Wrap(err, "sign input")
+				return errors.Wrap(err, fmt.Sprintf("sign input %d", index))
 			}
 		}
 
@@ -144,7 +144,7 @@ func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) error {
 		}
 
 		if err := tx.signInput(index, keys, shc); err != nil {
-			return errors.Wrap(err, "sign input")
+			return errors.Wrap(err, fmt.Sprintf("sign input %d", index))
 		}
 	}
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
-	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/wire"
 )
 
@@ -42,7 +41,7 @@ func (memPool *MemPool) AddRequest(ctx context.Context, txid bitcoin.Hash32, tru
 	memTx, exists := memPool.txs[txid]
 	if exists {
 		if trusted && !memTx.trusted {
-			logger.Debug(ctx, "Txid marked as trusted : %s", txid.String())
+			// logger.Debug(ctx, "Txid marked as trusted : %s", txid.String())
 			memTx.trusted = true
 		}
 		if len(memTx.outPoints) > 0 {
@@ -84,7 +83,7 @@ func (memPool *MemPool) AddTransaction(ctx context.Context, tx *wire.MsgTx,
 	memTx, exists := memPool.txs[*hash]
 	if exists {
 		if trusted && !memTx.trusted {
-			logger.Debug(ctx, "Tx marked as trusted : %s", hash.String())
+			// logger.Debug(ctx, "Tx marked as trusted : %s", hash.String())
 			memTx.trusted = true
 		}
 		if len(memTx.outPoints) > 0 { // Already in the mempool

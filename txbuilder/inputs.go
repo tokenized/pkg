@@ -228,8 +228,8 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 	return nil
 }
 
-// AddFundingBreakChange adds inputs spending the specified UTXOs until the transaction has enough funding to
-//   cover the fees and outputs.
+// AddFundingBreakChange adds inputs spending the specified UTXOs until the transaction has enough
+// funding to cover the fees and outputs.
 // If SendMax is set then all UTXOs are added as inputs.
 // If there is already an IsRemainder output, then it will get all of the "change" and it won't be
 // broken up.

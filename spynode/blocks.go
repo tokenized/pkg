@@ -82,7 +82,7 @@ func (node *Node) processBlocks(ctx context.Context) error {
 				break
 			}
 
-			logger.Debug(ctx, "Requesting block : %s", requestHash.String())
+			// logger.Debug(ctx, "Requesting block : %s", requestHash.String())
 			getBlocks.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, requestHash))
 			if len(getBlocks.InvList) == wire.MaxInvPerMsg {
 				// Start new get data (block request) message
@@ -113,7 +113,7 @@ func (node *Node) provideBlock(ctx context.Context, block wire.Block, height int
 		listener.HandleBlock(ctx, handlers.ListenerMsgBlock, &blockMessage)
 	}
 
-	logger.Debug(ctx, "Providing block %d (%d tx) : %s", height, block.GetTxCount(), hash.String())
+	// logger.Debug(ctx, "Providing block %d (%d tx) : %s", height, block.GetTxCount(), hash.String())
 	for {
 		tx, err := block.GetNextTx()
 		if err != nil {
@@ -138,7 +138,7 @@ func (node *Node) ProcessBlock(ctx context.Context, block wire.Block) error {
 
 	header := block.GetHeader()
 	hash := header.BlockHash()
-	logger.Debug(ctx, "Block : %s", hash.String())
+	// logger.Debug(ctx, "Block : %s", hash.String())
 
 	if node.blocks.Contains(hash) {
 		height, _ := node.blocks.Height(hash)
@@ -198,7 +198,7 @@ func (node *Node) ProcessBlock(ctx context.Context, block wire.Block) error {
 	}
 
 	// Notify Tx for block and tx listeners
-	logger.Debug(ctx, "Processing block %d (%d tx) : %s", height, block.GetTxCount(), hash)
+	logger.Verbose(ctx, "Processing block %d (%d tx) : %s", height, block.GetTxCount(), hash)
 	inUnconfirmed := false
 	txids := make([]*bitcoin.Hash32, 0, block.GetTxCount())
 	for {
@@ -255,7 +255,7 @@ func (node *Node) ProcessBlock(ctx context.Context, block wire.Block) error {
 
 	// Perform any block cleanup
 	if err := node.CleanupBlock(ctx, txids); err != nil {
-		logger.Debug(ctx, "Failed clean up after block : %s", hash)
+		logger.Warn(ctx, "Failed clean up after block : %s", hash)
 		node.txs.ReleaseUnconfirmed(ctx) // Release unconfirmed
 		return err
 	}

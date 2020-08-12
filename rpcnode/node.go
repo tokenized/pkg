@@ -471,7 +471,7 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 		return err
 	}
 
-	logger.Debug(ctx, "Sending raw tx payload : %s", r.getRawPayload(nx))
+	// logger.Debug(ctx, "Sending raw tx payload : %s", r.getRawPayload(nx))
 
 	for i := 0; i <= r.Config.MaxRetries; i++ {
 		if i != 0 {
@@ -519,7 +519,7 @@ func (r *RPCNode) SendTX(ctx context.Context, tx *wire.MsgTx) (*bitcoin.Hash32, 
 		return nil, err
 	}
 
-	logger.Debug(ctx, "Sending tx payload : %s", r.getRawPayload(nx))
+	// logger.Debug(ctx, "Sending tx payload : %s", r.getRawPayload(nx))
 
 	var hash *chainhash.Hash
 	for i := 0; i <= r.Config.MaxRetries; i++ {
