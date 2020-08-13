@@ -180,16 +180,29 @@ func (tx *TxBuilder) String(net bitcoin.Network) string {
 			result += fmt.Sprintf("    Address: %s\n",
 				bitcoin.NewAddressFromRawAddress(ra, net).String())
 		}
-		result += fmt.Sprintf("    Value: %d\n\n", tx.Inputs[i].Value)
+		result += fmt.Sprintf("    Value: %d\n", tx.Inputs[i].Value)
+		if len(tx.Inputs[i].KeyID) > 0 {
+			result += fmt.Sprintf("    KeyID : %s\n", tx.Inputs[i].KeyID)
+		}
+		result += "\n"
 	}
 	result += "  Outputs:\n\n"
-	for _, output := range tx.MsgTx.TxOut {
+	for i, output := range tx.MsgTx.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
 		result += fmt.Sprintf("    Script: %x\n", output.PkScript)
 		ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
 		if err == nil {
 			result += fmt.Sprintf("    Address: %s\n",
 				bitcoin.NewAddressFromRawAddress(ra, net).String())
+		}
+		if len(tx.Outputs[i].KeyID) > 0 {
+			result += fmt.Sprintf("    KeyID : %s\n", tx.Outputs[i].KeyID)
+		}
+		if tx.Outputs[i].IsRemainder {
+			result += fmt.Sprintf("    IsRemainder\n")
+		}
+		if tx.Outputs[i].IsDust {
+			result += fmt.Sprintf("    IsDust\n")
 		}
 		result += "\n"
 	}

@@ -20,7 +20,7 @@ var (
 // breakValue should be a fairly low value that is the smallest UTXO you want created other than
 // the remainder.
 func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
-	dustFeeRate, feeRate float32) ([]*Output, error) {
+	dustFeeRate, feeRate float32, lastIsRemainder bool) ([]*Output, error) {
 	// Choose random multiples of breakValue until the value is taken up.
 
 	// Find the average value to break the value into the provided addresses
@@ -115,13 +115,13 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 				PkScript: lockingScript,
 			},
 			Supplement: OutputSupplement{
-				IsRemainder: true,
+				IsRemainder: lastIsRemainder,
 				KeyID:       changeAddresses[nextIndex].KeyID,
 			},
 		})
 	} else if len(result) > 1 {
 		// Add to last output
-		result[len(result)-1].Supplement.IsRemainder = true
+		result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
 		result[len(result)-1].TxOut.Value += remaining
 	}
 
