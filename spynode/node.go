@@ -292,6 +292,7 @@ func (node *Node) Run(ctx context.Context) error {
 			}
 			waitCount++
 		}
+		logger.Info(ctx, "Incoming threads stopped")
 
 		// Close the channels to stop the processing threads.
 		node.outgoing.Close()
@@ -313,6 +314,7 @@ func (node *Node) Run(ctx context.Context) error {
 			}
 			waitCount++
 		}
+		logger.Info(ctx, "Processing threads stopped")
 
 		// Save block repository
 		logger.Verbose(ctx, "Saving")
