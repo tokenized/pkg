@@ -7,4 +7,6 @@ type Block interface {
 	GetTxCount() uint64
 	GetNextTx() (*MsgTx, error)
 	ResetTxs()
+
+	SerializeSize() int
 }

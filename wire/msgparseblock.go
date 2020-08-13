@@ -63,6 +63,10 @@ func (mpb *MsgParseBlock) ResetTxs() {
 	mpb.txOffset = 0
 }
 
+func (mpb *MsgParseBlock) SerializeSize() int {
+	return MaxBlockHeaderPayload + VarIntSerializeSize(mpb.TxCount) + len(mpb.data)
+}
+
 // *************************************************************************************************
 // Message interface
 func (mpb *MsgParseBlock) BtcDecode(r io.Reader, pver uint32) error {

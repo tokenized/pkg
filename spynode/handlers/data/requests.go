@@ -118,7 +118,7 @@ func (state *State) FinalizeBlock(hash bitcoin.Hash32) error {
 	}
 
 	if state.blocksRequested[0].block != nil {
-		state.pendingBlockSize -= block.SerializeSize()
+		state.pendingBlockSize -= state.blocksRequested[0].block.SerializeSize()
 	}
 	state.lastSavedHash = hash
 	state.blocksRequested = state.blocksRequested[1:] // Remove first item
