@@ -3,6 +3,7 @@ package txbuilder
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
@@ -162,4 +163,36 @@ func (tx *TxBuilder) Serialize() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (tx *TxBuilder) String(net bitcoin.Network) string {
+	result := fmt.Sprintf("TxId: %s (%d bytes)\n", tx.MsgTx.TxHash().String(), tx.MsgTx.SerializeSize())
+	result += fmt.Sprintf("  Version: %d\n", tx.MsgTx.Version)
+	result += "  Inputs:\n\n"
+	for i, input := range tx.MsgTx.TxIn {
+		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
+			input.PreviousOutPoint.Hash.String())
+		result += fmt.Sprintf("    Script: %x\n", input.SignatureScript)
+		result += fmt.Sprintf("    Sequence: %x\n", input.Sequence)
+
+		ra, err := bitcoin.RawAddressFromLockingScript(tx.Inputs[i].LockingScript)
+		if err == nil {
+			result += fmt.Sprintf("    Address: %s\n",
+				bitcoin.NewAddressFromRawAddress(ra, net).String())
+		}
+		result += fmt.Sprintf("    Value: %d\n\n", tx.Inputs[i].Value)
+	}
+	result += "  Outputs:\n\n"
+	for _, output := range tx.MsgTx.TxOut {
+		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
+		result += fmt.Sprintf("    Script: %x\n", output.PkScript)
+		ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
+		if err == nil {
+			result += fmt.Sprintf("    Address: %s\n",
+				bitcoin.NewAddressFromRawAddress(ra, net).String())
+		}
+		result += "\n"
+	}
+	result += fmt.Sprintf("  LockTime: %d\n", tx.MsgTx.LockTime)
+	return result
 }

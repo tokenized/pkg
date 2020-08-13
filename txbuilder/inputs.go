@@ -62,13 +62,13 @@ func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) 
 		KeyID:         utxo.KeyID,
 	}
 
-	afterInputs := tx.Inputs[index:]
-	tx.Inputs = append(tx.Inputs[:index], input)
-	tx.Inputs = append(tx.Inputs, afterInputs...)
+	afterInputs := make([]*InputSupplement, len(tx.Inputs)-index)
+	copy(afterInputs, tx.Inputs[index:])
+	tx.Inputs = append(append(tx.Inputs[:index], input), afterInputs...)
 
-	afterTxIn := tx.MsgTx.TxIn[index:]
-	tx.MsgTx.TxIn = append(tx.MsgTx.TxIn[:index], txin)
-	tx.MsgTx.TxIn = append(tx.MsgTx.TxIn, afterTxIn...)
+	afterTxIn := make([]*wire.TxIn, len(tx.MsgTx.TxIn)-index)
+	copy(afterTxIn, tx.MsgTx.TxIn[index:])
+	tx.MsgTx.TxIn = append(append(tx.MsgTx.TxIn[:index], txin), afterTxIn...)
 	return nil
 }
 
@@ -91,11 +91,7 @@ func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value u
 	}
 	tx.Inputs = append(tx.Inputs, &input)
 
-	txin := wire.TxIn{
-		PreviousOutPoint: outpoint,
-		Sequence:         wire.MaxTxInSequenceNum,
-	}
-	tx.MsgTx.AddTxIn(&txin)
+	tx.MsgTx.AddTxIn(wire.NewTxIn(&outpoint, nil))
 	return nil
 }
 

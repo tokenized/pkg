@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
-	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -93,7 +92,7 @@ func (tracker *TxTracker) Check(ctx context.Context, mempool *MemPool, transmitt
 
 	invRequest := wire.NewMsgGetData()
 	requestCount := 0
-	for txid, addedTime := range tracker.txids {
+	for txid, _ := range tracker.txids {
 		val := tracker.stop.Load()
 		s, ok := val.(bool)
 		if !ok || s {
@@ -104,8 +103,8 @@ func (tracker *TxTracker) Check(ctx context.Context, mempool *MemPool, transmitt
 		if alreadyHave {
 			delete(tracker.txids, txid) // Remove since we have received tx
 		} else if shouldRequest {
-			logger.Debug(ctx, "Re-Requesting tx (announced %s) : %s",
-				addedTime.Format("15:04:05.999999"), txid.String())
+			// logger.Debug(ctx, "Re-Requesting tx (announced %s) : %s",
+			// 	addedTime.Format("15:04:05.999999"), txid.String())
 			newTxId := txid // Make a copy to ensure the value isn't overwritten by the next iteration
 			item := wire.NewInvVect(wire.InvTypeTx, &newTxId)
 

@@ -166,13 +166,13 @@ func (tx *TxBuilder) InsertOutput(index int, lockScript []byte, value uint64, is
 		return ErrBelowDustValue
 	}
 
-	afterOutputs := tx.Outputs[index:]
-	tx.Outputs = append(tx.Outputs[:index], output)
-	tx.Outputs = append(tx.Outputs, afterOutputs...)
+	afterOutputs := make([]*OutputSupplement, len(tx.Outputs)-index)
+	copy(afterOutputs, tx.Outputs[index:])
+	tx.Outputs = append(append(tx.Outputs[:index], output), afterOutputs...)
 
-	afterTxOut := tx.MsgTx.TxOut[index:]
-	tx.MsgTx.TxOut = append(tx.MsgTx.TxOut[:index], txout)
-	tx.MsgTx.TxOut = append(tx.MsgTx.TxOut, afterTxOut...)
+	afterTxOut := make([]*wire.TxOut, len(tx.MsgTx.TxOut)-index)
+	copy(afterTxOut, tx.MsgTx.TxOut[index:])
+	tx.MsgTx.TxOut = append(append(tx.MsgTx.TxOut[:index], txout), afterTxOut...)
 
 	return nil
 }
