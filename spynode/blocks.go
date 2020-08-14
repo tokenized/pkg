@@ -2,6 +2,7 @@ package spynode
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -138,7 +139,7 @@ func (node *Node) ProcessBlock(ctx context.Context, block wire.Block) error {
 
 	header := block.GetHeader()
 	hash := header.BlockHash()
-	// logger.Debug(ctx, "Block : %s", hash.String())
+	defer logger.Elapsed(ctx, time.Now(), fmt.Sprintf("Processed block : %s", hash.String()))
 
 	if node.blocks.Contains(hash) {
 		height, _ := node.blocks.Height(hash)
