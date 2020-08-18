@@ -4,11 +4,11 @@ import "fmt"
 
 const (
 	// DefaultMaxRetries is the number of retries for a write operation
-	DefaultMaxRetries = 4
+	DefaultMaxRetries = 2
 
 	// DefaultRetryDelay is the number of milliseconds to wait before attempting a retry after a
-	//   failure.
-	DefaultRetryDelay = 5000
+	// failure.
+	DefaultRetryDelay = 200
 )
 
 // Config holds all configuration for the Storage.
