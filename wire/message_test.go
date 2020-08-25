@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/tokenized/pkg/bitcoin"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 )
 
 // makeHeader is a convenience function to make a message header in the form of
@@ -302,7 +304,7 @@ func TestReadMessageWireErrors(t *testing.T) {
 			pver,
 			btcnet,
 			len(shortPayloadBytes),
-			io.EOF,
+			&MessageError{Type: MessageErrorConnectionClosed},
 			24,
 		},
 
@@ -342,9 +344,9 @@ func TestReadMessageWireErrors(t *testing.T) {
 		// Decode from wire format.
 		r := newFixedReader(test.max, test.buf)
 		nr, _, _, err := ReadMessageN(r, test.pver, test.btcnet)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			t.Errorf("ReadMessage #%d wrong error got: %v <%T>, "+
-				"want: %T", i, err, err, test.readErr)
+		if reflect.TypeOf(errors.Cause(err)) != reflect.TypeOf(test.readErr) {
+			t.Errorf("ReadMessage #%d wrong error got: %v <%T>, "+"want: %T", i, err, err,
+				test.readErr)
 			continue
 		}
 
@@ -356,10 +358,9 @@ func TestReadMessageWireErrors(t *testing.T) {
 
 		// For errors which are not of type MessageError, check them for
 		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.readErr {
-				t.Errorf("ReadMessage #%d wrong error got: %v <%T>, "+
-					"want: %v <%T>", i, err, err,
+		if _, ok := errors.Cause(err).(*MessageError); !ok {
+			if errors.Cause(err) != test.readErr {
+				t.Errorf("ReadMessage #%d wrong error got: %v <%T>, "+"want: %v <%T>", i, err, err,
 					test.readErr, test.readErr)
 				continue
 			}

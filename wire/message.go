@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/tokenized/pkg/bitcoin"
+
+	"github.com/pkg/errors"
 )
 
 // MessageHeaderSize is the number of bytes in a bitcoin message header.
@@ -161,7 +163,9 @@ func readMessageHeader(r io.Reader) (int, *messageHeader, error) {
 	var headerBytes [MessageHeaderSize]byte
 	n, err := io.ReadFull(r, headerBytes[:])
 	if err != nil {
-		return n, nil, err
+		// If read failed assume closed connection since net package doesn't give consistent errors.
+		return n, nil, messageTypeError("ReadMessage", MessageErrorConnectionClosed,
+			err.Error())
 	}
 	hr := bytes.NewReader(headerBytes[:])
 
@@ -284,10 +288,7 @@ func ReadMessageN(r io.Reader, pver uint32, btcnet BitcoinNet) (int, Message, []
 	n, hdr, err := readMessageHeader(r)
 	totalBytes += n
 	if err != nil {
-		if err == io.EOF {
-			return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorConnectionClosed, err.Error())
-		}
-		return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorUndefined, err.Error())
+		return totalBytes, nil, nil, errors.Wrap(err, "read header")
 	}
 
 	// Check for messages from the wrong bitcoin network.
@@ -310,14 +311,16 @@ func ReadMessageN(r io.Reader, pver uint32, btcnet BitcoinNet) (int, Message, []
 	command := hdr.command
 	if !utf8.ValidString(command) {
 		discardInput(r, hdr.length)
-		return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorUnknownCommand, command)
+		return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorUnknownCommand,
+			command)
 	}
 
 	// Create struct of appropriate message type based on the command.
 	msg, err := makeEmptyMessage(command)
 	if err != nil {
 		discardInput(r, hdr.length)
-		return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorUnknownCommand, command)
+		return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorUnknownCommand,
+			command)
 	}
 
 	// Check for maximum length based on the message type as a malicious client
@@ -337,7 +340,9 @@ func ReadMessageN(r io.Reader, pver uint32, btcnet BitcoinNet) (int, Message, []
 	n, err = io.ReadFull(r, payload)
 	totalBytes += n
 	if err != nil {
-		return totalBytes, nil, nil, err
+		// If read failed assume closed connection since net package doesn't give consistent errors.
+		return totalBytes, nil, nil, messageTypeError("ReadMessage", MessageErrorConnectionClosed,
+			err.Error())
 	}
 
 	// Test checksum.

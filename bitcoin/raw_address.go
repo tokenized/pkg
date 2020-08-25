@@ -38,6 +38,10 @@ func DecodeRawAddress(b []byte) (RawAddress, error) {
 
 // Decode decodes a binary raw address. It returns an error if there was an issue.
 func (ra *RawAddress) Decode(b []byte) error {
+	if len(b) == 0 {
+		return errors.Wrap(ErrBadType, "empty")
+	}
+
 	switch b[0] {
 	case ScriptTypeEmpty:
 		ra.scriptType = ScriptTypeEmpty

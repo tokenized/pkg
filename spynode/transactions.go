@@ -118,9 +118,7 @@ func (node *Node) processUnconfirmedTx(ctx context.Context, tx handlers.TxData) 
 	// Notify of new tx
 	for _, listener := range node.listeners {
 		if rel, _ := listener.HandleTx(ctx, tx.Msg); rel {
-			if !isRelevant {
-				isRelevant = true
-			}
+			isRelevant = true
 		}
 	}
 

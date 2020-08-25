@@ -647,29 +647,35 @@ func (node *Node) monitorIncoming(ctx context.Context) {
 		_, msg, _, err := wire.ReadMessageN(connection, wire.ProtocolVersion,
 			wire.BitcoinNet(node.config.Net))
 		if err != nil {
-			wireError, ok := err.(*wire.MessageError)
+			wireError, ok := errors.Cause(err).(*wire.MessageError)
 			if ok {
-				if wireError.Type == wire.MessageErrorUnknownCommand {
+				switch wireError.Type {
+				case wire.MessageErrorUnknownCommand:
 					logger.Verbose(ctx, wireError.Error())
 					continue
-				} else {
-					logger.Error(ctx, "SpyNodeFailed read message (wireError) : %s", wireError)
+				case wire.MessageErrorConnectionClosed:
+					if !node.isStopping() {
+						logger.Warn(ctx, "SpyNodeFailed : %s", wireError)
+						node.restart(ctx)
+					}
+					return
+				default:
+					logger.Warn(ctx, "SpyNodeFailed read message (wireError) : %s", wireError)
 					node.restart(ctx)
-					break
+					return
 				}
-
 			} else {
-				logger.Error(ctx, "SpyNodeFailed to read message : %s", err)
+				logger.Warn(ctx, "SpyNodeFailed to read message : %s", err)
 				node.restart(ctx)
-				break
+				return
 			}
 		}
 
 		if err := node.handleMessage(ctx, msg); err != nil {
-			logger.Error(ctx, "SpyNodeAborted to handle [%s] message : %s", msg.Command(),
+			logger.Error(ctx, "SpyNodeAborted handling [%s] message : %s", msg.Command(),
 				err.Error())
-			node.requestStop(ctx)
-			break
+			node.restart(ctx)
+			return
 		}
 		if msg.Command() == "reject" {
 			reject, ok := msg.(*wire.MsgReject)

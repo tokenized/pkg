@@ -43,6 +43,12 @@ var (
 	// ErrMissingInputs means that an input's outpoint has already been spent (double spend) or is
 	// not known yet.
 	ErrMissingInputs = errors.New("Inputs not in UTXO set")
+
+	// ErrTransactionInMempool means that the sent tx is already in the node's mempool.
+	ErrTransactionInMempool = errors.New("Transaction already in mempool")
+
+	// ErrTransactionConflict means that the transaction's inputs conflict with an existing tx.
+	ErrTransactionConflict = errors.New("Transaction Conflict")
 )
 
 type RPCNode struct {
@@ -95,9 +101,15 @@ func ConvertError(err error) error {
 		return ErrNotSeen
 	case -25:
 		return ErrMissingInputs
+	case -26: // txn-mempool-conflict
+		return ErrTransactionConflict
+	case -27: // Transaction already in the mempool
+		return ErrTransactionInMempool
 	default:
 		return err
 	}
+
+	return err
 }
 
 // GetTX requests a tx from the remote server.

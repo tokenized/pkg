@@ -283,16 +283,13 @@ func (node *UntrustedNode) monitorIncoming(ctx context.Context) {
 			wireError, ok := errors.Cause(err).(*wire.MessageError)
 			if ok {
 				if wireError.Type == wire.MessageErrorUnknownCommand {
-					// logger.Debug(ctx, "(%s) %s", node.address, wireError)
 					continue
 				} else {
-					// logger.Debug(ctx, "(%s) %s", node.address, wireError)
 					node.Stop(ctx)
 					break
 				}
 
 			} else {
-				// logger.Debug(ctx, "(%s) Failed to read message : %s", node.address, err.Error())
 				node.Stop(ctx)
 				break
 			}
@@ -300,8 +297,6 @@ func (node *UntrustedNode) monitorIncoming(ctx context.Context) {
 
 		if err := node.handleMessage(ctx, msg); err != nil {
 			node.peers.UpdateScore(ctx, node.address, -1)
-			// logger.Debug(ctx, "(%s) Failed to handle [%s] message : %s", node.address,
-			// 	msg.Command(), err.Error())
 			node.Stop(ctx)
 			break
 		}
