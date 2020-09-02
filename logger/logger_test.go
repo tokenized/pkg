@@ -37,3 +37,32 @@ func TestLogger(test *testing.T) {
 		Log(ctxTrace2, LevelInfo, "Entry with trace 2")
 	}
 }
+
+func TestSubSystem(test *testing.T) {
+	logConfig := NewProductionConfig()
+
+	logConfig.EnableSubSystem("SpyNode")
+
+	ctx := ContextWithLogConfig(context.Background(), logConfig)
+	log := NewLoggerObject(ctx)
+	spyCtx := ContextWithLogSubSystem(ctx, "SpyNode")
+	wospyCtx := ContextWithOutLogSubSystem(ctx)
+
+	Log(ctx, LevelInfo, "Without Spynode")
+	Log(spyCtx, LevelInfo, "With Spynode")
+	Log(wospyCtx, LevelInfo, "Without Spynode")
+
+	log.Printf("Print")
+}
+
+func TestDisabledSubSystem(test *testing.T) {
+	logConfig := NewProductionConfig()
+
+	ctx := ContextWithLogConfig(context.Background(), logConfig)
+	spyCtx := ContextWithLogSubSystem(ctx, "SpyNode")
+	wospyCtx := ContextWithOutLogSubSystem(ctx)
+
+	Log(ctx, LevelInfo, "Without Spynode")
+	Log(spyCtx, LevelInfo, "With Spynode")
+	Log(wospyCtx, LevelInfo, "Without Spynode")
+}

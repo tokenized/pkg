@@ -13,5 +13,5 @@ func Elapsed(ctx context.Context, start time.Time, format string, values ...inte
 
 	values = append(values, ms)
 
-	LogDepth(ctx, LevelVerbose, 1, format+" : %0.3f ms", values...)
+	LogDepth(ctx, LevelInfo, 1, format+" : %0.3f ms", values...)
 }
