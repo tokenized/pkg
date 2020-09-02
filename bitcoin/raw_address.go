@@ -546,6 +546,39 @@ func (ra *RawAddress) UnmarshalJSON(data []byte) error {
 	return ra.Decode(raw)
 }
 
+// MarshalText returns the text encoding of the raw address.
+// Implements encoding.TextMarshaler interface.
+func (ra RawAddress) MarshalText() ([]byte, error) {
+	b := ra.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded raw address and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (ra *RawAddress) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return ra.Decode(b)
+}
+
+// MarshalBinary returns the binary encoding of the raw address.
+// Implements encoding.BinaryMarshaler interface.
+func (ra RawAddress) MarshalBinary() ([]byte, error) {
+	return ra.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded raw address and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (ra *RawAddress) UnmarshalBinary(data []byte) error {
+	return ra.Decode(data)
+}
+
 // Scan converts from a database column.
 func (ra *RawAddress) Scan(data interface{}) error {
 	if data == nil {

@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 
@@ -267,6 +268,39 @@ func (k ExtendedKeys) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON converts from json.
 func (k *ExtendedKeys) UnmarshalJSON(data []byte) error {
 	return k.SetString58(string(data[1 : len(data)-1]))
+}
+
+// MarshalText returns the text encoding of the extended keys.
+// Implements encoding.TextMarshaler interface.
+func (k ExtendedKeys) MarshalText() ([]byte, error) {
+	b := k.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded extended keys and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (k *ExtendedKeys) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return k.SetBytes(b)
+}
+
+// MarshalBinary returns the binary encoding of the extended keys.
+// Implements encoding.BinaryMarshaler interface.
+func (k ExtendedKeys) MarshalBinary() ([]byte, error) {
+	return k.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded extended keys and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (k *ExtendedKeys) UnmarshalBinary(data []byte) error {
+	return k.SetBytes(data)
 }
 
 // Scan converts from a database column.

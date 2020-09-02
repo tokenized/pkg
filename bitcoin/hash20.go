@@ -122,6 +122,39 @@ func (h *Hash20) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalText returns the text encoding of the hash.
+// Implements encoding.TextMarshaler interface.
+func (h Hash20) MarshalText() ([]byte, error) {
+	b := h.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded hash and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (h *Hash20) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return h.SetBytes(b)
+}
+
+// MarshalBinary returns the binary encoding of the hash.
+// Implements encoding.BinaryMarshaler interface.
+func (h Hash20) MarshalBinary() ([]byte, error) {
+	return h.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded hash and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (h *Hash20) UnmarshalBinary(data []byte) error {
+	return h.SetBytes(data)
+}
+
 // Scan converts from a database column.
 func (h *Hash20) Scan(data interface{}) error {
 	b, ok := data.([]byte)

@@ -64,12 +64,16 @@ func (k *PublicKey) SetString(s string) error {
 
 // SetBytes decodes the key from bytes.
 func (k *PublicKey) SetBytes(b []byte) error {
-	nk, err := PublicKeyFromBytes(b)
-	if err != nil {
-		return err
+	if len(b) != PublicKeyCompressedLength {
+		return errors.New("Invalid public key length")
 	}
 
-	*k = nk
+	x, y := expandPublicKey(b)
+	if err := publicKeyIsValid(x, y); err != nil {
+		return err
+	}
+	k.X = x
+	k.Y = y
 	return nil
 }
 
@@ -116,6 +120,39 @@ func (k PublicKey) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON converts from json.
 func (k *PublicKey) UnmarshalJSON(data []byte) error {
 	return k.SetString(string(data[1 : len(data)-1]))
+}
+
+// MarshalText returns the text encoding of the public key.
+// Implements encoding.TextMarshaler interface.
+func (k PublicKey) MarshalText() ([]byte, error) {
+	b := k.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded public key and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (k *PublicKey) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return k.SetBytes(b)
+}
+
+// MarshalBinary returns the binary encoding of the public key.
+// Implements encoding.BinaryMarshaler interface.
+func (k PublicKey) MarshalBinary() ([]byte, error) {
+	return k.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded public key and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (k *PublicKey) UnmarshalBinary(data []byte) error {
+	return k.SetBytes(data)
 }
 
 // Scan converts from a database column.
