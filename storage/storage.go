@@ -58,6 +58,8 @@ func CreateStorage(bucket, root string, maxRetries, retryDelay int) Storage {
 
 	if strings.ToLower(config.Bucket) == "standalone" {
 		return NewFilesystemStorage(config)
+	} else if strings.ToLower(config.Bucket) == "mock" {
+		return NewMockStorage()
 	} else {
 		return NewS3Storage(config)
 	}
