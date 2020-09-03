@@ -59,7 +59,7 @@ func (h *Hash20) SetBytes(b []byte) error {
 }
 
 // String returns the hex for the hash.
-func (h *Hash20) String() string {
+func (h Hash20) String() string {
 	var r [Hash20Size]byte
 	reverse20(r[:], h[:])
 	return fmt.Sprintf("%x", r[:])

@@ -66,7 +66,7 @@ func (h *Hash32) SetBytes(b []byte) error {
 }
 
 // String returns the hex for the hash.
-func (h *Hash32) String() string {
+func (h Hash32) String() string {
 	var r [Hash32Size]byte
 	reverse32(r[:], h[:])
 	return fmt.Sprintf("%x", r[:])
