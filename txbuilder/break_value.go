@@ -4,8 +4,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 var (

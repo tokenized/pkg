@@ -66,3 +66,19 @@ func TestDisabledSubSystem(test *testing.T) {
 	Log(spyCtx, LevelInfo, "With Spynode")
 	Log(wospyCtx, LevelInfo, "Without Spynode")
 }
+
+func BenchmarkContextWithLogTrace(b *testing.B) {
+	ctx := ContextWithLogConfig(context.Background(), NewProductionConfig())
+
+	for i := 0; i < b.N; i++ {
+		ContextWithLogTrace(ctx, "trace")
+	}
+}
+
+func BenchmarkContextWithOutLogSubSystem(b *testing.B) {
+	ctx := ContextWithLogConfig(context.Background(), NewProductionConfig())
+
+	for i := 0; i < b.N; i++ {
+		ContextWithOutLogSubSystem(ctx)
+	}
+}

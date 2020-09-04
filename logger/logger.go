@@ -118,18 +118,26 @@ func ContextWithOutLogSubSystem(ctx context.Context) context.Context {
 
 // ContextWithLogTrace returns a context with a trace field added to the logger.
 func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
-	config := *NewProductionConfig()
+	var config *Config
 
 	configValue := ctx.Value(key)
 	if configValue != nil {
 		contextConfig, ok := configValue.(Config)
 		if ok {
-			config = contextConfig
+			config = &contextConfig
 		}
 	}
 
+	if config == nil {
+		config = NewProductionConfig()
+	}
+
+	if config.Active.logger == nil {
+		return ctx
+	}
+
 	config.Active.logger = config.Active.logger.With(zap.String("trace", trace))
-	return context.WithValue(ctx, key, config)
+	return context.WithValue(ctx, key, *config)
 }
 
 func GetLogger(ctx context.Context) *zap.Logger {
