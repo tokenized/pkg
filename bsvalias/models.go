@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 // Capabilities contains the information about the endpoints supported by the bsvalias host.
@@ -19,14 +20,6 @@ type Capabilities struct {
 type Site struct {
 	Capabilities Capabilities
 	URL          string `json:"url"`
-}
-
-// Identity represents a paymail/bsvalias handle and the data retrieved for the host.
-type Identity struct {
-	Handle   string
-	Site     Site
-	Alias    string
-	Hostname string
 }
 
 // PublicKeyResponse is the raw response from a PublicKey endpoint.
@@ -142,6 +135,6 @@ type PaymentRequestResponse struct {
 
 // PaymentRequest is the processed response from a PaymentRequest endpoint.
 type PaymentRequest struct {
-	Tx      wire.MsgTx
-	Outputs []wire.TxOut
+	Tx      *wire.MsgTx
+	Outputs []*wire.TxOut
 }

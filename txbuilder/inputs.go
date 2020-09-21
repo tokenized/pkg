@@ -269,7 +269,8 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		if !remainderIncluded {
 			// Ensure added change output is funded
 			if inputValue-outputValue >= estFeeValue+changeFee {
-				if err := tx.SetChangeAddress(changeAddresses[0].Address, changeAddresses[0].KeyID); err != nil {
+				if err := tx.SetChangeAddress(changeAddresses[0].Address,
+					changeAddresses[0].KeyID); err != nil {
 					return errors.Wrap(err, "set change address")
 				}
 				return tx.CalculateFee() // Already funded
