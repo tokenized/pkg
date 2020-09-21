@@ -8,12 +8,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	URLNamePKI                = "pki"
-	URLNamePaymentDestination = "paymentDestination"
-	URLNamePaymentRequest     = "f7ecaab847eb"
-)
-
 func GetSite(ctx context.Context, domain string) (Site, error) {
 	// Lookup SRV record for possible hosting other than specified domain
 	_, records, _ := net.LookupSRV("bsvalias", "tcp", domain)

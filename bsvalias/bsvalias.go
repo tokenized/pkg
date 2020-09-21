@@ -2,60 +2,68 @@ package bsvalias
 
 import (
 	"context"
-	"strings"
 
 	"github.com/tokenized/pkg/bitcoin"
 
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrInvalidHandle    = errors.New("Invalid handle")    // handle is badly formatted
-	ErrNotCapable       = errors.New("Not capable")       // host site doesn't support a function
-	ErrInvalidSignature = errors.New("Invalid signature") // The signature in a request is invalid
+const (
+	// URLNamePKI is the name used to identity the PKI (Public Key Infrastructure) URL and
+	// capability.
+	URLNamePKI = "pki"
+
+	// URLNamePaymentDestination is the name used to identity the payment destination URL and
+	// capability.
+	URLNamePaymentDestination = "paymentDestination"
+
+	// URLNamePaymentRequest is the name used to identity the payment request URL and
+	// capability.
+	URLNamePaymentRequest = "f7ecaab847eb"
+
+	// RequireNameSenderValidation is a Capabilities key value that specifies if sender's are
+	// required to include a sender handle and signature to validate the sender.
+	// Set the value to true (a boolean, not string)
+	RequireNameSenderValidation = "6745385c3fc0"
 )
 
-func NewIdentity(ctx context.Context, handle string) (Identity, error) {
-	result := Identity{
-		Handle: handle,
-	}
+var (
+	// ErrInvalidHandle means the handle is formatted incorrectly or just invalid.
+	ErrInvalidHandle = errors.New("Invalid handle")
 
-	fields := strings.Split(handle, "@")
-	if len(fields) != 2 {
-		return result, errors.Wrap(ErrInvalidHandle, "split @ not 2")
-	}
+	// ErrNotCapable means the host site does not support a feature being requested.
+	ErrNotCapable = errors.New("Not capable")
 
-	result.Alias = fields[0]
-	result.Hostname = fields[1]
+	// ErrInvalidSignature means a signature is invalid.
+	ErrInvalidSignature = errors.New("Invalid signature")
 
-	var err error
-	result.Site, err = GetSite(ctx, result.Hostname)
-	if err != nil {
-		return result, errors.Wrap(err, "get site")
-	}
+	// ErrNotFound means the requested entity was not found.
+	ErrNotFound = errors.New("Not Found")
+)
 
-	return result, nil
+// Factory is the interface for creating new bsvalias clients.
+// This is mainly used for testing so actual HTTP calls can be replaced with an internal system.
+type Factory interface {
+	// NewClient creates a new client.
+	NewClient(ctx context.Context, handle string) (Client, error)
 }
 
-func (i *Identity) GetPublicKey(ctx context.Context) (bitcoin.PublicKey, error) {
+// Client is the interface for interacting with an bsvalias oracle service.
+type Client interface {
+	// GetPublicKey gets the identity public key for the handle.
+	GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error)
 
-	url, err := i.Site.Capabilities.GetURL(URLNamePKI)
-	if err != nil {
-		return bitcoin.PublicKey{}, errors.Wrap(err, URLNamePKI)
-	}
+	// GetPaymentDestination requests a locking script that can be used to send bitcoin.
+	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
+	// a signature to the request.
+	GetPaymentDestination(senderName, senderHandle, purpose string, amount uint64,
+		senderKey *bitcoin.Key) ([]byte, error)
 
-	url = strings.ReplaceAll(url, "{alias}", i.Alias)
-	url = strings.ReplaceAll(url, "{domain.tld}", i.Hostname)
-
-	var response PublicKeyResponse
-	if err := get(url, &response); err != nil {
-		return bitcoin.PublicKey{}, errors.Wrap(err, "http get")
-	}
-
-	result, err := bitcoin.PublicKeyFromStr(response.PublicKey)
-	if err != nil {
-		return bitcoin.PublicKey{}, errors.Wrap(err, "parse public key")
-	}
-
-	return result, nil
+	// GetPaymentRequest requests a payment request that can be used to send bitcoin or an asset.
+	//   senderHandle is required.
+	//   assetID can be empty or "BSV" to request bitcoin.
+	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
+	// a signature to the request.
+	GetPaymentRequest(senderName, senderHandle, purpose, assetID string, amount uint64,
+		senderKey *bitcoin.Key) (*PaymentRequest, error)
 }
