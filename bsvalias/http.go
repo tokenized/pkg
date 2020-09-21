@@ -190,7 +190,9 @@ func (c *HTTPClient) GetPaymentRequest(senderName, senderHandle, purpose, assetI
 		return nil, errors.Wrap(err, "parse tx hex")
 	}
 
-	var result PaymentRequest
+	result := &PaymentRequest{
+		Tx: wire.NewMsgTx(1),
+	}
 	if err := result.Tx.Deserialize(bytes.NewReader(b)); err != nil {
 		return nil, errors.Wrap(err, "deserialize tx")
 	}
@@ -209,7 +211,7 @@ func (c *HTTPClient) GetPaymentRequest(senderName, senderHandle, purpose, assetI
 		result.Outputs = append(result.Outputs, output)
 	}
 
-	return &result, nil
+	return result, nil
 }
 
 // post sends a request to the HTTP server using the POST method.
