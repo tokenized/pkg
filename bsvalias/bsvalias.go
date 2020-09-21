@@ -9,9 +9,17 @@ import (
 )
 
 const (
-	URLNamePKI                = "pki"
+	// URLNamePKI is the name used to identity the PKI (Public Key Infrastructure) URL and
+	// capability.
+	URLNamePKI = "pki"
+
+	// URLNamePaymentDestination is the name used to identity the payment destination URL and
+	// capability.
 	URLNamePaymentDestination = "paymentDestination"
-	URLNamePaymentRequest     = "f7ecaab847eb"
+
+	// URLNamePaymentRequest is the name used to identity the payment request URL and
+	// capability.
+	URLNamePaymentRequest = "f7ecaab847eb"
 
 	// RequireNameSenderValidation is a Capabilities key value that specifies if sender's are
 	// required to include a sender handle and signature to validate the sender.
@@ -28,6 +36,9 @@ var (
 
 	// ErrInvalidSignature means a signature is invalid.
 	ErrInvalidSignature = errors.New("Invalid signature")
+
+	// ErrNotFound means the requested entity was not found.
+	ErrNotFound = errors.New("Not Found")
 )
 
 // Factory is the interface for creating new bsvalias clients.

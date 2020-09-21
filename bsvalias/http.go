@@ -18,33 +18,30 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrNotFound = errors.New("Not Found")
-)
-
-// HttpClient represents a client for a paymail/bsvalias service that uses HTTP for requests.
-type HttpClient struct {
+// HTTPClient represents a client for a paymail/bsvalias service that uses HTTP for requests.
+type HTTPClient struct {
 	Handle   string
 	Site     Site
 	Alias    string
 	Hostname string
 }
 
-// HttpFactory is a factory for creating HTTP clients.
-type HttpFactory struct{}
+// HTTPFactory is a factory for creating HTTP clients.
+type HTTPFactory struct{}
 
-// NewHttpFactory creates a new HTTP factory.
-func NewHttpFactory() *HttpFactory {
-	return &HttpFactory{}
+// NewHTTPFactory creates a new HTTP factory.
+func NewHTTPFactory() *HTTPFactory {
+	return &HTTPFactory{}
 }
 
 // NewClient creates a new client.
-func (f *HttpFactory) NewClient(ctx context.Context, handle string) (Client, error) {
-	return NewHttpClient(ctx, handle)
+func (f *HTTPFactory) NewClient(ctx context.Context, handle string) (Client, error) {
+	return NewHTTPClient(ctx, handle)
 }
 
-func NewHttpClient(ctx context.Context, handle string) (*HttpClient, error) {
-	result := HttpClient{
+// NewHTTPClient creates a new HTTPClient.
+func NewHTTPClient(ctx context.Context, handle string) (*HTTPClient, error) {
+	result := HTTPClient{
 		Handle: handle,
 	}
 
@@ -65,7 +62,8 @@ func NewHttpClient(ctx context.Context, handle string) (*HttpClient, error) {
 	return &result, nil
 }
 
-func (c *HttpClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error) {
+// GetPublicKey gets the identity public key for the handle.
+func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error) {
 
 	url, err := c.Site.Capabilities.GetURL(URLNamePKI)
 	if err != nil {
@@ -90,8 +88,8 @@ func (c *HttpClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, erro
 
 // GetPaymentDestination gets a locking script that can be used to send bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add a
-//   signature to the request.
-func (c *HttpClient) GetPaymentDestination(senderName, senderHandle, purpose string,
+// signature to the request.
+func (c *HTTPClient) GetPaymentDestination(senderName, senderHandle, purpose string,
 	amount uint64, senderKey *bitcoin.Key) ([]byte, error) {
 
 	url, err := c.Site.Capabilities.GetURL(URLNamePaymentDestination)
@@ -146,8 +144,8 @@ func (c *HttpClient) GetPaymentDestination(senderName, senderHandle, purpose str
 //   senderHandle is required.
 //   assetID can be empty or "BSV" to request bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add a
-//   signature to the request.
-func (c *HttpClient) GetPaymentRequest(senderName, senderHandle, purpose, assetID string,
+// signature to the request.
+func (c *HTTPClient) GetPaymentRequest(senderName, senderHandle, purpose, assetID string,
 	amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
 
 	url, err := c.Site.Capabilities.GetURL(URLNamePaymentRequest)
@@ -214,6 +212,7 @@ func (c *HttpClient) GetPaymentRequest(senderName, senderHandle, purpose, assetI
 	return &result, nil
 }
 
+// post sends a request to the HTTP server using the POST method.
 func post(url string, request, response interface{}) error {
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
@@ -255,6 +254,7 @@ func post(url string, request, response interface{}) error {
 	return nil
 }
 
+// get sends a request to the HTTP server using the GET method.
 func get(url string, response interface{}) error {
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{

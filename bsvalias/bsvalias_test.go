@@ -38,7 +38,7 @@ func TestIdentity(t *testing.T) {
 	for _, handle := range handles {
 		fields := strings.Split(handle, "@")
 
-		id, err := NewHttpClient(ctx, handle)
+		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
@@ -59,7 +59,7 @@ func TestPublicKey(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
-		id, err := NewHttpClient(ctx, handle)
+		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
@@ -77,7 +77,7 @@ func TestPaymentDestination(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
-		id, err := NewHttpClient(ctx, handle)
+		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
@@ -103,7 +103,7 @@ func TestPaymentRequest(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
-		id, err := NewHttpClient(ctx, handle)
+		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
