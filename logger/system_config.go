@@ -1,90 +1,57 @@
 package logger
 
 import (
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 // SystemConfig defines the configuration the main system or a subsystem with custom settings.
-type SystemConfig struct {
+type systemConfig struct {
 	logger *zap.Logger
 }
 
-// NewProductionLogger creates a new logger with default production values.
-// Logs info level and above to stderr.
-func NewProductionLogger() (*SystemConfig, error) {
-	l, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
-	}
-	return &SystemConfig{l}, nil
-}
-
-// NewDevelopmentLogger creates a new logger with default development values.
-// Logs verbose level and above to stderr.
-func NewDevelopmentLogger() (*SystemConfig, error) {
+// newSystemConfig creates a new logger system config.
+// NOTE: isText doesn't work yet, but is meant to change from JSON to tab delimited.
+func newSystemConfig(isDevelopment, isText bool, filePath string) (*systemConfig, error) {
 	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 
-	// Turn off stack trace logging for Warn level entries.
-	l, err := config.Build(zap.AddStacktrace(zapcore.ErrorLevel))
+	if len(filePath) > 0 {
+		config.OutputPaths = []string{filePath}
+	}
+
+	if isDevelopment {
+		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+
+		// Turn off stack trace logging for Warn level entries.
+		l, err := config.Build(zap.AddStacktrace(zapcore.ErrorLevel))
+		if err != nil {
+			return nil, err
+		}
+
+		return &systemConfig{l}, nil
+	}
+
+	l, err := config.Build()
 	if err != nil {
 		return nil, err
 	}
 
-	return &SystemConfig{l}, nil
+	return &systemConfig{l}, nil
 }
 
-// NewProductionTextLogger a new logger with default production values.
-// Logs info level and above to stderr.
-func NewProductionTextLogger() (*SystemConfig, error) {
-	l, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
-	}
-	return &SystemConfig{l}, nil
-}
-
-// NewDevelopmentTextLogger creates a new logger with default development values.
-// Logs verbose level and above to stderr.
-func NewDevelopmentTextLogger() (*SystemConfig, error) {
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-
-	// Turn off stack trace logging for Warn level entries.
-	l, err := config.Build(zap.AddStacktrace(zapcore.ErrorLevel))
-	if err != nil {
-		return nil, err
-	}
-
-	return &SystemConfig{l}, nil
-}
-
-// NewEmptyLogger a new logger that doesn't log.
-func NewEmptyLogger() (*SystemConfig, error) {
-	return &SystemConfig{zap.NewNop()}, nil
+// newEmptySystemConfig a new logger system config that doesn't log.
+func newEmptySystemConfig() (*systemConfig, error) {
+	return &systemConfig{zap.NewNop()}, nil
 }
 
 // AddField adds a zap field to the existing log outputs
-func (s *SystemConfig) AddField(f zapcore.Field) error {
+func (s *systemConfig) addField(f zapcore.Field) error {
 	s.logger = s.logger.With(f)
 	return nil
 }
 
 // AddName adds a name to the existing log outputs
-func (s *SystemConfig) AddName(name string) error {
+func (s *systemConfig) addName(name string) error {
 	s.logger = s.logger.Named(name)
-	return nil
-}
-
-// AddFile adds a file to the existing log outputs
-func (s *SystemConfig) AddFile(filePath string) error {
-	w, _, err := zap.Open(filePath) // (zapcore.WriteSyncer, func(), error)
-	if err != nil {
-		return errors.Wrap(err, "open file")
-	}
-
-	s.logger = s.logger.WithOptions(zap.ErrorOutput(w))
 	return nil
 }

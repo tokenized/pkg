@@ -82,7 +82,7 @@ func ContextWithLogSubSystem(ctx context.Context, subsystem string) context.Cont
 	if !includeExists || !include {
 		// Empty logger for this subsystem, but leave the rest of the configuration so it can pop
 		// back up to the main config if it calls through to ContextWithOutLogSubSystem.
-		n, _ := NewEmptyLogger()
+		n, _ := newEmptySystemConfig()
 		config.Active = *n
 		return context.WithValue(ctx, key, config)
 	}
@@ -91,6 +91,7 @@ func ContextWithLogSubSystem(ctx context.Context, subsystem string) context.Cont
 	subConfig, subExists := config.SubSystems[subsystem]
 	if subExists {
 		config.Active = *subConfig
+		return context.WithValue(ctx, key, config)
 	}
 
 	config.Active.logger = config.Active.logger.Named(subsystem)
@@ -103,13 +104,13 @@ func ContextWithOutLogSubSystem(ctx context.Context) context.Context {
 	configValue := ctx.Value(key)
 	if configValue == nil {
 		// Config not specified. Use default config.
-		return context.WithValue(ctx, key, *NewProductionConfig())
+		return context.WithValue(ctx, key, *NewConfig(false, false, ""))
 	}
 
 	config, ok := configValue.(Config)
 	if !ok {
 		// Config invalid. Use default config.
-		return context.WithValue(ctx, key, *NewProductionConfig())
+		return context.WithValue(ctx, key, *NewConfig(false, false, ""))
 	}
 
 	config.Active = *config.Main
@@ -129,7 +130,7 @@ func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
 	}
 
 	if config == nil {
-		config = NewProductionConfig()
+		config = NewConfig(false, false, "")
 	}
 
 	if config.Active.logger == nil {
@@ -144,14 +145,14 @@ func GetLogger(ctx context.Context) *zap.Logger {
 	configValue := ctx.Value(key)
 	if configValue == nil {
 		// Config not specified. Use default config.
-		sc, _ := NewProductionLogger()
+		sc, _ := newSystemConfig(false, false, "")
 		return sc.logger
 	}
 
 	config, ok := configValue.(Config)
 	if !ok {
 		// Config invalid. Use default config.
-		sc, _ := NewProductionLogger()
+		sc, _ := newSystemConfig(false, false, "")
 		return sc.logger
 	}
 
