@@ -16,10 +16,11 @@ func TestLogger(test *testing.T) {
 		logConfig := NewDevelopmentConfig()
 		logConfig.EnableSubSystem(showsystem)
 		logConfig.Main.AddFile(fileName)
-		// logConfig.Main.Format |= System
+
 		ctx := ContextWithLogConfig(context.Background(), logConfig)
 
 		Log(ctx, LevelInfo, "First main entry")
+		Log(ctx, LevelInfo, "First main entry with value : %d", 101)
 
 		showCtx := ContextWithLogSubSystem(ctx, showsystem)
 		Log(showCtx, LevelInfo, "First Sub entry")
@@ -28,5 +29,56 @@ func TestLogger(test *testing.T) {
 		Log(hideCtx, LevelInfo, "First Hidden Sub entry. You should not see this!")
 
 		Log(ctx, LevelInfo, "Second main entry")
+
+		ctxTrace1 := ContextWithLogTrace(ctx, "trace 1")
+		Log(ctxTrace1, LevelInfo, "Entry with trace 1")
+
+		ctxTrace2 := ContextWithLogTrace(ctx, "trace 2")
+		Log(ctxTrace2, LevelInfo, "Entry with trace 2")
+	}
+}
+
+func TestSubSystem(test *testing.T) {
+	logConfig := NewProductionConfig()
+
+	logConfig.EnableSubSystem("SpyNode")
+
+	ctx := ContextWithLogConfig(context.Background(), logConfig)
+	log := NewLoggerObject(ctx)
+	spyCtx := ContextWithLogSubSystem(ctx, "SpyNode")
+	wospyCtx := ContextWithOutLogSubSystem(ctx)
+
+	Log(ctx, LevelInfo, "Without Spynode")
+	Log(spyCtx, LevelInfo, "With Spynode")
+	Log(wospyCtx, LevelInfo, "Without Spynode")
+
+	log.Printf("Print")
+}
+
+func TestDisabledSubSystem(test *testing.T) {
+	logConfig := NewProductionConfig()
+
+	ctx := ContextWithLogConfig(context.Background(), logConfig)
+	spyCtx := ContextWithLogSubSystem(ctx, "SpyNode")
+	wospyCtx := ContextWithOutLogSubSystem(ctx)
+
+	Log(ctx, LevelInfo, "Without Spynode")
+	Log(spyCtx, LevelInfo, "With Spynode")
+	Log(wospyCtx, LevelInfo, "Without Spynode")
+}
+
+func BenchmarkContextWithLogTrace(b *testing.B) {
+	ctx := ContextWithLogConfig(context.Background(), NewProductionConfig())
+
+	for i := 0; i < b.N; i++ {
+		ContextWithLogTrace(ctx, "trace")
+	}
+}
+
+func BenchmarkContextWithOutLogSubSystem(b *testing.B) {
+	ctx := ContextWithLogConfig(context.Background(), NewProductionConfig())
+
+	for i := 0; i < b.N; i++ {
+		ContextWithOutLogSubSystem(ctx)
 	}
 }

@@ -409,6 +409,18 @@ func (a Address) Hash() (*Hash20, error) {
 	return nil, ErrUnknownScriptTemplate
 }
 
+// MarshalText returns the text encoding of the address.
+// Implements encoding.TextMarshaler interface.
+func (a Address) MarshalText() ([]byte, error) {
+	return []byte(a.String()), nil
+}
+
+// UnmarshalText parses a text encoded bitcoin address and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (a *Address) UnmarshalText(text []byte) error {
+	return a.Decode(string(text))
+}
+
 // MarshalJSON converts to json.
 func (a Address) MarshalJSON() ([]byte, error) {
 	if len(a.data) == 0 {

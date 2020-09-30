@@ -24,6 +24,7 @@ type State struct {
 	startHeight        int               // Height of start block (to start pulling full blocks)
 	blocksRequested    []*requestedBlock // Blocks that have been requested
 	blocksToRequest    []bitcoin.Hash32  // Blocks that need to be requested
+	pendingBlockSize   int               // The data size (bytes) of the blocks pending processing
 	lastSavedHash      bitcoin.Hash32
 	pendingSync        bool // The peer has notified us of all blocks. Now we just have to process to catch up.
 	lock               sync.Mutex
@@ -46,6 +47,7 @@ func NewState() *State {
 		blocksRequested:    make([]*requestedBlock, 0, maxRequestedBlocks),
 		blocksToRequest:    make([]bitcoin.Hash32, 0, 2000),
 		pendingSync:        false,
+		pendingBlockSize:   0,
 	}
 	return &result
 }
@@ -66,6 +68,7 @@ func (state *State) Reset() {
 	state.blocksRequested = state.blocksRequested[:0]
 	state.blocksToRequest = state.blocksToRequest[:0]
 	state.pendingSync = false
+	state.pendingBlockSize = 0
 }
 
 func (state *State) ProtocolVersion() uint32 {

@@ -6,6 +6,8 @@ package wire
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -635,6 +637,108 @@ func TestTxSerializeSize(t *testing.T) {
 				serializedSize, test.size)
 			continue
 		}
+	}
+}
+
+func TestTxOutMarshalText(t *testing.T) {
+	var buf bytes.Buffer
+	if err := multiTx.TxOut[0].Serialize(&buf, 0, 1); err != nil {
+		t.Fatalf("Failed to serialize tx : %s", err)
+	}
+	b := buf.Bytes()
+	h := hex.EncodeToString(b)
+
+	var input struct {
+		TxOut *TxOut `json:"tx"`
+	}
+
+	input.TxOut = multiTx.TxOut[0]
+
+	js, err := json.Marshal(&input)
+	if err != nil {
+		t.Fatalf("Failed to marshal tx : %s", err)
+	}
+
+	var output struct {
+		TxOut string `json:"tx"`
+	}
+
+	if err := json.Unmarshal(js, &output); err != nil {
+		t.Fatalf("Failed to unmarshal tx : %s", err)
+	}
+
+	if output.TxOut != h {
+		t.Errorf("Wrong marshalled text : \n  got  %s\n  want %s", output.TxOut, h)
+	}
+
+	var output2 struct {
+		TxOut *TxOut `json:"tx"`
+	}
+
+	if err := json.Unmarshal(js, &output2); err != nil {
+		t.Fatalf("Failed to unmarshal tx : %s", err)
+	}
+
+	var buf2 bytes.Buffer
+	if err := output2.TxOut.Serialize(&buf2, 0, 1); err != nil {
+		t.Fatalf("Failed to serialize tx : %s", err)
+	}
+	b2 := buf2.Bytes()
+	h2 := hex.EncodeToString(b2)
+
+	if h2 != h {
+		t.Errorf("Wrong unmarshalled text : \n  got  %s\n  want %s", h2, h)
+	}
+}
+
+func TestTxMarshalText(t *testing.T) {
+	var buf bytes.Buffer
+	if err := multiTx.Serialize(&buf); err != nil {
+		t.Fatalf("Failed to serialize tx : %s", err)
+	}
+	b := buf.Bytes()
+	h := hex.EncodeToString(b)
+
+	var input struct {
+		Tx *MsgTx `json:"tx"`
+	}
+
+	input.Tx = multiTx
+
+	js, err := json.Marshal(&input)
+	if err != nil {
+		t.Fatalf("Failed to marshal tx : %s", err)
+	}
+
+	var output struct {
+		Tx string `json:"tx"`
+	}
+
+	if err := json.Unmarshal(js, &output); err != nil {
+		t.Fatalf("Failed to unmarshal tx : %s", err)
+	}
+
+	if output.Tx != h {
+		t.Errorf("Wrong marshalled text : \n  got  %s\n  want %s", output.Tx, h)
+	}
+
+	var output2 struct {
+		Tx *MsgTx `json:"tx"`
+	}
+
+	if err := json.Unmarshal(js, &output2); err != nil {
+		t.Fatalf("Failed to unmarshal tx : %s", err)
+	}
+
+	var buf2 bytes.Buffer
+	if err := output2.Tx.Serialize(&buf2); err != nil {
+		t.Fatalf("Failed to serialize tx : %s", err)
+	}
+	b2 := buf2.Bytes()
+	h2 := hex.EncodeToString(b2)
+
+	if h2 != h {
+		t.Errorf("Wrong unmarshalled text : \n  got  %s\n  want %s", h2, h)
 	}
 }
 

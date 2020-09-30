@@ -49,7 +49,7 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 	}
 
 	response := []wire.Message{}
-	logger.Debug(ctx, "Received %d headers", len(message.Headers))
+	// logger.Debug(ctx, "Received %d headers", len(message.Headers))
 
 	lastHash := handler.state.LastHash()
 
@@ -80,7 +80,7 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 		hash := header.BlockHash()
 
 		if lastHash.Equal(&header.PrevBlock) {
-			logger.Debug(ctx, "Header (next) : %s", hash.String())
+			// logger.Debug(ctx, "Header (next) : %s", hash.String())
 			request, err := handler.addHeader(ctx, header)
 			if err != nil {
 				return response, err
@@ -93,7 +93,7 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 						logger.Warn(ctx, "Wrong previous hash : %s", header.PrevBlock.String())
 					}
 				} else if sendRequest {
-					logger.Debug(ctx, "Requesting block : %s", hash.String())
+					// logger.Debug(ctx, "Requesting block : %s", hash.String())
 					getBlocks.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, hash))
 					if len(getBlocks.InvList) == wire.MaxInvPerMsg {
 						// Start new get data (blocks) message
@@ -111,7 +111,7 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 			continue
 		}
 
-		logger.Debug(ctx, "Header (not next) : %s", hash.String())
+		logger.Verbose(ctx, "Header (not next) : %s", hash.String())
 
 		if hash.Equal(&lastHash) {
 			continue // Already latest header
@@ -215,7 +215,7 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 						logger.Warn(ctx, "Wrong previous hash : %s", header.PrevBlock.String())
 					}
 				} else if sendRequest {
-					logger.Debug(ctx, "Requesting block : %s", hash.String())
+					// logger.Debug(ctx, "Requesting block : %s", hash.String())
 					getBlocks.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, hash))
 					if len(getBlocks.InvList) == wire.MaxInvPerMsg {
 						// Start new get data (blocks) message
@@ -230,8 +230,8 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 		}
 
 		// Ignore unknown blocks as they might happen when there is a reorg.
-		logger.Debug(ctx, "Unknown header : %s", hash.String())
-		logger.Debug(ctx, "Previous hash : %s", header.PrevBlock.String())
+		logger.Verbose(ctx, "Unknown header : %s", hash.String())
+		logger.Verbose(ctx, "Previous hash : %s", header.PrevBlock.String())
 		return nil, nil //errors.New(fmt.Sprintf("Unknown header : %s", hash))
 	}
 

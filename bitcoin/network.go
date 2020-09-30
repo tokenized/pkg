@@ -13,6 +13,7 @@ const (
 	MainNet       Network = 0xe8f3e1e3
 	TestNet       Network = 0xf4f3e5f4
 	StressTestNet Network = 0xf9c4cefb
+	RegTestNet    Network = 0xfabfb5da
 	InvalidNet    Network = 0x00000000
 )
 
@@ -25,6 +26,9 @@ var (
 
 	// StressTestNetParams defines the network parameters for the BSV Stress Test Network.
 	StressTestNetParams chaincfg.Params
+
+	// RegTestNetParams defines the network parameters for the BSV Regression Network.
+	RegTestNetParams chaincfg.Params
 )
 
 func NetworkFromString(name string) Network {
@@ -35,6 +39,8 @@ func NetworkFromString(name string) Network {
 		return TestNet
 	case "stn":
 		return StressTestNet
+	case "regtest":
+		return RegTestNet
 	}
 
 	return InvalidNet
@@ -48,6 +54,8 @@ func NetworkName(net Network) string {
 		return "testnet"
 	case StressTestNet:
 		return "stn"
+	case RegTestNet:
+		return "regtest"
 	}
 
 	return "testnet"
@@ -62,13 +70,15 @@ func NewChainParams(network string) *chaincfg.Params {
 		return &TestNetParams
 	case "stn":
 		return &StressTestNetParams
+	case "regtest":
+		return &RegTestNetParams
 	}
 
 	return nil
 }
 
 func init() {
-	// setup the MainNet params
+	// Setup the MainNet params
 	MainNetParams = chaincfg.MainNetParams
 	MainNetParams.Name = "mainnet"
 	MainNetParams.Net = btcdwire.BitcoinNet(MainNet)
@@ -78,7 +88,7 @@ func init() {
 		fmt.Printf("WARNING failed to register MainNetParams")
 	}
 
-	// setup the TestNet params
+	// Setup the TestNet params
 	TestNetParams = chaincfg.TestNet3Params
 	TestNetParams.Name = "testnet"
 	TestNetParams.Net = btcdwire.BitcoinNet(TestNet)
@@ -88,7 +98,7 @@ func init() {
 		fmt.Printf("WARNING failed to register TestNetParams")
 	}
 
-	// setup the STN params
+	// Setup the STN params
 	StressTestNetParams = chaincfg.TestNet3Params
 	StressTestNetParams.Name = "stn"
 	StressTestNetParams.Net = btcdwire.BitcoinNet(StressTestNet)
@@ -96,5 +106,15 @@ func init() {
 	// the params need to be registed to use them.
 	if err := chaincfg.Register(&StressTestNetParams); err != nil {
 		fmt.Printf("WARNING failed to register StressTestNetParams")
+	}
+
+	// Setup Reg Net
+	RegTestNetParams = chaincfg.RegressionNetParams
+	RegTestNetParams.Name = "regtest"
+	RegTestNetParams.Net = btcdwire.BitcoinNet(RegTestNet)
+
+	// the params need to be registed to use them.
+	if err := chaincfg.Register(&RegTestNetParams); err != nil {
+		fmt.Printf("WARNING failed to register RegTestNetParams")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"io"
 	"math/big"
 
 	"github.com/pkg/errors"
@@ -125,24 +126,8 @@ func SignatureFromBytes(b []byte) (Signature, error) {
 		return Signature{}, fmt.Errorf("Signature has bad final length %v != %v", index, len(b))
 	}
 
-	// Verify also checks this, but we can be more sure that we parsed
-	// correctly if we verify here too.
-	// FWIW the ecdsa spec states that R and S must be | 1, N - 1 |
-	// but crypto/ecdsa only checks for Sign != 0. Mirror that.
-	if r.Sign() != 1 {
-		return Signature{}, errors.New("signature R isn't 1 or more")
-	}
-	if s.Sign() != 1 {
-		return Signature{}, errors.New("signature S isn't 1 or more")
-	}
-	if r.Cmp(curveS256Params.N) >= 0 {
-		return Signature{}, errors.New("signature R is >= curve.N")
-	}
-	if s.Cmp(curveS256Params.N) >= 0 {
-		return Signature{}, errors.New("signature S is >= curve.N")
-	}
-
-	return Signature{R: r, S: s}, nil
+	result := Signature{R: r, S: s}
+	return result, result.Validate()
 }
 
 // SignatureFromCompact converts base64 "compact" signature text to a signature.
@@ -170,7 +155,153 @@ func SignatureFromCompact(s string) (Signature, error) {
 	result.R.SetBytes(b[1:33])
 	result.S.SetBytes(b[33:])
 
-	return result, nil
+	return result, result.Validate()
+}
+
+func (s Signature) Serialize(w io.Writer) error {
+	// low 'S' malleability breaker
+	sigS := s.S
+	if sigS.Cmp(curveHalfOrder) == 1 {
+		sigS.Sub(curveS256.N, &sigS)
+	}
+	// Ensure the encoded bytes for the r and s values are canonical and
+	// thus suitable for DER encoding.
+	rb := canonicalizeInt(s.R)
+	sb := canonicalizeInt(sigS)
+
+	// total length of returned signature is 1 byte for each magic and
+	// length (4 total), plus lengths of r and s
+	length := 4 + len(rb) + len(sb)
+
+	// Header
+	b := make([]byte, 4)
+	b[0] = 0x30
+	b[1] = byte(length)
+
+	// Write R
+	b[2] = 0x02
+	b[3] = byte(len(rb))
+	if _, err := w.Write(b); err != nil {
+		return errors.Wrap(err, "header")
+	}
+	if _, err := w.Write(rb); err != nil {
+		return errors.Wrap(err, "r")
+	}
+
+	// Write S
+	b = make([]byte, 2)
+	b[0] = 0x02
+	b[1] = byte(len(sb))
+	if _, err := w.Write(b); err != nil {
+		return errors.Wrap(err, "header")
+	}
+	if _, err := w.Write(sb); err != nil {
+		return errors.Wrap(err, "s")
+	}
+
+	return nil
+}
+
+func (s *Signature) Deserialize(r io.Reader) error {
+	b := make([]byte, 1)
+	if _, err := r.Read(b); err != nil {
+		return errors.Wrap(err, "header byte")
+	}
+
+	// 0x30
+	if b[0] != 0x30 {
+		return errors.New("Signature missing header byte")
+	}
+
+	// length of remaining message
+	if _, err := r.Read(b); err != nil {
+		return errors.Wrap(err, "length")
+	}
+
+	b = make([]byte, b[0])
+	if _, err := r.Read(b); err != nil {
+		return errors.Wrap(err, "data")
+	}
+
+	// 0x02
+	index := 0
+	if b[index] != 0x02 {
+		return errors.New("Signature missing 1st int marker")
+	}
+	index++
+
+	// Length of R.
+	rLen := int(b[index])
+	// must be positive, must be able to fit in another 0x2, <len> <s>
+	// hence the -3. We assume that the length must be at least one byte.
+	index++
+	if rLen <= 0 || rLen > len(b)-index-3 {
+		return errors.New("Signature has bad R length")
+	}
+
+	// Then R itself.
+	rBytes := b[index : index+rLen]
+	switch err := canonicalPadding(rBytes); err {
+	case errNegativeValue:
+		return errors.New("Signature R is negative")
+	case errExcessivelyPaddedValue:
+		return errors.New("Signature R is excessively padded")
+	}
+
+	s.R.SetBytes(rBytes)
+	index += rLen
+	// 0x02. length already checked in previous if.
+	if b[index] != 0x02 {
+		return errors.New("malformed signature: no 2nd int marker")
+	}
+	index++
+
+	// Length of signature S.
+	sLen := int(b[index])
+	index++
+	// S should be the rest of the string.
+	if sLen <= 0 || sLen > len(b)-index {
+		return errors.New("Signature has bad S length")
+	}
+
+	// Then S itself.
+	sBytes := b[index : index+sLen]
+	switch err := canonicalPadding(sBytes); err {
+	case errNegativeValue:
+		return errors.New("Signature S is negative")
+	case errExcessivelyPaddedValue:
+		return errors.New("Signature S is excessively padded")
+	}
+
+	s.S.SetBytes(sBytes)
+	index += sLen
+
+	// sanity check length parsing
+	if index != len(b) {
+		return fmt.Errorf("Signature has bad final length %v != %v", index, len(b))
+	}
+
+	return s.Validate()
+}
+
+// Validate checks the mathematical validity of the signature's R and S values.
+func (s Signature) Validate() error {
+	// FWIW the ecdsa spec states that R and S must be | 1, N - 1 |
+	// but crypto/ecdsa only checks for Sign != 0. Mirror that.
+	if s.R.Sign() != 1 {
+		return errors.New("signature R isn't 1 or more")
+	}
+	if s.S.Sign() != 1 {
+		return errors.New("signature S isn't 1 or more")
+	}
+	if s.R.Cmp(curveS256Params.N) >= 0 {
+		return errors.New("signature R is >= curve.N")
+	}
+	if s.S.Cmp(curveS256Params.N) >= 0 {
+		return errors.New("signature S is >= curve.N")
+	}
+
+	return nil
 }
 
 // ToCompact converts a signature to a base64 "compact" signature encoding.
@@ -260,6 +391,39 @@ func (s *Signature) UnmarshalJSON(data []byte) error {
 	return s.SetString(string(data[1 : len(data)-1]))
 }
 
+// MarshalText returns the text encoding of the signature.
+// Implements encoding.TextMarshaler interface.
+func (s Signature) MarshalText() ([]byte, error) {
+	b := s.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded signature and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (s *Signature) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return s.SetBytes(b)
+}
+
+// MarshalBinary returns the binary encoding of the signature.
+// Implements encoding.BinaryMarshaler interface.
+func (s Signature) MarshalBinary() ([]byte, error) {
+	return s.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded signature and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (s *Signature) UnmarshalBinary(data []byte) error {
+	return s.SetBytes(data)
+}
+
 // Scan converts from a database column.
 func (s *Signature) Scan(data interface{}) error {
 	b, ok := data.([]byte)
@@ -270,6 +434,10 @@ func (s *Signature) Scan(data interface{}) error {
 	c := make([]byte, len(b))
 	copy(c, b)
 	return s.SetBytes(c)
+}
+
+func (s Signature) Equal(o Signature) bool {
+	return s.S.Cmp(&o.S) == 0 && s.R.Cmp(&o.R) == 0
 }
 
 /********************************************* RFC6979 ********************************************/

@@ -31,7 +31,7 @@ func (handler *BlockHandler) Handle(ctx context.Context, m wire.Message) ([]wire
 	if ok {
 		hash := block.Header.BlockHash()
 
-		logger.Debug(ctx, "Received block : %s", hash.String())
+		logger.Verbose(ctx, "Received block : %s", hash.String())
 
 		if handler.blockRefeeder != nil && handler.blockRefeeder.SetBlock(*hash, block) {
 			return nil, nil
@@ -48,7 +48,7 @@ func (handler *BlockHandler) Handle(ctx context.Context, m wire.Message) ([]wire
 
 		hash := block.Header.BlockHash()
 
-		logger.Debug(ctx, "Received block : %s", hash.String())
+		logger.Verbose(ctx, "Received block : %s", hash.String())
 
 		if handler.blockRefeeder != nil && handler.blockRefeeder.SetBlock(*hash, block) {
 			return nil, nil

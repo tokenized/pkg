@@ -12,6 +12,9 @@ import (
 const (
 	// Max concurrent block requests
 	maxRequestedBlocks = 10
+
+	// Max bytes of pending blocks before requesting another.
+	maxPendingBlockSize = 100000000 // 100 MB
 )
 
 var (
@@ -60,7 +63,8 @@ func (state *State) AddBlockRequest(prevHash, hash *bitcoin.Hash32) (bool, error
 		return false, ErrWrongPreviousHash
 	}
 
-	if len(state.blocksRequested) >= maxRequestedBlocks {
+	if len(state.blocksRequested) >= maxRequestedBlocks ||
+		state.pendingBlockSize > maxPendingBlockSize {
 		state.blocksToRequest = append(state.blocksToRequest, *hash)
 		return false, nil
 	}
@@ -83,6 +87,7 @@ func (state *State) AddBlock(hash *bitcoin.Hash32, block wire.Block) bool {
 	for _, request := range state.blocksRequested {
 		if request.hash.Equal(hash) {
 			request.block = block
+			state.pendingBlockSize += block.SerializeSize()
 			return true
 		}
 	}
@@ -102,6 +107,8 @@ func (state *State) NextBlock() wire.Block {
 	return result
 }
 
+// FinalizeBlock removes a block from block requests when it has been received and is being
+// processed.
 func (state *State) FinalizeBlock(hash bitcoin.Hash32) error {
 	state.lock.Lock()
 	defer state.lock.Unlock()
@@ -110,6 +117,9 @@ func (state *State) FinalizeBlock(hash bitcoin.Hash32) error {
 		return errors.New("Not next block")
 	}
 
+	if state.blocksRequested[0].block != nil {
+		state.pendingBlockSize -= state.blocksRequested[0].block.SerializeSize()
+	}
 	state.lastSavedHash = hash
 	state.blocksRequested = state.blocksRequested[1:] // Remove first item
 	return nil
@@ -119,7 +129,8 @@ func (state *State) GetNextBlockToRequest() (*bitcoin.Hash32, int) {
 	state.lock.Lock()
 	defer state.lock.Unlock()
 
-	if len(state.blocksToRequest) == 0 || len(state.blocksRequested) >= maxRequestedBlocks {
+	if len(state.blocksToRequest) == 0 || len(state.blocksRequested) >= maxRequestedBlocks ||
+		state.pendingBlockSize > maxPendingBlockSize {
 		return nil, -1
 	}
 

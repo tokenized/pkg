@@ -94,11 +94,11 @@ func (node *UntrustedNode) Run(ctx context.Context) error {
 	if err := node.connect(); err != nil {
 		node.lock.Unlock()
 		node.peers.UpdateScore(ctx, node.address, -1)
-		logger.Debug(ctx, "(%s) Connection failed : %s", node.address, err.Error())
+		// logger.Debug(ctx, "(%s) Connection failed : %s", node.address, err.Error())
 		return err
 	}
 
-	logger.Debug(ctx, "(%s) Starting", node.address)
+	// logger.Debug(ctx, "(%s) Starting", node.address)
 	node.peers.UpdateTime(ctx, node.address)
 	node.outgoing.Open(100)
 	node.active = true
@@ -112,21 +112,21 @@ func (node *UntrustedNode) Run(ctx context.Context) error {
 		atomic.AddUint32(&node.incomingCount, 1)                // increment
 		defer atomic.AddUint32(&node.incomingCount, ^uint32(0)) // decrement
 		node.monitorIncoming(ctx)
-		logger.Debug(ctx, "(%s) Untrusted monitor incoming finished", node.address)
+		// logger.Debug(ctx, "(%s) Untrusted monitor incoming finished", node.address)
 	}()
 
 	go func() {
 		atomic.AddUint32(&node.incomingCount, 1)                // increment
 		defer atomic.AddUint32(&node.incomingCount, ^uint32(0)) // decrement
 		node.monitorRequestTimeouts(ctx)
-		logger.Debug(ctx, "(%s) Untrusted monitor request timeouts finished", node.address)
+		// logger.Debug(ctx, "(%s) Untrusted monitor request timeouts finished", node.address)
 	}()
 
 	go func() {
 		atomic.AddUint32(&node.processingCount, 1)                // increment
 		defer atomic.AddUint32(&node.processingCount, ^uint32(0)) // decrement
 		node.sendOutgoing(ctx)
-		logger.Debug(ctx, "(%s) Untrusted send outgoing finished", node.address)
+		// logger.Debug(ctx, "(%s) Untrusted send outgoing finished", node.address)
 	}()
 
 	// Block until goroutines finish as a result of Stop()
@@ -136,7 +136,7 @@ func (node *UntrustedNode) Run(ctx context.Context) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	logger.Debug(ctx, "(%s) Stopping", node.address)
+	// logger.Debug(ctx, "(%s) Stopping", node.address)
 
 	node.lock.Lock()
 	if node.connection != nil {
@@ -185,7 +185,7 @@ func (node *UntrustedNode) Run(ctx context.Context) error {
 	node.lock.Lock()
 	node.active = false
 	node.lock.Unlock()
-	logger.Debug(ctx, "(%s) Stopped", node.address)
+	// logger.Debug(ctx, "(%s) Stopped", node.address)
 	return nil
 }
 
@@ -206,13 +206,13 @@ func (node *UntrustedNode) isStopping() bool {
 func (node *UntrustedNode) Stop(ctx context.Context) error {
 	node.lock.Lock()
 	if node.stopping {
-		logger.Debug(ctx, "(%s) Already stopping", node.address)
+		// logger.Debug(ctx, "(%s) Already stopping", node.address)
 		node.lock.Unlock()
 		return nil
 	}
 
 	// Setting stopping and closing the connection should stop the monitorIncoming thread.
-	logger.Debug(ctx, "(%s) Requesting stop", node.address)
+	// logger.Debug(ctx, "(%s) Requesting stop", node.address)
 	node.stopping = true
 	node.lock.Unlock()
 	return nil
@@ -263,7 +263,7 @@ func (node *UntrustedNode) connect() error {
 func (node *UntrustedNode) monitorIncoming(ctx context.Context) {
 	for !node.isStopping() {
 		if err := node.check(ctx); err != nil {
-			logger.Debug(ctx, "(%s) Check failed : %s", node.address, err.Error())
+			logger.Verbose(ctx, "(%s) Check failed : %s", node.address, err.Error())
 			node.Stop(ctx)
 			break
 		}
@@ -283,16 +283,13 @@ func (node *UntrustedNode) monitorIncoming(ctx context.Context) {
 			wireError, ok := errors.Cause(err).(*wire.MessageError)
 			if ok {
 				if wireError.Type == wire.MessageErrorUnknownCommand {
-					logger.Debug(ctx, "(%s) %s", node.address, wireError)
 					continue
 				} else {
-					logger.Debug(ctx, "(%s) %s", node.address, wireError)
 					node.Stop(ctx)
 					break
 				}
 
 			} else {
-				logger.Debug(ctx, "(%s) Failed to read message : %s", node.address, err.Error())
 				node.Stop(ctx)
 				break
 			}
@@ -300,15 +297,13 @@ func (node *UntrustedNode) monitorIncoming(ctx context.Context) {
 
 		if err := node.handleMessage(ctx, msg); err != nil {
 			node.peers.UpdateScore(ctx, node.address, -1)
-			logger.Debug(ctx, "(%s) Failed to handle [%s] message : %s", node.address,
-				msg.Command(), err.Error())
 			node.Stop(ctx)
 			break
 		}
 		if msg.Command() == "reject" {
 			reject, ok := msg.(*wire.MsgReject)
 			if ok {
-				logger.Debug(ctx, "(%s) Reject message : %s - %s", node.address, reject.Reason,
+				logger.Verbose(ctx, "(%s) Reject message : %s - %s", node.address, reject.Reason,
 					reject.Hash.String())
 			}
 		}
@@ -340,7 +335,7 @@ func (node *UntrustedNode) check(ctx context.Context) error {
 	}
 
 	if !node.readyAnnounced {
-		logger.Debug(ctx, "(%s) Ready", node.address)
+		logger.Verbose(ctx, "(%s) Ready", node.address)
 		node.readyAnnounced = true
 	}
 
@@ -411,7 +406,7 @@ func (node *UntrustedNode) monitorRequestTimeouts(ctx context.Context) {
 		}
 
 		if err := node.untrustedState.CheckTimeouts(); err != nil {
-			logger.Debug(ctx, "(%s) Timed out : %s", node.address, err.Error())
+			// logger.Debug(ctx, "(%s) Timed out : %s", node.address, err.Error())
 			node.peers.UpdateScore(ctx, node.address, -1)
 			node.Stop(ctx)
 			break
@@ -430,7 +425,7 @@ func (node *UntrustedNode) sendOutgoing(ctx context.Context) error {
 		node.lock.Unlock()
 
 		if connection == nil {
-			logger.Debug(ctx, "(%s) Dropping %s message", node.address, msg.Command())
+			// logger.Debug(ctx, "(%s) Dropping %s message", node.address, msg.Command())
 			continue // Keep clearing the channel
 		}
 

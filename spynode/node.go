@@ -292,6 +292,7 @@ func (node *Node) Run(ctx context.Context) error {
 			}
 			waitCount++
 		}
+		logger.Info(ctx, "Incoming threads stopped")
 
 		// Close the channels to stop the processing threads.
 		node.outgoing.Close()
@@ -313,6 +314,7 @@ func (node *Node) Run(ctx context.Context) error {
 			}
 			waitCount++
 		}
+		logger.Info(ctx, "Processing threads stopped")
 
 		// Save block repository
 		logger.Verbose(ctx, "Saving")
@@ -593,7 +595,7 @@ func (node *Node) handleMessage(ctx context.Context, msg wire.Message) error {
 // Implements handlers.BlockProcessor interface
 // It is responsible for any cleanup as a result of a block.
 func (node *Node) CleanupBlock(ctx context.Context, txids []*bitcoin.Hash32) error {
-	logger.Debug(ctx, "Cleaning up after block")
+	// logger.Debug(ctx, "Cleaning up after block")
 
 	node.txTracker.RemoveList(ctx, txids)
 
@@ -645,29 +647,35 @@ func (node *Node) monitorIncoming(ctx context.Context) {
 		_, msg, _, err := wire.ReadMessageN(connection, wire.ProtocolVersion,
 			wire.BitcoinNet(node.config.Net))
 		if err != nil {
-			wireError, ok := err.(*wire.MessageError)
+			wireError, ok := errors.Cause(err).(*wire.MessageError)
 			if ok {
-				if wireError.Type == wire.MessageErrorUnknownCommand {
+				switch wireError.Type {
+				case wire.MessageErrorUnknownCommand:
 					logger.Verbose(ctx, wireError.Error())
 					continue
-				} else {
-					logger.Error(ctx, "SpyNodeFailed read message (wireError) : %s", wireError)
+				case wire.MessageErrorConnectionClosed:
+					if !node.isStopping() {
+						logger.Warn(ctx, "SpyNodeFailed : %s", wireError)
+						node.restart(ctx)
+					}
+					return
+				default:
+					logger.Warn(ctx, "SpyNodeFailed read message (wireError) : %s", wireError)
 					node.restart(ctx)
-					break
+					return
 				}
-
 			} else {
-				logger.Error(ctx, "SpyNodeFailed to read message : %s", err)
+				logger.Warn(ctx, "SpyNodeFailed to read message : %s", err)
 				node.restart(ctx)
-				break
+				return
 			}
 		}
 
 		if err := node.handleMessage(ctx, msg); err != nil {
-			logger.Error(ctx, "SpyNodeAborted to handle [%s] message : %s", msg.Command(),
+			logger.Error(ctx, "SpyNodeAborted handling [%s] message : %s", msg.Command(),
 				err.Error())
-			node.requestStop(ctx)
-			break
+			node.restart(ctx)
+			return
 		}
 		if msg.Command() == "reject" {
 			reject, ok := msg.(*wire.MsgReject)
@@ -718,7 +726,7 @@ func (node *Node) check(ctx context.Context) error {
 		}
 
 		if node.queueOutgoing(headerRequest) {
-			logger.Debug(ctx, "Requesting headers")
+			logger.Verbose(ctx, "Requesting headers")
 			node.state.MarkHeadersRequested()
 			node.state.SetHandshakeComplete()
 		}
@@ -779,7 +787,7 @@ func (node *Node) check(ctx context.Context) error {
 		}
 
 		if node.queueOutgoing(headerRequest) {
-			logger.Debug(ctx, "Requesting headers after : %s", headerRequest.BlockLocatorHashes[0])
+			logger.Verbose(ctx, "Requesting headers after : %s", headerRequest.BlockLocatorHashes[0])
 			node.state.MarkHeadersRequested()
 		}
 	}
@@ -827,7 +835,7 @@ func (node *Node) checkTxDelays(ctx context.Context) {
 		}
 
 		for _, txid := range txids {
-			logger.Debug(ctx, "Tx is now safe : %s", txid.String())
+			// logger.Debug(ctx, "Tx is now safe : %s", txid.String())
 			node.txStateChannel.Add(handlers.TxState{
 				handlers.ListenerMsgTxStateSafe,
 				txid,

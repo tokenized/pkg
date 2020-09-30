@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/btcsuite/btcd/btcec"
@@ -159,6 +161,20 @@ func (k Key) Bytes() []byte {
 	return append([]byte{typeIntPrivKey}, b...)
 }
 
+func (k *Key) Deserialize(r io.Reader) error {
+	b := make([]byte, 33)
+	if _, err := r.Read(b); err != nil {
+		return errors.Wrap(err, "key")
+	}
+
+	return k.SetBytes(b)
+}
+
+func (k Key) Serialize(w io.Writer) error {
+	_, err := w.Write(k.Bytes())
+	return err
+}
+
 // Number returns 32 bytes representing the 256 bit big-endian integer of the private key.
 func (k Key) Number() []byte {
 	b := k.value.Bytes()
@@ -198,6 +214,39 @@ func (k Key) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON converts from json.
 func (k *Key) UnmarshalJSON(data []byte) error {
 	return k.SetString(string(data[1 : len(data)-1]))
+}
+
+// MarshalText returns the text encoding of the key.
+// Implements encoding.TextMarshaler interface.
+func (k Key) MarshalText() ([]byte, error) {
+	b := k.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded key and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (k *Key) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return k.SetBytes(b)
+}
+
+// MarshalBinary returns the binary encoding of the key.
+// Implements encoding.BinaryMarshaler interface.
+func (k Key) MarshalBinary() ([]byte, error) {
+	return k.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded key and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (k *Key) UnmarshalBinary(data []byte) error {
+	return k.SetBytes(data)
 }
 
 // Scan converts from a database column.

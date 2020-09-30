@@ -66,7 +66,7 @@ func (h *Hash32) SetBytes(b []byte) error {
 }
 
 // String returns the hex for the hash.
-func (h *Hash32) String() string {
+func (h Hash32) String() string {
 	var r [Hash32Size]byte
 	reverse32(r[:], h[:])
 	return fmt.Sprintf("%x", r[:])
@@ -89,8 +89,8 @@ func (h Hash32) Serialize(w io.Writer) error {
 	return err
 }
 
-func (h *Hash32) Deserialize(buf *bytes.Reader) error {
-	if _, err := buf.Read(h[:]); err != nil {
+func (h *Hash32) Deserialize(r io.Reader) error {
+	if _, err := r.Read(h[:]); err != nil {
 		return err
 	}
 	return nil
@@ -127,6 +127,39 @@ func (h *Hash32) UnmarshalJSON(data []byte) error {
 	}
 	reverse32(h[:], b)
 	return nil
+}
+
+// MarshalText returns the text encoding of the hash.
+// Implements encoding.TextMarshaler interface.
+func (h Hash32) MarshalText() ([]byte, error) {
+	b := h.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded hash and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (h *Hash32) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return h.SetBytes(b)
+}
+
+// MarshalBinary returns the binary encoding of the hash.
+// Implements encoding.BinaryMarshaler interface.
+func (h Hash32) MarshalBinary() ([]byte, error) {
+	return h.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded hash and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (h *Hash32) UnmarshalBinary(data []byte) error {
+	return h.SetBytes(data)
 }
 
 // Scan converts from a database column.

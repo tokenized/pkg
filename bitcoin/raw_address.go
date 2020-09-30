@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io"
 
 	"github.com/pkg/errors"
 )
@@ -37,6 +38,10 @@ func DecodeRawAddress(b []byte) (RawAddress, error) {
 
 // Decode decodes a binary raw address. It returns an error if there was an issue.
 func (ra *RawAddress) Decode(b []byte) error {
+	if len(b) == 0 {
+		return errors.Wrap(ErrBadType, "empty")
+	}
+
 	switch b[0] {
 	case ScriptTypeEmpty:
 		ra.scriptType = ScriptTypeEmpty
@@ -113,13 +118,13 @@ func (ra *RawAddress) Decode(b []byte) error {
 }
 
 // Deserialize reads a binary raw address. It returns an error if there was an issue.
-func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
-	t, err := buf.ReadByte()
-	if err != nil {
+func (ra *RawAddress) Deserialize(r io.Reader) error {
+	var t [1]byte
+	if _, err := r.Read(t[:]); err != nil {
 		return err
 	}
 
-	switch t {
+	switch t[0] {
 	case ScriptTypeEmpty:
 		ra.scriptType = ScriptTypeEmpty
 		ra.data = nil
@@ -132,7 +137,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypePKH:
 		pkh := make([]byte, ScriptHashLength)
-		if _, err := buf.Read(pkh); err != nil {
+		if _, err := r.Read(pkh); err != nil {
 			return err
 		}
 		return ra.SetPKH(pkh)
@@ -144,7 +149,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypePK:
 		pk := make([]byte, PublicKeyCompressedLength)
-		if _, err := buf.Read(pk); err != nil {
+		if _, err := r.Read(pk); err != nil {
 			return err
 		}
 		return ra.SetCompressedPublicKey(pk)
@@ -156,7 +161,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypeSH:
 		sh := make([]byte, ScriptHashLength)
-		if _, err := buf.Read(sh); err != nil {
+		if _, err := r.Read(sh); err != nil {
 			return err
 		}
 		return ra.SetSH(sh)
@@ -170,18 +175,18 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		// Parse required count
 		var required int
 		var err error
-		if required, err = ReadBase128VarInt(buf); err != nil {
+		if required, err = ReadBase128VarInt(r); err != nil {
 			return err
 		}
 		// Parse hash count
 		var count int
-		if count, err = ReadBase128VarInt(buf); err != nil {
+		if count, err = ReadBase128VarInt(r); err != nil {
 			return err
 		}
 		pkhs := make([][]byte, 0, count)
 		for i := 0; i < count; i++ {
 			pkh := make([]byte, ScriptHashLength)
-			if _, err := buf.Read(pkh); err != nil {
+			if _, err := r.Read(pkh); err != nil {
 				return err
 			}
 			pkhs = append(pkhs, pkh)
@@ -195,7 +200,7 @@ func (ra *RawAddress) Deserialize(buf *bytes.Reader) error {
 		fallthrough
 	case ScriptTypeRPH:
 		rph := make([]byte, ScriptHashLength)
-		if _, err := buf.Read(rph); err != nil {
+		if _, err := r.Read(rph); err != nil {
 			return err
 		}
 		return ra.SetRPH(rph)
@@ -438,17 +443,17 @@ func (ra RawAddress) IsEmpty() bool {
 	return len(ra.data) == 0
 }
 
-func (ra RawAddress) Serialize(buf *bytes.Buffer) error {
+func (ra RawAddress) Serialize(w io.Writer) error {
 	if ra.IsEmpty() {
-		if err := buf.WriteByte(ScriptTypeEmpty); err != nil {
+		if _, err := w.Write([]byte{ScriptTypeEmpty}); err != nil {
 			return err
 		}
 	}
 
-	if err := buf.WriteByte(ra.scriptType); err != nil {
+	if _, err := w.Write([]byte{ra.scriptType}); err != nil {
 		return err
 	}
-	if _, err := buf.Write(ra.data); err != nil {
+	if _, err := w.Write(ra.data); err != nil {
 		return err
 	}
 	return nil
@@ -539,6 +544,39 @@ func (ra *RawAddress) UnmarshalJSON(data []byte) error {
 
 	// Decode into raw address
 	return ra.Decode(raw)
+}
+
+// MarshalText returns the text encoding of the raw address.
+// Implements encoding.TextMarshaler interface.
+func (ra RawAddress) MarshalText() ([]byte, error) {
+	b := ra.Bytes()
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return result, nil
+}
+
+// UnmarshalText parses a text encoded raw address and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (ra *RawAddress) UnmarshalText(text []byte) error {
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err := hex.Decode(b, text)
+	if err != nil {
+		return err
+	}
+
+	return ra.Decode(b)
+}
+
+// MarshalBinary returns the binary encoding of the raw address.
+// Implements encoding.BinaryMarshaler interface.
+func (ra RawAddress) MarshalBinary() ([]byte, error) {
+	return ra.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded raw address and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (ra *RawAddress) UnmarshalBinary(data []byte) error {
+	return ra.Decode(data)
 }
 
 // Scan converts from a database column.

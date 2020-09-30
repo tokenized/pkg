@@ -23,7 +23,7 @@ func TestHandlers(test *testing.T) {
 
 	// Setup context
 	logConfig := logger.NewDevelopmentConfig()
-	logConfig.IsText = true
+	// logConfig.IsText = true
 	ctx := logger.ContextWithLogConfig(context.Background(), logConfig)
 
 	// For logging to test from within functions

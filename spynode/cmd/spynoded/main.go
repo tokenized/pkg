@@ -34,8 +34,8 @@ func main() {
 	// Logging
 	logConfig := logger.NewDevelopmentConfig()
 	logConfig.Main.AddFile("./tmp/main.log")
-	logConfig.Main.Format |= logger.IncludeSystem | logger.IncludeMicro
-	logConfig.Main.MinLevel = logger.LevelDebug
+	// logConfig.Main.Format |= logger.IncludeSystem | logger.IncludeMicro
+	// logConfig.Main.MinLevel = logger.LevelDebug
 	logConfig.EnableSubSystem(spynode.SubSystem)
 	ctx := logger.ContextWithLogConfig(context.Background(), logConfig)
 

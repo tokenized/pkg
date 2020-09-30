@@ -1,12 +1,17 @@
 package txbuilder
 
 import (
-	"errors"
+	"fmt"
 
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 const (
+	// MaximumP2PKHInputSize is the maximum serialized size of a P2PKH tx input based on all of the
+	// variable sized data.
 	// P2PKH/P2SH input size 149
 	//   Previous Transaction ID = 32 bytes
 	//   Previous Transaction Output Index = 4 bytes
@@ -21,9 +26,39 @@ const (
 	//   Sequence number = 4
 	MaximumP2PKHInputSize = 32 + 4 + 1 + 74 + 34 + 4
 
-	// Size of output not including script
+	// MaximumP2RPHInputSize is the maximum serialized size of a P2RPH tx input based on all of the
+	// variable sized data.
+	// P2PKH/P2SH/P2RPH input size 149
+	//   Previous Transaction ID = 32 bytes
+	//   Previous Transaction Output Index = 4 bytes
+	//   script size = 1 byte
+	//   Public key push to stack = 34
+	//       push size = 1 byte
+	//       public key size = 33 bytes
+	//   Signature push to stack = 74
+	//       push size = 1 byte
+	//       signature up to = 72 bytes
+	//       signature hash type = 1 byte
+	//   Sequence number = 4
+	MaximumP2RPHInputSize = 32 + 4 + 1 + 34 + 74 + 4
+
+	// MaximumP2PKInputSize is the maximium serialized size of a P2PK tx input based on all of the
+	// variable sized data.
+	// P2PK input size 115
+	//   Previous Transaction ID = 32 bytes
+	//   Previous Transaction Output Index = 4 bytes
+	//   script size = 1 byte
+	//   Signature push to stack = 74
+	//       push size = 1 byte
+	//       signature up to = 72 bytes
+	//       signature hash type = 1 byte
+	//   Sequence number = 4
+	MaximumP2PKInputSize = 32 + 4 + 1 + 74 + 4
+
+	// OutputBaseSize is the size of a tx output not including script
 	OutputBaseSize = 8
 
+	// P2PKHOutputSize is the serialized size of a P2PKH tx output.
 	// P2PKH/P2SH output size 34
 	//   amount = 8 bytes
 	//   script size = 1 byte
@@ -31,7 +66,23 @@ const (
 	//     OP_CHECKSIG
 	P2PKHOutputSize = OutputBaseSize + 26
 
-	// BaseTxFee is the size of the tx not included in inputs and outputs.
+	// P2PKOutputSize is the serialized size of a P2PK tx output.
+	// P2PK output size 44
+	//   amount = 8 bytes
+	//   script = 36
+	//     script size = 1 byte ()
+	//       Public key push to stack = 34
+	//         push size = 1 byte
+	//         public key size = 33 bytes
+	//       OP_CHECKSIG = 1 byte
+	P2PKOutputSize = OutputBaseSize + 36
+
+	// DustInputSize is the fixed size of an input used in the calculation of the dust limit.
+	// This is actually the estimated size of a P2PKH input, but is used for dust calculation of all
+	//   locking scripts.
+	DustInputSize = 148
+
+	// BaseTxSize is the size of the tx not included in inputs and outputs.
 	//   Version = 4 bytes
 	//   LockTime = 4 bytes
 	BaseTxSize = 8
@@ -50,17 +101,18 @@ func (tx *TxBuilder) Fee() uint64 {
 }
 
 // EstimatedSize returns the estimated size in bytes of the tx after signatures are added.
-// It assumes all inputs are P2PKH.
+// It assumes all inputs are P2PKH, P2PK, or P2RPH.
 func (tx *TxBuilder) EstimatedSize() int {
 	result := BaseTxSize + wire.VarIntSerializeSize(uint64(len(tx.MsgTx.TxIn))) +
 		wire.VarIntSerializeSize(uint64(len(tx.MsgTx.TxOut)))
 
-	for _, input := range tx.MsgTx.TxIn {
-		if len(input.SignatureScript) > 0 {
-			result += input.SerializeSize()
-		} else {
-			result += MaximumP2PKHInputSize // TODO Update when non-P2PKH inputs are implemented
+	for _, input := range tx.Inputs {
+		size, err := lockingScriptUnlockSize(input.LockingScript)
+		if err != nil {
+			result += MaximumP2PKHInputSize // Fall back to P2PKH
+			continue
 		}
+		result += size
 	}
 
 	for _, output := range tx.MsgTx.TxOut {
@@ -131,21 +183,22 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	if amount > int64(0) {
 		// Increase fee, transfer from change
 		if changeOutputIndex == 0xffffffff {
-			return false, newError(ErrorCodeInsufficientValue, "No existing change for tx fee")
+			return false, errors.Wrap(ErrInsufficientValue, "No existing change for tx fee")
 		}
 
 		if tx.MsgTx.TxOut[changeOutputIndex].Value < uint64(amount) {
-			return false, newError(ErrorCodeInsufficientValue, "Not enough change for tx fee")
+			return false, errors.Wrap(ErrInsufficientValue, "Not enough change for tx fee")
 		}
 
 		// Decrease change, thereby increasing the fee
 		tx.MsgTx.TxOut[changeOutputIndex].Value -= uint64(amount)
 
 		// Check if change is below dust
-		if tx.MsgTx.TxOut[changeOutputIndex].Value < tx.DustLimit {
+		if tx.MsgTx.TxOut[changeOutputIndex].Value <
+			DustLimitForOutput(tx.MsgTx.TxOut[changeOutputIndex], tx.DustFeeRate) {
 			if !tx.Outputs[changeOutputIndex].addedForFee {
 				// Don't remove outputs unless they were added by fee adjustment
-				return false, newError(ErrorCodeInsufficientValue, "Not enough change for tx fee")
+				return false, errors.Wrap(ErrInsufficientValue, "Not enough change for tx fee")
 			}
 			// Remove change output since it is less than dust. Dust will go to miner.
 			tx.MsgTx.TxOut = append(tx.MsgTx.TxOut[:changeOutputIndex], tx.MsgTx.TxOut[changeOutputIndex+1:]...)
@@ -155,18 +208,27 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	} else {
 		// Decrease fee, transfer to change
 		if changeOutputIndex == 0xffffffff {
-			// Add a change output if it would be more than the dust limit
-			if uint64(-amount) > tx.DustLimit {
+			// Add a change output if it would be more than the dust limit plus the fee to add the
+			// output
+			changeFee, dustLimit, err := OutputFeeAndDustForAddress(tx.ChangeAddress,
+				tx.DustFeeRate, tx.FeeRate)
+			if err != nil {
+				changeFee = uint64(float32(P2PKHOutputSize) * tx.FeeRate)
+				dustLimit = DustLimit(P2PKHOutputSize, tx.DustFeeRate)
+			}
+			if uint64(-amount) > dustLimit+changeFee {
 				if tx.ChangeAddress.IsEmpty() {
-					return false, errors.New("Change address needed")
+					return false, errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
+						uint64(-amount)))
 				}
-				err := tx.AddPaymentOutput(tx.ChangeAddress, uint64(-amount), true)
+				err := tx.AddPaymentOutput(tx.ChangeAddress, uint64(-amount)-changeFee, true)
 				if err != nil {
 					return false, err
 				}
 				tx.Outputs[len(tx.Outputs)-1].KeyID = tx.ChangeKeyID
 				tx.Outputs[len(tx.Outputs)-1].addedForFee = true
 			} else {
+				// Leave less than dust as additional tx fee
 				done = true
 			}
 		} else {
@@ -177,4 +239,23 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	}
 
 	return done, nil
+}
+
+// lockingScriptUnlockFee returns the size (in bytes) of the input that spends it.
+func lockingScriptUnlockSize(lockingScript []byte) (int, error) {
+	ra, err := bitcoin.RawAddressFromLockingScript(lockingScript)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse locking script")
+	}
+	switch ra.Type() {
+	case bitcoin.ScriptTypePKH:
+		return MaximumP2PKHInputSize, nil
+	case bitcoin.ScriptTypeRPH:
+		return MaximumP2RPHInputSize, nil
+	case bitcoin.ScriptTypePK:
+		return MaximumP2PKInputSize, nil
+	// TODO Add MultiPKH
+	default:
+		return 0, errors.Wrap(err, "script type")
+	}
 }

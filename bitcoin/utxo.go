@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 )
 
 type UTXO struct {
@@ -24,53 +25,73 @@ func (u UTXO) Address() (RawAddress, error) {
 	return RawAddressFromLockingScript(u.LockingScript)
 }
 
-func (utxo UTXO) Write(buf *bytes.Buffer) error {
-	if err := utxo.Hash.Serialize(buf); err != nil {
+func (utxo UTXO) Equal(other UTXO) bool {
+	if !utxo.Hash.Equal(&other.Hash) {
+		return false
+	}
+
+	if !bytes.Equal(utxo.LockingScript, other.LockingScript) {
+		return false
+	}
+
+	if utxo.Index != other.Index {
+		return false
+	}
+
+	if utxo.Value != other.Value {
+		return false
+	}
+
+	return true
+}
+
+func (utxo UTXO) Write(w io.Writer) error {
+	if err := utxo.Hash.Serialize(w); err != nil {
 		return err
 	}
 
 	scriptSize := uint32(len(utxo.LockingScript))
-	if err := binary.Write(buf, binary.LittleEndian, &scriptSize); err != nil {
+	if err := binary.Write(w, binary.LittleEndian, &scriptSize); err != nil {
 		return err
 	}
 
-	if _, err := buf.Write(utxo.LockingScript); err != nil {
+	if _, err := w.Write(utxo.LockingScript); err != nil {
 		return err
 	}
 
-	if err := binary.Write(buf, binary.LittleEndian, &utxo.Index); err != nil {
+	if err := binary.Write(w, binary.LittleEndian, &utxo.Index); err != nil {
 		return err
 	}
 
-	if err := binary.Write(buf, binary.LittleEndian, &utxo.Value); err != nil {
+	if err := binary.Write(w, binary.LittleEndian, &utxo.Value); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (utxo *UTXO) Read(buf *bytes.Reader) error {
-	hash, err := DeserializeHash32(buf)
+func (utxo *UTXO) Read(r io.Reader) error {
+	hash, err := DeserializeHash32(r)
 	if err != nil {
 		return err
 	}
 	utxo.Hash = *hash
 
 	var scriptSize uint32
-	if err := binary.Read(buf, binary.LittleEndian, &scriptSize); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &scriptSize); err != nil {
 		return err
 	}
 
 	utxo.LockingScript = make([]byte, int(scriptSize))
-	if _, err := buf.Read(utxo.LockingScript); err != nil {
+	if _, err := r.Read(utxo.LockingScript); err != nil {
 		return err
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &utxo.Index); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &utxo.Index); err != nil {
 		return err
 	}
 
-	if err := binary.Read(buf, binary.LittleEndian, &utxo.Value); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &utxo.Value); err != nil {
 		return err
 	}
 
