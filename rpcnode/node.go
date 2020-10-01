@@ -47,7 +47,8 @@ var (
 	// ErrTransactionInMempool means that the sent tx is already in the node's mempool.
 	ErrTransactionInMempool = errors.New("Transaction already in mempool")
 
-	// ErrTransactionConflict means that the transaction's inputs conflict with an existing tx.
+	// ErrTransactionConflict means that the transaction's inputs conflict with an existing tx or
+	// the unconfirmed UTXO dependency chain is longer than the limit.
 	ErrTransactionConflict = errors.New("Transaction Conflict")
 )
 
@@ -101,7 +102,7 @@ func ConvertError(err error) error {
 		return ErrNotSeen
 	case -25:
 		return ErrMissingInputs
-	case -26: // txn-mempool-conflict
+	case -26: // txn-mempool-conflict or too-long-mempool-chain
 		return ErrTransactionConflict
 	case -27: // Transaction already in the mempool
 		return ErrTransactionInMempool
