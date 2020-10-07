@@ -23,7 +23,7 @@ func (tx *TxBuilder) AddInputUTXO(utxo bitcoin.UTXO) error {
 	for _, input := range tx.MsgTx.TxIn {
 		if input.PreviousOutPoint.Hash.Equal(&utxo.Hash) &&
 			input.PreviousOutPoint.Index == utxo.Index {
-			return errors.Wrap(ErrDuplicateInput, "")
+			return errors.Wrapf(ErrDuplicateInput, "%d %s", utxo.Index, utxo.Hash)
 		}
 	}
 
@@ -193,7 +193,8 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 					// Add new change output
 					change -= changeOutputFee
 					if tx.ChangeAddress.IsEmpty() {
-						return errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d", change))
+						return errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
+							change))
 					}
 
 					if err := tx.AddPaymentOutput(tx.ChangeAddress, change, true); err != nil {
@@ -217,7 +218,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 		for _, input := range tx.Inputs {
 			available += input.Value
 		}
-		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available-duplicateValue,
+		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available,
 			outputValue+tx.EstimatedFee()))
 	}
 
@@ -325,8 +326,8 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 				return errors.New("Missing remainder that was previously there!")
 			} else {
 				// Break change between supplied addresses.
-				outputs, err := BreakValue(changeValue, breakValue, changeAddresses,
-					tx.DustFeeRate, tx.FeeRate, true)
+				outputs, err := BreakValue(changeValue, breakValue, changeAddresses, tx.DustFeeRate,
+					tx.FeeRate, true)
 				if err != nil {
 					return errors.Wrap(err, "break change")
 				}
@@ -349,7 +350,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 	for _, input := range tx.Inputs {
 		available += input.Value
 	}
-	return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available-duplicateValue,
+	return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available,
 		outputValue+tx.EstimatedFee()))
 }
 

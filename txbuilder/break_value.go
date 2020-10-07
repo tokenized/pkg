@@ -60,7 +60,7 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		remaining -= outputFee
 
 		if remaining <= dustLimit || remaining < breakValue {
-			remaining += outputFee
+			remaining += outputFee // abort adding this output, so add the fee for it back in
 			break // remaining amount is less than dust required to include next address
 		}
 
@@ -77,7 +77,8 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		}
 
 		if rand.Intn(2) == 1 {
-			outputValue = outputValue - (outputValue / 10) + uint64(rand.Int63n(int64(outputValue/5)))
+			outputValue = outputValue - (outputValue / 10) +
+				uint64(rand.Int63n(int64(outputValue/5)))
 		}
 
 		if outputValue > remaining {
