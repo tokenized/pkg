@@ -50,16 +50,20 @@ func (r *RedisStorage) Read(ctx context.Context, key string) ([]byte, error) {
 
 // Write implements the Writer interface.
 func (r *RedisStorage) Write(ctx context.Context, key string, b []byte, opts *Options) error {
-	_, err := r.Conn.Do("SET", key, b)
+	if _, err := r.Conn.Do("SET", key, b); err != nil {
+		return err
+	}
 
-	return err
+	return r.Conn.Flush()
 }
 
 // Remove implements the Remover interface.
 func (r *RedisStorage) Remove(ctx context.Context, key string) error {
-	_, err := r.Conn.Do("DEL", key)
+	if _, err := r.Conn.Do("DEL", key); err != nil {
+		return err
+	}
 
-	return err
+	return r.Conn.Flush()
 }
 
 // Search imlements the Searcher interface.
