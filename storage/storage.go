@@ -40,14 +40,17 @@ type Searcher interface {
 	Search(context.Context, map[string]string) ([][]byte, error)
 }
 
+// Clearer interface is for clearing out data matching the query args.
 type Clearer interface {
 	Clear(context.Context, map[string]string) error
 }
 
+// List interface is for returning a list of items in the store from the given key.
 type List interface {
 	List(context.Context, string) ([]string, error)
 }
 
+// CreateStorage builds an appropriate Storage from the details.
 func CreateStorage(bucket, root string, maxRetries, retryDelay int) Storage {
 	config := Config{
 		Bucket:     bucket,
