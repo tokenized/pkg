@@ -211,6 +211,10 @@ func (c *HTTPClient) GetPaymentRequest(senderName, senderHandle, purpose, assetI
 		result.Outputs = append(result.Outputs, output)
 	}
 
+	if len(result.Tx.TxIn) != len(result.Outputs) {
+		return nil, ErrWrongOutputCount
+	}
+
 	return result, nil
 }
 
