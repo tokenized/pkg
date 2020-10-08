@@ -178,7 +178,7 @@ func BreakQuantity(value, breakValue uint64, count int) ([]uint64, error) {
 			quantity *= 1000
 		}
 
-		if rand.Intn(2) == 1 {
+		if quantity >= 10 && rand.Intn(2) == 1 {
 			quantity = quantity - (quantity / 10) + uint64(rand.Int63n(int64(quantity/5)))
 		}
 
