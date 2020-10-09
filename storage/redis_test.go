@@ -3,13 +3,12 @@ package storage
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
+	"github.com/scottjbarr/redis"
 )
 
 func TestRedis_ReadWriteDelete(t *testing.T) {
@@ -20,17 +19,12 @@ func TestRedis_ReadWriteDelete(t *testing.T) {
 		t.Skip("REDIS_URL not set")
 	}
 
-	u, err := url.Parse(uri)
+	pool, err := redis.NewPool(uri)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	conn, err := redis.Dial("tcp", u.Host)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewRedisStorage(conn)
+	store := NewRedisStorage(pool)
 
 	key := fmt.Sprintf("test-%v", time.Now().UnixNano())
 	payload := "hello"
@@ -73,17 +67,12 @@ func TestRedis_List(t *testing.T) {
 		t.Skip("REDIS_URL not set")
 	}
 
-	u, err := url.Parse(uri)
+	pool, err := redis.NewPool(uri)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	conn, err := redis.Dial("tcp", u.Host)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewRedisStorage(conn)
+	store := NewRedisStorage(pool)
 
 	prefix := "pkg-unit-test"
 

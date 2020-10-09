@@ -19,19 +19,22 @@ var (
 
 // RedisStorage implements a Storage backed by Redis.
 type RedisStorage struct {
-	Conn redis.Conn
+	Pool *redis.Pool
 }
 
 // NewRedisStorage return a new RedisStorage.
-func NewRedisStorage(conn redis.Conn) *RedisStorage {
+func NewRedisStorage(pool *redis.Pool) *RedisStorage {
 	return &RedisStorage{
-		Conn: conn,
+		Pool: pool,
 	}
 }
 
 // Reader implemented the Reader interface.
 func (r *RedisStorage) Read(ctx context.Context, key string) ([]byte, error) {
-	resp, err := r.Conn.Do("GET", key)
+	conn := r.Pool.Get()
+	defer conn.Close()
+
+	resp, err := conn.Do("GET", key)
 	if err != nil {
 		return nil, err
 	}
@@ -50,20 +53,26 @@ func (r *RedisStorage) Read(ctx context.Context, key string) ([]byte, error) {
 
 // Write implements the Writer interface.
 func (r *RedisStorage) Write(ctx context.Context, key string, b []byte, opts *Options) error {
-	if _, err := r.Conn.Do("SET", key, b); err != nil {
+	conn := r.Pool.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("SET", key, b); err != nil {
 		return err
 	}
 
-	return r.Conn.Flush()
+	return conn.Flush()
 }
 
 // Remove implements the Remover interface.
 func (r *RedisStorage) Remove(ctx context.Context, key string) error {
-	if _, err := r.Conn.Do("DEL", key); err != nil {
+	conn := r.Pool.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("DEL", key); err != nil {
 		return err
 	}
 
-	return r.Conn.Flush()
+	return conn.Flush()
 }
 
 // Search imlements the Searcher interface.
@@ -82,9 +91,12 @@ func (r *RedisStorage) Clear(ctx context.Context, query map[string]string) error
 
 // List implements the List interface.
 func (r *RedisStorage) List(ctx context.Context, key string) ([]string, error) {
+	conn := r.Pool.Get()
+	defer conn.Close()
+
 	k := fmt.Sprintf("%s*", key)
 
-	resp, err := r.Conn.Do("KEYS", k)
+	resp, err := conn.Do("KEYS", k)
 	if err != nil {
 		return nil, err
 	}
