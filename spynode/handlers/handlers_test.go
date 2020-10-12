@@ -22,7 +22,7 @@ func TestHandlers(test *testing.T) {
 	reorgDepth := 5
 
 	// Setup context
-	logConfig := logger.NewDevelopmentConfig()
+	logConfig := logger.NewConfig(true, false, "")
 	// logConfig.IsText = true
 	ctx := logger.ContextWithLogConfig(context.Background(), logConfig)
 

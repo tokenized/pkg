@@ -2,20 +2,16 @@ package logger
 
 import (
 	"context"
-	"os"
 	"testing"
 )
 
 func TestLogger(test *testing.T) {
 	showsystem := "showsystem"
 	hidesystem := "hidesystem"
-	fileName := "test.log"
 
 	{
-		os.Remove(fileName)
-		logConfig := NewDevelopmentConfig()
+		logConfig := NewConfig(true, false, "")
 		logConfig.EnableSubSystem(showsystem)
-		logConfig.Main.AddFile(fileName)
 
 		ctx := ContextWithLogConfig(context.Background(), logConfig)
 
@@ -39,7 +35,7 @@ func TestLogger(test *testing.T) {
 }
 
 func TestSubSystem(test *testing.T) {
-	logConfig := NewProductionConfig()
+	logConfig := NewConfig(false, false, "")
 
 	logConfig.EnableSubSystem("SpyNode")
 
@@ -56,7 +52,7 @@ func TestSubSystem(test *testing.T) {
 }
 
 func TestDisabledSubSystem(test *testing.T) {
-	logConfig := NewProductionConfig()
+	logConfig := NewConfig(false, false, "")
 
 	ctx := ContextWithLogConfig(context.Background(), logConfig)
 	spyCtx := ContextWithLogSubSystem(ctx, "SpyNode")
@@ -68,7 +64,7 @@ func TestDisabledSubSystem(test *testing.T) {
 }
 
 func BenchmarkContextWithLogTrace(b *testing.B) {
-	ctx := ContextWithLogConfig(context.Background(), NewProductionConfig())
+	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, ""))
 
 	for i := 0; i < b.N; i++ {
 		ContextWithLogTrace(ctx, "trace")
@@ -76,7 +72,7 @@ func BenchmarkContextWithLogTrace(b *testing.B) {
 }
 
 func BenchmarkContextWithOutLogSubSystem(b *testing.B) {
-	ctx := ContextWithLogConfig(context.Background(), NewProductionConfig())
+	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, ""))
 
 	for i := 0; i < b.N; i++ {
 		ContextWithOutLogSubSystem(ctx)
