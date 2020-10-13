@@ -13,27 +13,48 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 	_, records, _ := net.LookupSRV("bsvalias", "tcp", domain)
 
 	var site Site
+
 	if len(records) > 0 {
-		// Strip period at end of target if it exists.
-		// I am not sure why it is there --ce
-		l := len(records[0].Target)
-		if records[0].Target[l-1] == '.' {
-			records[0].Target = records[0].Target[:l-1]
+		// Strip period at end of target.
+		r := records[0]
+
+		l := len(r.Target)
+
+		// get the domain name from the SRV record
+		if r.Target[l-1] == '.' {
+			r.Target = r.Target[:l-1]
 		}
 
-		url := fmt.Sprintf("https://%s:%d/.well-known/bsvalias", records[0].Target, records[0].Port)
+		// If the port is 443 we can omit it, as we're using https anyway.
+		//
+		// Adding the port actually causes from webservers to fail (e.g. polynym, requiring the
+		// fallback.
+		host := fmt.Sprintf("https://%s", r.Target)
+
+		if r.Port != 443 {
+			// a port other than 443
+			host = fmt.Sprintf("https://%s:%d", r.Target, r.Port)
+		}
+
+		url := fmt.Sprintf("%s/.well-known/bsvalias", host)
+
 		if err := get(url, &site.Capabilities); err == nil {
-			site.URL = fmt.Sprintf("https://%s:%d", records[0].Target, records[0].Port)
+			site.URL = host
 			return site, nil
 		}
+
+		// err was not nil, so we deliberately fall through to the default, below.
 	}
 
+	// use the default well known url, per the spec.
 	url := fmt.Sprintf("https://%s/.well-known/bsvalias", domain)
+
 	if err := get(url, &site.Capabilities); err != nil {
-		return site, errors.Wrap(err, "http get capabilites")
+		return site, errors.Wrap(ErrNotCapable, err.Error())
 	}
 
 	site.URL = fmt.Sprintf("https://%s", domain)
+
 	return site, nil
 }
 
