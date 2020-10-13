@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/pkg/errors"
+	"github.com/tokenized/pkg/logger"
 )
 
 func GetSite(ctx context.Context, domain string) (Site, error) {
@@ -18,22 +19,20 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 		// Strip period at end of target.
 		r := records[0]
 
-		l := len(r.Target)
-
 		// get the domain name from the SRV record
+		l := len(r.Target)
 		if r.Target[l-1] == '.' {
 			r.Target = r.Target[:l-1]
 		}
 
 		// If the port is 443 we can omit it, as we're using https anyway.
 		//
-		// Adding the port actually causes from webservers to fail (e.g. polynym, requiring the
+		// Adding the port actually causes some webservers to fail (e.g. polynym, requiring the
 		// fallback.
 		host := fmt.Sprintf("https://%s", r.Target)
-
 		if r.Port != 443 {
 			// a port other than 443
-			host = fmt.Sprintf("https://%s:%d", r.Target, r.Port)
+			host = fmt.Sprintf("%s:%d", host, r.Port)
 		}
 
 		url := fmt.Sprintf("%s/.well-known/bsvalias", host)
@@ -44,6 +43,7 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 		}
 
 		// err was not nil, so we deliberately fall through to the default, below.
+		logger.Warn(ctx, "SRV resolution failed for %s, attempting default", domain)
 	}
 
 	// use the default well known url, per the spec.
