@@ -52,12 +52,21 @@ func (r *RedisStorage) Read(ctx context.Context, key string) ([]byte, error) {
 }
 
 // Write implements the Writer interface.
+//
+// If Options.TTL is set, the key will be set to expire in the given number of seconds.
 func (r *RedisStorage) Write(ctx context.Context, key string, b []byte, opts *Options) error {
 	conn := r.Pool.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("SET", key, b); err != nil {
 		return err
+	}
+
+	if opts != nil && opts.TTL > 0 {
+		// Redis expects TTL in seconds
+		if _, err := conn.Do("EXPIRE", key, opts.TTL); err != nil {
+			return err
+		}
 	}
 
 	return conn.Flush()
