@@ -61,7 +61,7 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 
 		if remaining <= dustLimit || remaining < breakValue {
 			remaining += outputFee // abort adding this output, so add the fee for it back in
-			break // remaining amount is less than dust required to include next address
+			break                  // remaining amount is less than dust required to include next address
 		}
 
 		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
@@ -161,7 +161,7 @@ func BreakQuantity(value, breakValue uint64, count int) ([]uint64, error) {
 	rand.Seed(time.Now().UnixNano())
 	result := make([]uint64, 0, count)
 	nextIndex := 0
-	for i:=0;i<count;i++ {
+	for i := 0; i < count; i++ {
 		if remaining < breakValue {
 			break // remaining amount is less than dust required to include next address
 		}

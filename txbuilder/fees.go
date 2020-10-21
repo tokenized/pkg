@@ -25,7 +25,7 @@ const (
 	//       public key size = 33 bytes
 	//   Sequence number = 4
 	MaximumP2PKHSigScriptSize = 1 + 74 + 34
-	MaximumP2PKHInputSize = 32 + 4 + MaximumP2PKHSigScriptSize + 4
+	MaximumP2PKHInputSize     = 32 + 4 + MaximumP2PKHSigScriptSize + 4
 
 	// MaximumP2RPHInputSize is the maximum serialized size of a P2RPH tx input based on all of the
 	// variable sized data.
@@ -42,7 +42,7 @@ const (
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
 	MaximumP2RPHSigScriptSize = 1 + 34 + 74
-	MaximumP2RPHInputSize = 32 + 4 + MaximumP2RPHSigScriptSize + 4
+	MaximumP2RPHInputSize     = 32 + 4 + MaximumP2RPHSigScriptSize + 4
 
 	// MaximumP2PKInputSize is the maximium serialized size of a P2PK tx input based on all of the
 	// variable sized data.
@@ -56,7 +56,7 @@ const (
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
 	MaximumP2PKSigScriptSize = 1 + 74
-	MaximumP2PKInputSize = 32 + 4 + MaximumP2PKSigScriptSize + 4
+	MaximumP2PKInputSize     = 32 + 4 + MaximumP2PKSigScriptSize + 4
 
 	// OutputBaseSize is the size of a tx output not including script
 	OutputBaseSize = 8
@@ -68,7 +68,7 @@ const (
 	//   Script (25 bytes) OP_DUP OP_HASH160 <Push Data byte, PUB KEY/SCRIPT HASH (20 bytes)> OP_EQUALVERIFY
 	//     OP_CHECKSIG
 	P2PKHOutputScriptSize = 26
-	P2PKHOutputSize = OutputBaseSize + P2PKHOutputScriptSize
+	P2PKHOutputSize       = OutputBaseSize + P2PKHOutputScriptSize
 
 	// P2PKOutputSize is the serialized size of a P2PK tx output.
 	// P2PK output size 44
@@ -80,7 +80,7 @@ const (
 	//         public key size = 33 bytes
 	//       OP_CHECKSIG = 1 byte
 	P2PKOutputScriptSize = 36
-	P2PKOutputSize = OutputBaseSize + P2PKOutputScriptSize
+	P2PKOutputSize       = OutputBaseSize + P2PKOutputScriptSize
 
 	// DustInputSize is the fixed size of an input used in the calculation of the dust limit.
 	// This is actually the estimated size of a P2PKH input, but is used for dust calculation of all
