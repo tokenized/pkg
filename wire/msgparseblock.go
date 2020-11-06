@@ -269,7 +269,7 @@ func readTxSize(r io.Reader, pver uint32) (uint64, error) {
 	var fourbytes [4]byte
 
 	// Version
-	if _, err := r.Read(fourbytes[:]); err != nil {
+	if _, err := io.ReadFull(r, fourbytes[:]); err != nil {
 		return 0, errors.Wrap(err, "read version")
 	}
 
@@ -328,7 +328,7 @@ func readTxSize(r io.Reader, pver uint32) (uint64, error) {
 	}
 
 	// Lock Time
-	if _, err := r.Read(fourbytes[:]); err != nil {
+	if _, err := io.ReadFull(r, fourbytes[:]); err != nil {
 		return 0, errors.Wrap(err, "read lock time")
 	}
 
@@ -341,7 +341,7 @@ func readInputSize(r io.Reader, pver uint32) (uint64, error) {
 
 	// Outpoint
 	var outpoint [36]byte // 36 bytes for txid and index
-	if _, err := r.Read(outpoint[:]); err != nil {
+	if _, err := io.ReadFull(r, outpoint[:]); err != nil {
 		return 0, errors.Wrap(err, "read outpoint")
 	}
 
@@ -354,7 +354,7 @@ func readInputSize(r io.Reader, pver uint32) (uint64, error) {
 
 	// Sequence
 	var sequence [4]byte
-	if _, err := r.Read(sequence[:]); err != nil {
+	if _, err := io.ReadFull(r, sequence[:]); err != nil {
 		return 0, errors.Wrap(err, "read sequence")
 	}
 
@@ -367,7 +367,7 @@ func readOutputSize(r io.Reader, pver uint32) (uint64, error) {
 
 	// Value
 	var value [8]byte
-	_, err := r.Read(value[:])
+	_, err := io.ReadFull(r, value[:])
 	if err != nil {
 		return 0, errors.Wrap(err, "read value")
 	}
@@ -392,7 +392,7 @@ func readScriptSize(r io.Reader, pver uint32) (uint64, error) {
 	}
 
 	script := make([]byte, count)
-	if _, err := r.Read(script); err != nil {
+	if _, err := io.ReadFull(r, script); err != nil {
 		return 0, errors.Wrap(err, "read script data")
 	}
 

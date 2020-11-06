@@ -83,7 +83,7 @@ func (utxo *UTXO) Read(r io.Reader) error {
 	}
 
 	utxo.LockingScript = make([]byte, int(scriptSize))
-	if _, err := r.Read(utxo.LockingScript); err != nil {
+	if _, err := io.ReadFull(r, utxo.LockingScript); err != nil {
 		return err
 	}
 

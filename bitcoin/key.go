@@ -163,7 +163,7 @@ func (k Key) Bytes() []byte {
 
 func (k *Key) Deserialize(r io.Reader) error {
 	b := make([]byte, 33)
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return errors.Wrap(err, "key")
 	}
 

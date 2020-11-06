@@ -83,7 +83,7 @@ func (h Hash20) Serialize(w io.Writer) error {
 }
 
 func (h *Hash20) Deserialize(r io.Reader) error {
-	if _, err := r.Read(h[:]); err != nil {
+	if _, err := io.ReadFull(r, h[:]); err != nil {
 		return err
 	}
 	return nil
@@ -92,7 +92,7 @@ func (h *Hash20) Deserialize(r io.Reader) error {
 // Deserialize reads a hash from a reader.
 func DeserializeHash20(r io.Reader) (*Hash20, error) {
 	result := Hash20{}
-	_, err := r.Read(result[:])
+	_, err := io.ReadFull(r, result[:])
 	if err != nil {
 		return nil, err
 	}

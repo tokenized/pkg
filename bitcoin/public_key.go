@@ -105,7 +105,7 @@ func (k PublicKey) Serialize(w io.Writer) error {
 
 func (k *PublicKey) Deserialize(r io.Reader) error {
 	b := make([]byte, PublicKeyCompressedLength)
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return err
 	}
 

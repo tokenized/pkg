@@ -321,7 +321,7 @@ func ReadBase128VarInt(r io.Reader) (int, error) {
 	bitOffset := uint32(0)
 	for !done {
 		var subValue [1]byte
-		if _, err := r.Read(subValue[:]); err != nil {
+		if _, err := io.ReadFull(r, subValue[:]); err != nil {
 			return int(value), err
 		}
 
