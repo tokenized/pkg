@@ -70,6 +70,38 @@ func KeyFromStr(s string) (Key, error) {
 	return Key{}, fmt.Errorf("Key unknown format length %d", len(b))
 }
 
+func (k *Key) DecodeString(s string) error {
+	b, err := decodeAddress(s)
+	if err != nil {
+		return err
+	}
+
+	switch b[0] {
+	case typeMainPrivKey:
+		k.net = MainNet
+	case typeTestPrivKey:
+		k.net = TestNet
+	default:
+		return ErrBadKeyType
+	}
+
+	if len(b) == 34 {
+		if b[len(b)-1] != 0x01 {
+			return fmt.Errorf("Key not for compressed public : %x", b[len(b)-1:])
+		}
+		b = b[1:33]
+	} else if len(b) == 33 {
+		b = b[1:]
+	}
+
+	if err := privateKeyIsValid(b); err != nil {
+		return err
+	}
+
+	k.value.SetBytes(b)
+	return nil
+}
+
 // KeyFromBytes decodes a binary bitcoin key. It returns the key and an error if there was an
 //   issue.
 func KeyFromBytes(b []byte, net Network) (Key, error) {
@@ -130,13 +162,7 @@ func (k Key) Network() Network {
 
 // SetString decodes a key from hex text.
 func (k *Key) SetString(s string) error {
-	nk, err := KeyFromStr(s)
-	if err != nil {
-		return err
-	}
-
-	*k = nk
-	return nil
+	return k.DecodeString(s)
 }
 
 // SetBytes decodes the key from bytes.
@@ -213,7 +239,7 @@ func (k Key) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON converts from json.
 func (k *Key) UnmarshalJSON(data []byte) error {
-	return k.SetString(string(data[1 : len(data)-1]))
+	return k.DecodeString(string(data[1 : len(data)-1]))
 }
 
 // MarshalText returns the text encoding of the key.
@@ -228,13 +254,7 @@ func (k Key) MarshalText() ([]byte, error) {
 // UnmarshalText parses a text encoded key and sets the value of this object.
 // Implements encoding.TextUnmarshaler interface.
 func (k *Key) UnmarshalText(text []byte) error {
-	b := make([]byte, hex.DecodedLen(len(text)))
-	_, err := hex.Decode(b, text)
-	if err != nil {
-		return err
-	}
-
-	return k.SetBytes(b)
+	return k.DecodeString(string(text))
 }
 
 // MarshalBinary returns the binary encoding of the key.
