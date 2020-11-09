@@ -234,3 +234,91 @@ func LogDepth(ctx context.Context, level Level, depth int, format string, values
 
 	return fmt.Errorf("Unknown log level %d", level)
 }
+
+// DebugWithZapFields adds a debug level entry to the log with the included zap fields.
+func DebugWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelDebug, 1, fields, format, values...)
+}
+
+// VerboseWithZapFields adds a verbose level entry to the log with the included zap fields.
+func VerboseWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelVerbose, 1, fields, format, values...)
+}
+
+// InfoWithZapFields adds a info level entry to the log with the included zap fields.
+func InfoWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelInfo, 1, fields, format, values...)
+}
+
+// WarnWithZapFields adds a warn level entry to the log with the included zap fields.
+func WarnWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelWarn, 1, fields, format, values...)
+}
+
+// ErrorWithZapFields adds a error level entry to the log with the included zap fields.
+func ErrorWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelError, 1, fields, format, values...)
+}
+
+// FatalWithZapFields adds a fatal level entry to the log with the included zap fields.
+func FatalWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelFatal, 1, fields, format, values...)
+}
+
+// PanicWithZapFields adds a panic level entry to the log with the included zap fields.
+func PanicWithZapFields(ctx context.Context, fields []zap.Field, format string,
+	values ...interface{}) error {
+
+	return LogDepthWithZapFields(ctx, LevelPanic, 1, fields, format, values...)
+}
+
+// LogDepth is the same as Log, but the number of levels above the current call in the stack from
+// which to get the file name/line of code can be specified as depth with the included zap fields.
+func LogDepthWithZapFields(ctx context.Context, level Level, depth int, fields []zap.Field,
+	format string, values ...interface{}) error {
+
+	l := GetLogger(ctx).WithOptions(zap.AddCallerSkip(depth + 1))
+	for _, field := range fields {
+		l = l.With(field)
+	}
+
+	ls := l.Sugar()
+
+	switch level {
+	case LevelDebug:
+		ls.Debugf(format, values...)
+		return nil
+	case LevelVerbose:
+		ls.Debugf(format, values...) // No zap verbose level
+		return nil
+	case LevelInfo:
+		ls.Infof(format, values...)
+		return nil
+	case LevelWarn:
+		ls.Warnf(format, values...)
+		return nil
+	case LevelError:
+		ls.Errorf(format, values...)
+		return nil
+	case LevelFatal:
+		ls.Fatalf(format, values...)
+		return nil
+	case LevelPanic:
+		ls.Panicf(format, values...)
+		return nil
+	}
+
+	return fmt.Errorf("Unknown log level %d", level)
+}
