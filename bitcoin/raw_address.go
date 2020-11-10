@@ -85,25 +85,25 @@ func (ra *RawAddress) Decode(b []byte) error {
 		b = b[1:] // remove type
 		// Parse required count
 		buf := bytes.NewBuffer(b)
-		var required int
+		var required uint64
 		var err error
 		if required, err = ReadBase128VarInt(buf); err != nil {
 			return err
 		}
 		// Parse hash count
-		var count int
+		var count uint64
 		if count, err = ReadBase128VarInt(buf); err != nil {
 			return err
 		}
 		pkhs := make([][]byte, 0, count)
-		for i := 0; i < count; i++ {
+		for i := uint64(0); i < count; i++ {
 			pkh := make([]byte, ScriptHashLength)
 			if _, err := buf.Read(pkh); err != nil {
 				return err
 			}
 			pkhs = append(pkhs, pkh)
 		}
-		return ra.SetMultiPKH(required, pkhs)
+		return ra.SetMultiPKH(int(required), pkhs)
 
 	// R Puzzle Hash
 	case AddressTypeMainRPH:
@@ -173,25 +173,25 @@ func (ra *RawAddress) Deserialize(r io.Reader) error {
 		fallthrough
 	case ScriptTypeMultiPKH:
 		// Parse required count
-		var required int
+		var required uint64
 		var err error
 		if required, err = ReadBase128VarInt(r); err != nil {
 			return err
 		}
 		// Parse hash count
-		var count int
+		var count uint64
 		if count, err = ReadBase128VarInt(r); err != nil {
 			return err
 		}
 		pkhs := make([][]byte, 0, count)
-		for i := 0; i < count; i++ {
+		for i := uint64(0); i < count; i++ {
 			pkh := make([]byte, ScriptHashLength)
 			if _, err := io.ReadFull(r, pkh); err != nil {
 				return err
 			}
 			pkhs = append(pkhs, pkh)
 		}
-		return ra.SetMultiPKH(required, pkhs)
+		return ra.SetMultiPKH(int(required), pkhs)
 
 	// R Puzzle Hash
 	case AddressTypeMainRPH:
@@ -345,10 +345,10 @@ func (ra *RawAddress) SetMultiPKH(required int, pkhs [][]byte) error {
 	ra.scriptType = ScriptTypeMultiPKH
 	buf := bytes.NewBuffer(make([]byte, 0, 4+(len(pkhs)*ScriptHashLength)))
 
-	if err := WriteBase128VarInt(buf, required); err != nil {
+	if err := WriteBase128VarInt(buf, uint64(required)); err != nil {
 		return err
 	}
-	if err := WriteBase128VarInt(buf, len(pkhs)); err != nil {
+	if err := WriteBase128VarInt(buf, uint64(len(pkhs))); err != nil {
 		return err
 	}
 	for _, pkh := range pkhs {
@@ -378,12 +378,12 @@ func (ra *RawAddress) GetMultiPKH() ([][]byte, error) {
 		return nil, err
 	}
 	// Parse hash count
-	var count int
+	var count uint64
 	if count, err = ReadBase128VarInt(buf); err != nil {
 		return nil, err
 	}
 	pkhs := make([][]byte, 0, count)
-	for i := 0; i < count; i++ {
+	for i := uint64(0); i < count; i++ {
 		pkh := make([]byte, ScriptHashLength)
 		if _, err := buf.Read(pkh); err != nil {
 			return nil, err

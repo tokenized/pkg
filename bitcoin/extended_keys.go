@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"io"
 
 	"github.com/pkg/errors"
 	bip32 "github.com/tyler-smith/go-bip32"
@@ -49,7 +48,7 @@ func ExtendedKeysFromBytes(b []byte) (ExtendedKeys, error) {
 	}
 
 	result := make(ExtendedKeys, 0, count)
-	for i := 0; i < count; i++ {
+	for i := uint64(0); i < count; i++ {
 		var ek ExtendedKey
 		if err := ek.read(buf); err != nil {
 			return nil, errors.Wrap(err, "read xkey base")
@@ -145,7 +144,7 @@ func (k ExtendedKeys) Bytes() []byte {
 		return nil
 	}
 
-	if err := WriteBase128VarInt(&buf, len(k)); err != nil {
+	if err := WriteBase128VarInt(&buf, uint64(len(k))); err != nil {
 		return nil
 	}
 
@@ -313,43 +312,4 @@ func (k *ExtendedKeys) Scan(data interface{}) error {
 	c := make([]byte, len(b))
 	copy(c, b)
 	return k.SetBytes(c)
-}
-
-func ReadBase128VarInt(r io.Reader) (int, error) {
-	value := uint32(0)
-	done := false
-	bitOffset := uint32(0)
-	for !done {
-		var subValue [1]byte
-		if _, err := io.ReadFull(r, subValue[:]); err != nil {
-			return int(value), err
-		}
-
-		done = (subValue[0] & 0x80) == 0 // High bit not set
-		subValue[0] = subValue[0] & 0x7f // Remove high bit
-
-		value += uint32(subValue[0]) << bitOffset
-		bitOffset += 7
-	}
-
-	return int(value), nil
-}
-
-func WriteBase128VarInt(w io.Writer, value int) error {
-	v := uint32(value)
-	for {
-		if v < 128 {
-			var b [1]byte
-			b[0] = byte(v)
-			_, err := w.Write(b[:])
-			return err
-		}
-
-		var subValue [1]byte
-		subValue[0] = (byte(v&0x7f) | 0x80) // Get last 7 bits and set high bit
-		if _, err := w.Write(subValue[:]); err != nil {
-			return err
-		}
-		v = v >> 7
-	}
 }
