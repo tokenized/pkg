@@ -289,34 +289,29 @@ func PanicWithZapFields(ctx context.Context, fields []zap.Field, format string,
 func LogDepthWithZapFields(ctx context.Context, level Level, depth int, fields []zap.Field,
 	format string, values ...interface{}) error {
 
-	l := GetLogger(ctx).WithOptions(zap.AddCallerSkip(depth + 1))
-	for _, field := range fields {
-		l = l.With(field)
-	}
-
-	ls := l.Sugar()
+	l := GetLogger(ctx).WithOptions(zap.AddCallerSkip(depth + 1)).With(fields...).Sugar()
 
 	switch level {
 	case LevelDebug:
-		ls.Debugf(format, values...)
+		l.Debugf(format, values...)
 		return nil
 	case LevelVerbose:
-		ls.Debugf(format, values...) // No zap verbose level
+		l.Debugf(format, values...) // No zap verbose level
 		return nil
 	case LevelInfo:
-		ls.Infof(format, values...)
+		l.Infof(format, values...)
 		return nil
 	case LevelWarn:
-		ls.Warnf(format, values...)
+		l.Warnf(format, values...)
 		return nil
 	case LevelError:
-		ls.Errorf(format, values...)
+		l.Errorf(format, values...)
 		return nil
 	case LevelFatal:
-		ls.Fatalf(format, values...)
+		l.Fatalf(format, values...)
 		return nil
 	case LevelPanic:
-		ls.Panicf(format, values...)
+		l.Panicf(format, values...)
 		return nil
 	}
 
