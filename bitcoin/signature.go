@@ -204,7 +204,7 @@ func (s Signature) Serialize(w io.Writer) error {
 
 func (s *Signature) Deserialize(r io.Reader) error {
 	b := make([]byte, 1)
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return errors.Wrap(err, "header byte")
 	}
 
@@ -214,12 +214,12 @@ func (s *Signature) Deserialize(r io.Reader) error {
 	}
 
 	// length of remaining message
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return errors.Wrap(err, "length")
 	}
 
 	b = make([]byte, b[0])
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return errors.Wrap(err, "data")
 	}
 

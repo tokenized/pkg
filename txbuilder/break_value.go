@@ -60,8 +60,8 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		remaining -= outputFee
 
 		if remaining <= dustLimit || remaining < breakValue {
-			remaining += outputFee
-			break // remaining amount is less than dust required to include next address
+			remaining += outputFee // abort adding this output, so add the fee for it back in
+			break                  // remaining amount is less than dust required to include next address
 		}
 
 		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
@@ -77,7 +77,8 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		}
 
 		if rand.Intn(2) == 1 {
-			outputValue = outputValue - (outputValue / 10) + uint64(rand.Int63n(int64(outputValue/5)))
+			outputValue = outputValue - (outputValue / 10) +
+				uint64(rand.Int63n(int64(outputValue/5)))
 		}
 
 		if outputValue > remaining {
@@ -124,6 +125,78 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		// Add to last output
 		result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
 		result[len(result)-1].TxOut.Value += remaining
+	}
+
+	// Random sort outputs
+	rand.Shuffle(len(result), func(i, j int) {
+		result[i], result[j] = result[j], result[i]
+	})
+
+	return result, nil
+}
+
+// BreakQuantity breaks the quantity into randomized values. It is like BreakValue, but is not
+// concerned with dust or anything like that.
+func BreakQuantity(value, breakValue uint64, count int) ([]uint64, error) {
+	// Choose random multiples of breakValue until the value is taken up.
+
+	// Find the average value to break the value into the provided addresses
+	average := 2 * (value / uint64(count-1))
+
+	// Find the power to use for choosing random values
+	factor := average / breakValue
+	var exponent int
+	if factor >= 500 {
+		exponent = 4
+	} else if factor >= 50 {
+		exponent = 3
+	} else if factor >= 5 {
+		exponent = 2
+	} else {
+		exponent = 1
+	}
+
+	// Calculate some random values
+	remaining := value
+	rand.Seed(time.Now().UnixNano())
+	result := make([]uint64, 0, count)
+	nextIndex := 0
+	for i := 0; i < count; i++ {
+		if remaining < breakValue {
+			break // remaining amount is less than dust required to include next address
+		}
+
+		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
+		quantity := breakValue * inc
+		switch rand.Intn(exponent) {
+		case 0: // *= 1
+		case 1:
+			quantity *= 10
+		case 2:
+			quantity *= 100
+		case 3:
+			quantity *= 1000
+		}
+
+		if quantity >= 10 && rand.Intn(2) == 1 {
+			quantity = quantity - (quantity / 10) + uint64(rand.Int63n(int64(quantity/5)))
+		}
+
+		if quantity > remaining {
+			quantity = remaining
+		}
+
+		remaining -= quantity
+
+		result = append(result, quantity)
+		nextIndex++
+	}
+
+	if remaining > 0 {
+		result = append(result, remaining)
+	} else if len(result) > 1 {
+		// Add to last quantity
+		result[len(result)-1] += remaining
 	}
 
 	// Random sort outputs

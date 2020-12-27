@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/btcsuite/btcutil/base58"
@@ -194,4 +195,43 @@ func BIP0276Decode58(url string) (Network, string, []byte, error) {
 	b = b[1:] // Drop network
 
 	return net, parts[0], b, nil
+}
+
+func ReadBase128VarInt(r io.Reader) (uint64, error) {
+	value := uint64(0)
+	done := false
+	bitOffset := uint64(0)
+	for !done {
+		var subValue [1]byte
+		if _, err := io.ReadFull(r, subValue[:]); err != nil {
+			return value, err
+		}
+
+		done = (subValue[0] & 0x80) == 0 // High bit not set
+		subValue[0] = subValue[0] & 0x7f // Remove high bit
+
+		value += uint64(subValue[0]) << bitOffset
+		bitOffset += 7
+	}
+
+	return value, nil
+}
+
+func WriteBase128VarInt(w io.Writer, value uint64) error {
+	v := value
+	for {
+		if v < 128 {
+			var b [1]byte
+			b[0] = byte(v)
+			_, err := w.Write(b[:])
+			return err
+		}
+
+		var subValue [1]byte
+		subValue[0] = (byte(v&0x7f) | 0x80) // Get last 7 bits and set high bit
+		if _, err := w.Write(subValue[:]); err != nil {
+			return err
+		}
+		v = v >> 7
+	}
 }

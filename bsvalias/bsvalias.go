@@ -39,6 +39,10 @@ var (
 
 	// ErrNotFound means the requested entity was not found.
 	ErrNotFound = errors.New("Not Found")
+
+	// ErrWrongOutputCount means that the outputs supplied with a payment request do not match the
+	// number of inputs.
+	ErrWrongOutputCount = errors.New("Wrong Output Count")
 )
 
 // Factory is the interface for creating new bsvalias clients.

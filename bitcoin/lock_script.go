@@ -243,21 +243,21 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 
+		if script[0] != OP_FROMALTSTACK {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+		script = script[1:]
+
+		if len(script) < 2 {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+
 		// Parse required signature count
 		required, length, err := ParsePushNumberScript(script)
 		if err != nil {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 		script = script[length:]
-
-		if len(script) != 2 {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-
-		if script[0] != OP_FROMALTSTACK {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-		script = script[1:]
 
 		if script[0] != OP_GREATERTHANOREQUAL {
 			return RawAddress{}, ErrUnknownScriptTemplate
@@ -381,8 +381,8 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		}
 
 		// Check required signature count
-		result = append(result, PushNumberScript(int64(required))...)
 		result = append(result, OP_FROMALTSTACK)
+		result = append(result, PushNumberScript(int64(required))...)
 		result = append(result, OP_GREATERTHANOREQUAL)
 		return result, nil
 	}

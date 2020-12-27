@@ -2,73 +2,32 @@ package logger
 
 // Config defines the logging configuration for the context it is attached to.
 type Config struct {
-	Active             SystemConfig
-	Main               *SystemConfig
+	Active             systemConfig
+	Main               *systemConfig
 	IncludedSubSystems map[string]bool          // If true, log in main log
-	SubSystems         map[string]*SystemConfig // SubSystem specific loggers
+	SubSystems         map[string]*systemConfig // SubSystem specific loggers
 }
 
-// NewProductionConfig creates a new config with default production values.
-//   Logs info level and above to stderr.
-func NewProductionConfig() *Config {
+// NewConfig creates a new config with the specified values.
+func NewConfig(isDevelopment, isText bool, filePath string) *Config {
 	result := Config{
 		IncludedSubSystems: make(map[string]bool),
-		SubSystems:         make(map[string]*SystemConfig),
+		SubSystems:         make(map[string]*systemConfig),
 	}
 
-	result.Main, _ = NewProductionLogger()
-	result.Active = *result.Main
-	return &result
-}
-
-// NewProductionTextConfig creates a new config with default production values.
-//   Logs info level and above to stderr.
-func NewProductionTextConfig() *Config {
-	result := Config{
-		IncludedSubSystems: make(map[string]bool),
-		SubSystems:         make(map[string]*SystemConfig),
-	}
-
-	result.Main, _ = NewProductionTextLogger()
-	result.Active = *result.Main
-	return &result
-}
-
-// NewDevelopmentConfig creates a new config with default development values.
-//   Logs debug level and above to stderr.
-func NewDevelopmentConfig() *Config {
-	result := Config{
-		IncludedSubSystems: make(map[string]bool),
-		SubSystems:         make(map[string]*SystemConfig),
-	}
-
-	result.Main, _ = NewDevelopmentLogger()
-	result.Active = *result.Main
-	return &result
-}
-
-// NewDevelopmentTextConfig creates a new config with default development values.
-//   Logs debug level and above to stderr.
-func NewDevelopmentTextConfig() *Config {
-	result := Config{
-		IncludedSubSystems: make(map[string]bool),
-		SubSystems:         make(map[string]*SystemConfig),
-	}
-
-	result.Main, _ = NewDevelopmentTextLogger()
+	result.Main, _ = newSystemConfig(isDevelopment, isText, filePath)
 	result.Active = *result.Main
 	return &result
 }
 
 // NewEmptyConfig creates a new config that doesn't log.
-//   Logs info level and above to stderr.
 func NewEmptyConfig() *Config {
 	result := Config{
 		IncludedSubSystems: make(map[string]bool),
-		SubSystems:         make(map[string]*SystemConfig),
+		SubSystems:         make(map[string]*systemConfig),
 	}
 
-	result.Main, _ = NewEmptyLogger()
+	result.Main, _ = newEmptySystemConfig()
 	result.Active = *result.Main
 	return &result
 }

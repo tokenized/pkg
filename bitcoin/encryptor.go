@@ -149,7 +149,7 @@ func NewDecryptor(key []byte, r io.Reader) (*Decryptor, error) {
 
 	// Read initialization vector (IV)
 	iv := make([]byte, aes.BlockSize)
-	if _, err = r.Read(iv); err != nil {
+	if _, err = io.ReadFull(r, iv); err != nil {
 		return nil, errors.Wrap(err, "read iv")
 	}
 

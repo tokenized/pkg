@@ -1014,7 +1014,7 @@ func (node *Node) monitorUntrustedNodes(ctx context.Context) {
 						node.broadcastTxs[i].count += sentCount
 						if node.broadcastTxs[i].count > node.config.ShotgunCount {
 							// tx has been sent to enough nodes. remove it
-							node.broadcastTxs = append(node.broadcastTxs[:1],
+							node.broadcastTxs = append(node.broadcastTxs[:i],
 								node.broadcastTxs[i+1:]...)
 						}
 						break

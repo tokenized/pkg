@@ -106,13 +106,13 @@ func ExtendedKeyFromBytes(b []byte) (ExtendedKey, error) {
 // ExtendedKeyFromBytes creates a key from bytes.
 func (k *ExtendedKey) Deserialize(r io.Reader) error {
 	var header [1]byte
-	if _, err := r.Read(header[:]); err != nil {
+	if _, err := io.ReadFull(r, header[:]); err != nil {
 		return errors.Wrap(err, "read header")
 	}
 	if header[0] != ExtendedKeyHeader {
 		// Fall back to BIP-0032 format
 		b := make([]byte, 82)
-		if _, err := r.Read(b); err != nil {
+		if _, err := io.ReadFull(r, b); err != nil {
 			return err
 		}
 		bip32Key, err := bip32.Deserialize(b)
@@ -529,12 +529,12 @@ func (k *ExtendedKey) setFromBIP32(old *bip32.Key) error {
 // read reads just the basic data of the extended key.
 func (k *ExtendedKey) read(r io.Reader) error {
 	var b [1]byte
-	if _, err := r.Read(b[:]); err != nil {
+	if _, err := io.ReadFull(r, b[:]); err != nil {
 		return errors.Wrap(err, "reading xkey depth")
 	}
 	k.Depth = b[0]
 
-	if _, err := r.Read(k.FingerPrint[:]); err != nil {
+	if _, err := io.ReadFull(r, k.FingerPrint[:]); err != nil {
 		return errors.Wrap(err, "reading xkey fingerprint")
 	}
 
@@ -542,11 +542,11 @@ func (k *ExtendedKey) read(r io.Reader) error {
 		return errors.Wrap(err, "reading xkey index")
 	}
 
-	if _, err := r.Read(k.ChainCode[:]); err != nil {
+	if _, err := io.ReadFull(r, k.ChainCode[:]); err != nil {
 		return errors.Wrap(err, "reading xkey chaincode")
 	}
 
-	if _, err := r.Read(k.KeyValue[:]); err != nil {
+	if _, err := io.ReadFull(r, k.KeyValue[:]); err != nil {
 		return errors.Wrap(err, "reading xkey key")
 	}
 

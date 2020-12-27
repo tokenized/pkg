@@ -199,12 +199,20 @@ func (op OutPoint) OutpointHash() *bitcoin.Hash32 {
 
 // Serialize encodes op to the bitcoin protocol encoding for an OutPoint to w.
 func (op *OutPoint) Serialize(w io.Writer) error {
-	err := op.Hash.Serialize(w)
-	if err != nil {
+	if err := op.Hash.Serialize(w); err != nil {
 		return err
 	}
 
-	return binary.Write(w, endian, uint32(op.Index))
+	return binary.Write(w, endian, op.Index)
+}
+
+// Deserialize decodes op from the bitcoin protocol encoding for an OutPoint.
+func (op *OutPoint) Deserialize(r io.Reader) error {
+	if err := op.Hash.Deserialize(r); err != nil {
+		return err
+	}
+
+	return binary.Read(r, endian, &op.Index)
 }
 
 // TxIn defines a bitcoin transaction input.
@@ -247,6 +255,7 @@ func (t *TxOut) Serialize(w io.Writer, pver uint32, version int32) error {
 	return writeTxOut(w, pver, version, t)
 }
 
+// Deserialize decodes t from the bitcoin protocol encoding for a TxOut.
 func (t *TxOut) Deserialize(r io.Reader, pver uint32, version int32) error {
 	return readTxOut(r, pver, version, t)
 }
