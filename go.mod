@@ -15,6 +15,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/scottjbarr/redis v0.0.1
 	github.com/tyler-smith/go-bip32 v0.0.0-20170922074101-2c9cfd177564
-	go.uber.org/zap v1.15.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 )
