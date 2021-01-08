@@ -40,11 +40,10 @@ type Node struct {
 	reorgs          *handlerstorage.ReorgRepository    // Reorg data
 	txTracker       *data.TxTracker                    // Tracks tx requests to ensure all txs are received
 	memPool         *data.MemPool                      // Tracks which txs have been received and checked
-	handlers        map[string]handlers.CommandHandler // Handlers for messages from trusted node
+	messageHandlers map[string]handlers.MessageHandler // Handlers for messages from trusted node
 	connection      net.Conn                           // Connection to trusted node
 	outgoing        MessageChannel                     // Channel for messages to send to trusted node
-	listeners       []handlers.Listener                // Receive data and notifications about transactions
-	txFilters       []handlers.TxFilter                // Determines if a tx should be seen by listeners
+	handlers        []client.Handler                   // Receive data and notifications about transactions
 	untrustedNodes  []*UntrustedNode                   // Randomized peer connections to monitor for double spends
 	addresses       map[string]time.Time               // Recently used peer addresses
 	confTxChannel   handlers.TxChannel                 // Channel for directly handled txs so they don't lock the calling thread
@@ -61,6 +60,12 @@ type Node struct {
 	lock            sync.Mutex
 	untrustedLock   sync.Mutex
 	blockLock       sync.Mutex
+
+	pushDatas    []bitcoin.Hash20
+	pushDataLock sync.Mutex
+
+	sendContracts bool
+	sendHeaders   bool
 
 	// These counts are used to monitor the number of threads active in specific categories.
 	// They are used to stop the incoming threads before stopping the processing threads to
@@ -83,8 +88,7 @@ func NewNode(config data.Config, store storage.Storage) *Node {
 		reorgs:         handlerstorage.NewReorgRepository(store),
 		txTracker:      data.NewTxTracker(),
 		memPool:        data.NewMemPool(),
-		listeners:      make([]handlers.Listener, 0),
-		txFilters:      make([]handlers.TxFilter, 0),
+		handlers:       make([]client.Handler, 0),
 		untrustedNodes: make([]*UntrustedNode, 0),
 		addresses:      make(map[string]time.Time),
 		needsRestart:   false,
@@ -100,16 +104,77 @@ func NewNode(config data.Config, store storage.Storage) *Node {
 	return &result
 }
 
-func (node *Node) RegisterListener(listener handlers.Listener) {
-	node.listeners = append(node.listeners, listener)
+// Client interface
+func (node *Node) RegisterHandler(handler client.Handler) {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	node.handlers = append(node.handlers, handler)
 }
 
-// AddTxFilter adds a tx filter.
-// See handlers/filters.go for specification of a filter.
-// If no tx filters, then all txs are sent to listeners.
-// If any of the tx filters return true the tx will be sent to listeners.
-func (node *Node) AddTxFilter(filter handlers.TxFilter) {
-	node.txFilters = append(node.txFilters, filter)
+func (node *Node) SubscribePushDatas(ctx context.Context, pushDatas [][]byte) error {
+	node.pushDataLock.Lock()
+	defer node.pushDataLock.Unlock()
+
+	for _, pd := range pushDatas {
+		var hash bitcoin.Hash20
+		if len(pd) == 20 {
+			copy(hash[:], pd)
+		} else {
+			copy(hash[:], bitcoin.Hash160(pd))
+		}
+
+		node.pushDatas = append(node.pushDatas, hash)
+	}
+}
+
+func (node *Node) UnsubscribePushDatas(ctx context.Context, pushDatas [][]byte) error {
+	node.pushDataLock.Lock()
+	defer node.pushDataLock.Unlock()
+
+	for _, pd := range pushDatas {
+		hash := pushDataToHash(pd)
+		for i, epd := range node.pushDataHashes {
+			if hash.Equal(&epd) {
+				node.pushDataHashes = append(node.pushDataHashes[:i], node.pushDataHashes[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+func (node *Node) SubscribeContracts(ctx context.Context) error {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	node.sendContracts = true
+}
+
+func (node *Node) UnsubscribeContracts(ctx context.Context) error {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	node.sendContracts = false
+}
+
+func (node *Node) SubscribeHeaders(ctx context.Context) error {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	node.sendHeaders = true
+}
+
+func (node *Node) UnsubscribeHeaders(ctx context.Context) error {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	node.sendHeaders = false
+}
+
+func (c *Client) Ready(ctx context.Context) error {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
 }
 
 // SetupRetry configures the maximum connection retries and delay in milliseconds between each
@@ -144,9 +209,9 @@ func (node *Node) load(ctx context.Context) error {
 		return err
 	}
 
-	node.handlers = handlers.NewTrustedCommandHandlers(ctx, node.config, node.state, node.peers,
+	node.handlers = handlers.NewTrustedMessageHandlers(ctx, node.config, node.state, node.peers,
 		node.blocks, &node.blockRefeeder, node.txs, node.reorgs, node.txTracker, node.memPool,
-		&node.unconfTxChannel, &node.txStateChannel, node.listeners, node.txFilters)
+		&node.unconfTxChannel, &node.txStateChannel, node.handlers, node)
 	return nil
 }
 
@@ -766,7 +831,7 @@ func (node *Node) check(ctx context.Context) error {
 
 			if !node.state.NotifiedSync() {
 				// TODO Add method to wait for mempool to sync
-				for _, listener := range node.listeners {
+				for _, listener := range node.handlers {
 					listener.HandleInSync(ctx)
 				}
 				node.state.SetNotifiedSync()
@@ -837,7 +902,7 @@ func (node *Node) checkTxDelays(ctx context.Context) {
 		for _, txid := range txids {
 			// logger.Debug(ctx, "Tx is now safe : %s", txid.String())
 			node.txStateChannel.Add(handlers.TxState{
-				handlers.ListenerMsgTxStateSafe,
+				client.HandlerMsgTxStateSafe,
 				txid,
 			})
 		}
@@ -880,7 +945,7 @@ func (node *Node) scan(ctx context.Context, connections, uncheckedCount int) err
 
 		// Attempt connection
 		newNode := NewUntrustedNode(address, node.config, node.state, node.store, node.peers,
-			node.blocks, node.txs, node.memPool, &node.unconfTxChannel, node.listeners,
+			node.blocks, node.txs, node.memPool, &node.unconfTxChannel, node.handlers,
 			node.txFilters, true)
 		unodes = append(unodes, newNode)
 		wg.Add(1)
@@ -1101,7 +1166,7 @@ func (node *Node) addUntrustedNode(ctx context.Context, minScore int32,
 
 	// Attempt connection
 	newNode := NewUntrustedNode(address, node.config, node.state, node.store, node.peers,
-		node.blocks, node.txs, node.memPool, &node.unconfTxChannel, node.listeners, node.txFilters,
+		node.blocks, node.txs, node.memPool, &node.unconfTxChannel, node.handlers, node,
 		false)
 	if txs != nil {
 		newNode.BroadcastTxs(ctx, txs)

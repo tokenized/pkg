@@ -9,6 +9,7 @@ import (
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/pkg/spynode/client"
 	"github.com/tokenized/pkg/spynode/handlers"
 	"github.com/tokenized/pkg/spynode/handlers/data"
 	handlerStorage "github.com/tokenized/pkg/spynode/handlers/storage"
@@ -29,11 +30,11 @@ type UntrustedNode struct {
 	txTracker       *data.TxTracker
 	memPool         *data.MemPool
 	txChannel       *handlers.TxChannel
-	handlers        map[string]handlers.CommandHandler
+	messageHandlers map[string]handlers.MessageHandler
 	connection      net.Conn
 	outgoing        MessageChannel
-	listeners       []handlers.Listener
-	txFilters       []handlers.TxFilter
+	handlers        []client.Handler
+	isRelevant      handlers.IsRelevant
 	stopping        bool
 	active          bool // Set to false when connection is closed
 	scanning        bool
@@ -52,7 +53,7 @@ type UntrustedNode struct {
 func NewUntrustedNode(address string, config data.Config, state *data.State, store storage.Storage,
 	peers *handlerStorage.PeerRepository, blocks *handlerStorage.BlockRepository,
 	txs *handlerStorage.TxRepository, memPool *data.MemPool, txChannel *handlers.TxChannel,
-	listeners []handlers.Listener, txFilters []handlers.TxFilter, scanning bool) *UntrustedNode {
+	handlers []client.Handler, isRelevant handlers.IsRelevant, scanning bool) *UntrustedNode {
 
 	result := UntrustedNode{
 		address:        address,
@@ -64,8 +65,8 @@ func NewUntrustedNode(address string, config data.Config, state *data.State, sto
 		txs:            txs,
 		txTracker:      data.NewTxTracker(),
 		memPool:        memPool,
-		listeners:      listeners,
-		txFilters:      txFilters,
+		handlers:       handlers,
+		isRelevant:     isRelevant,
 		txChannel:      txChannel,
 		stopping:       false,
 		active:         false,
@@ -89,7 +90,7 @@ func (node *UntrustedNode) Run(ctx context.Context) error {
 
 	node.handlers = handlers.NewUntrustedCommandHandlers(ctx, node.trustedState,
 		node.untrustedState, node.peers, node.blocks, node.txs, node.txTracker, node.memPool,
-		node.txChannel, node.listeners, node.txFilters, node.address)
+		node.txChannel, node.handlers, node.isRelevant, node.address)
 
 	if err := node.connect(); err != nil {
 		node.lock.Unlock()

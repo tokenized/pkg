@@ -1,11 +1,18 @@
 package spynode
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 
+	"github.com/tokenized/inspector"
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/pkg/spynode/client"
 	"github.com/tokenized/pkg/spynode/handlers"
 	"github.com/tokenized/pkg/wire"
+	"github.com/tokenized/specification/dist/golang/actions"
+	"github.com/tokenized/specification/dist/golang/protocol"
 
 	"github.com/pkg/errors"
 )
@@ -88,18 +95,42 @@ func (node *Node) processUnconfirmedTx(ctx context.Context, tx handlers.TxData) 
 				continue // Only send for txs that previously matched filters.
 			}
 
-			node.txStateChannel.Add(handlers.TxState{
-				handlers.ListenerMsgTxStateUnsafe,
-				conflict,
-			})
+			txState, err := storage.FetchTxState(ctx, node.store, conflict)
+			if err != nil {
+				continue
+			}
+
+			txState.State.UnSafe = true
+			txState.State.Safe = false
+
+			if err := storage.SaveTxState(ctx, node.store, txState); err != nil {
+				return errors.Wrap(err, "save tx state")
+			}
+
+			update := &client.TxUpdate{
+				TxID:  *txState.Tx.TxHash(),
+				State: txState.State,
+			}
+
+			// Notify of tx conflict
+			for _, handler := range node.handlers {
+				handler.HandleTxUpdate(ctx, update)
+			}
 		}
 	}
 
+	if !node.IsRelevent(ctx, tx.Msg) {
+		if _, err := node.txs.Remove(ctx, *hash, -1); err != nil {
+			return errors.Wrap(err, "Failed to remove from tx repo")
+		}
+		return nil // Filter out
+	}
+
 	// We have to succesfully add to tx repo because it is protected by a lock and will prevent
-	//   processing the same tx twice at the same time.
+	// processing the same tx twice at the same time.
 	added, newlySafe, err := node.txs.Add(ctx, *hash, tx.Trusted, tx.Safe, -1)
 	if err != nil {
-		return errors.Wrap(err, "Failed to add to tx repo")
+		return errors.Wrap(err, "add to tx repo")
 	}
 	if !added {
 		return nil // tx already processed
@@ -107,42 +138,100 @@ func (node *Node) processUnconfirmedTx(ctx context.Context, tx handlers.TxData) 
 
 	// logger.Debug(ctx, "Tx repo (added %t) (newly safe %t) : %s", added, newlySafe, hash.String())
 
-	isRelevant := false
-	if !handlers.MatchesFilter(ctx, tx.Msg, node.txFilters) {
-		if _, err := node.txs.Remove(ctx, *hash, -1); err != nil {
-			return errors.Wrap(err, "Failed to remove from tx repo")
-		}
-		return nil // Filter out
-	}
-
-	// Notify of new tx
-	for _, listener := range node.listeners {
-		if rel, _ := listener.HandleTx(ctx, tx.Msg); rel {
-			isRelevant = true
-		}
-	}
-
-	if !isRelevant {
-		// Remove from tx repository
-		if _, err := node.txs.Remove(ctx, *hash, -1); err != nil {
-			return errors.Wrap(err, "Failed to remove from tx repo")
-		}
+	if len(conflicts) == 0 || (!tx.Safe && !newlySafe) {
+		// No conflicts and not newly safe
 		return nil
 	}
 
-	// Notify of conflicting txs
+	txState, err := storage.FetchTxState(ctx, node.store, *hash)
+	if err != nil {
+		if errors.Cause(err) != storage.ErrNotFound {
+			return errors.Wrap(err, "fetch tx state")
+		}
+
+		// Create new tx state
+		txState := &client.Tx{
+			Tx: tx,
+		}
+
+		if err := fetchSpentOutputs(ctx, node.store, node.rpc, txState); err != nil {
+			return errors.Wrap(err, "fetch outputs")
+		}
+	}
+
+	txState.State.Safe = tx.Safe || newlySafe
+	txState.State.UnconfirmedDepth = 1
+
 	if len(conflicts) > 0 {
-		node.txs.MarkUnsafe(ctx, *hash)
-		node.txStateChannel.Add(handlers.TxState{
-			handlers.ListenerMsgTxStateUnsafe,
-			*hash,
-		})
-	} else if (added && tx.Safe) || newlySafe {
-		// Note: A tx can be marked safe without being marked trusted if it is created internally.
-		node.txStateChannel.Add(handlers.TxState{
-			handlers.ListenerMsgTxStateSafe,
-			*hash,
-		})
+		// Unsafe
+		txState.State.UnSafe = true
+		txState.State.Safe = false
+	}
+
+	if err := storage.SaveTxState(ctx, node.store, txState); err != nil {
+		return errors.Wrap(err, "save tx state")
+	}
+
+	// Notify of new tx
+	for _, handler := range node.handlers {
+		handler.HandleTx(ctx, txState)
+	}
+
+	return nil
+}
+
+// fetchSpentOutputs fetches the outputs spent by this tx.
+func fetchSpentOutputs(ctx context.Context, store storage.Storage, rpc inspector.NodeInterface,
+	tx *client.Tx) error {
+
+	tx.Outputs = make([]*wire.TxOut, len(tx.Tx.TxIn))
+
+	var toFetch []wire.OutPoint
+	for i, input := range tx.Tx.TxIn {
+		if input.PreviousOutPoint.Index == wire.MaxPrevOutIndex {
+			// coinbase tx. there is no spent output. these are new coins
+			tx.Outputs[i] = wire.NewTxOut(0, nil)
+			continue
+		}
+
+		inputTx, err := storage.FetchTxState(ctx, store, input.PreviousOutPoint.Hash)
+		if errors.Cause(err) == storage.ErrNotFound {
+			toFetch = append(toFetch, input.PreviousOutPoint)
+			continue
+		} else if err != nil {
+			return errors.Wrap(err, "fetch tx")
+		}
+
+		if int(input.PreviousOutPoint.Index) >= len(inputTx.Tx.TxOut) {
+			// Invalid previous outpoint
+			tx.Outputs[i] = wire.NewTxOut(0, nil)
+			continue
+		}
+
+		tx.Outputs[i] = inputTx.Tx.TxOut[input.PreviousOutPoint.Index]
+	}
+
+	if len(toFetch) == 0 {
+		return nil
+	}
+
+	utxos, err := rpc.GetOutputs(ctx, toFetch)
+	if err != nil {
+		return errors.Wrap(err, "fetch outputs")
+	}
+
+	utxoIndex := 0
+	for i := range tx.Outputs {
+		if tx.Outputs[i] != nil {
+			continue
+		}
+
+		if utxoIndex >= len(utxos) {
+			return fmt.Errorf("Not enough outputs returned : %d/%d", len(utxos), len(toFetch))
+		}
+
+		tx.Outputs[i] = wire.NewTxOut(utxos[utxoIndex].Value, utxos[utxoIndex].LockingScript)
+		utxoIndex++
 	}
 
 	return nil
@@ -178,5 +267,98 @@ func (node *Node) processTxStates(ctx context.Context) {
 		for _, listener := range node.listeners {
 			listener.HandleTxState(ctx, txState.MsgType, txState.TxId)
 		}
+	}
+}
+
+func (node *Node) IsSubscribedToContracts(ctx context.Context) bool {
+	node.lock.Lock()
+	defer node.lock.Unlock()
+
+	return node.sendContracts
+}
+
+func (node *Node) IsRelevent(ctx context.Context, tx *wire.MsgTx) bool {
+	if node.IsSubscribedToContracts() && checkContracts(ctx, tx, node.config.IsTest) {
+		return true
+	}
+
+	node.pushDataLock.Lock()
+	defer node.pushDataLock.Unlock()
+
+	// Check the hashes from each output against this client.
+	for i, output := range tx.TxOut {
+		r := bytes.NewReader(output.PkScript)
+		for {
+			_, pushdata, err := bitcoin.ParsePushDataScript(r)
+			if err != nil {
+				if err == bitcoin.ErrNotPushOp { // ignore non push op codes
+					continue
+				}
+				break
+			}
+
+			hash := pushDataToHash(pushdata)
+			for _, pd := range node.pushDataHashes {
+				if pd.Equal(&hash) {
+					return true
+				}
+			}
+		}
+	}
+
+	// Note: To support P2PK addresses we would need to track UTXOs since the signature scripts
+	// would only be the signature.
+	for _, input := range tx.TxIn {
+		r := bytes.NewReader(input.SignatureScript)
+		for {
+			_, pushdata, err := bitcoin.ParsePushDataScript(r)
+			if err != nil {
+				if err == bitcoin.ErrNotPushOp { // ignore non push op codes
+					continue
+				}
+				break
+			}
+
+			hash := pushDataToHash(pushdata)
+			for _, pd := range node.pushDataHashes {
+				if pd.Equal(&hash) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func pushDataToHash(b []byte) bitcoin.Hash20 {
+	var hash bitcoin.Hash20
+	if len(b) == bitcoin.Hash20Size {
+		copy(hash[:], b)
+	} else {
+		copy(hash[:], bitcoin.Hash160(b))
+	}
+
+	return hash
+}
+
+// checkContracts returns true if the tx contains a Tokenized "contract wide" op return.
+// This includes contract formations and asset creations so can be used to index contract and asset
+// information.
+func checkContracts(ctx context.Context, tx *wire.MsgTx, isTest bool) bool {
+	if len(tx.TxOut) == 0 {
+		return false
+	}
+
+	action, err := protocol.Deserialize(tx.TxOut[0].PkScript, isTest)
+	if err != nil {
+		return false
+	}
+
+	switch action.(type) {
+	case *actions.ContractFormation, *actions.AssetCreation:
+		return true
+	default:
+		return false
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/pkg/spynode/client"
 	"github.com/tokenized/pkg/spynode/handlers/data"
 	"github.com/tokenized/pkg/spynode/handlers/storage"
 	"github.com/tokenized/pkg/wire"
@@ -20,13 +21,13 @@ type HeadersHandler struct {
 	blocks         *storage.BlockRepository
 	txs            *storage.TxRepository
 	reorgs         *storage.ReorgRepository
-	listeners      []Listener
+	handlers       []client.Handler
 }
 
 // NewHeadersHandler returns a new HeadersHandler with the given Config.
 func NewHeadersHandler(config data.Config, state *data.State, txStateChannel *TxStateChannel,
 	blockRepo *storage.BlockRepository, txRepo *storage.TxRepository,
-	reorgs *storage.ReorgRepository, listeners []Listener) *HeadersHandler {
+	reorgs *storage.ReorgRepository, handlers []client.Handler) *HeadersHandler {
 
 	result := HeadersHandler{
 		config:         config,
@@ -35,7 +36,7 @@ func NewHeadersHandler(config data.Config, state *data.State, txStateChannel *Tx
 		blocks:         blockRepo,
 		txs:            txRepo,
 		reorgs:         reorgs,
-		listeners:      listeners,
+		handlers:       handlers,
 	}
 	return &result
 }
@@ -157,15 +158,15 @@ func (handler *HeadersHandler) Handle(ctx context.Context, m wire.Message) ([]wi
 				reorg.Blocks = append(reorg.Blocks, reorgBlock)
 
 				// Notify listeners
-				if len(handler.listeners) > 0 {
+				if len(handler.handlers) > 0 {
 					// Send block revert notification
 					blockMessage := BlockMessage{
 						Hash:   *revertHeader.BlockHash(),
 						Height: height,
 						Time:   revertHeader.Timestamp,
 					}
-					for _, listener := range handler.listeners {
-						listener.HandleBlock(ctx, ListenerMsgBlockRevert, &blockMessage)
+					for _, h := range handler.handlers {
+						h.HandleHeader(ctx, &blockMessage)
 					}
 					for _, txid := range revertTxs {
 						handler.txStateChannel.Add(TxState{
