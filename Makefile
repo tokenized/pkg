@@ -11,8 +11,11 @@ tools:
 	go get golang.org/x/tools/cmd/goimports
 	go get github.com/golang/lint/golint
 
-test:
-	go test ./...
+prepare:
+	mkdir -p tmp
+
+test: prepare
+	go test -coverprofile=tmp/coverage.out ./...
 
 test-race:
 	go test -race ./...
