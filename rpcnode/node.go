@@ -113,6 +113,14 @@ func ConvertError(err error) error {
 	return err
 }
 
+func (r *RPCNode) GetTx(ctx context.Context, txid bitcoin.Hash32) (*wire.MsgTx, error) {
+	return r.GetTX(ctx, &txid)
+}
+
+func (r *RPCNode) SendTx(ctx context.Context, tx *wire.MsgTx) error {
+	return r.SendRawTransaction(ctx, tx)
+}
+
 // GetTX requests a tx from the remote server.
 func (r *RPCNode) GetTX(ctx context.Context, id *bitcoin.Hash32) (*wire.MsgTx, error) {
 	ctx = logger.ContextWithLogSubSystem(ctx, SubSystem)

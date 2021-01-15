@@ -5,13 +5,13 @@ import (
 )
 
 type Config struct {
-	Host     string
-	Username string
-	Password string
+	Host     string `envconfig:"RPC_HOST"`
+	Username string `envconfig:"RPC_USERNAME"`
+	Password string `envconfig:"RPC_PASSWORD"`
 
 	// Retry attempts when calls fail.
-	MaxRetries int
-	RetryDelay int
+	MaxRetries int `default:"10" envconfig:"RPC_MAX_RETRIES"`
+	RetryDelay int `default:"2000" envconfig:"RPC_RETRY_DELAY"`
 }
 
 // String returns a custom string representation.
