@@ -63,6 +63,10 @@ func NetworkName(net Network) string {
 	return "testnet"
 }
 
+func (n Network) String() string {
+	return NetworkName(n)
+}
+
 // MarshalText returns the text encoding of the public key.
 // Implements encoding.TextMarshaler interface.
 func (n Network) MarshalText() ([]byte, error) {
