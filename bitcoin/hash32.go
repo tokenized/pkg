@@ -83,6 +83,11 @@ func (h *Hash32) Equal(o *Hash32) bool {
 	return bytes.Equal(h[:], o[:])
 }
 
+func (h Hash32) IsZero() bool {
+	var zero Hash32 // automatically initializes to zero
+	return h.Equal(&zero)
+}
+
 // Serialize writes the hash into a writer.
 func (h Hash32) Serialize(w io.Writer) error {
 	_, err := w.Write(h[:])

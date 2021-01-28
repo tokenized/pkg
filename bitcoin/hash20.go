@@ -76,6 +76,11 @@ func (h *Hash20) Equal(o *Hash20) bool {
 	return bytes.Equal(h[:], o[:])
 }
 
+func (h Hash20) IsZero() bool {
+	var zero Hash20 // automatically initializes to zero
+	return h.Equal(&zero)
+}
+
 // Serialize writes the hash into a writer.
 func (h Hash20) Serialize(w io.Writer) error {
 	_, err := w.Write(h[:])
