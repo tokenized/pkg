@@ -502,6 +502,22 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 		_, err = r.client.SendRawTransaction(nx, false)
 		if err != nil {
 			err = errors.Wrap(ConvertError(err), tx.TxHash().String())
+
+			switch errors.Cause(err) {
+			case ErrMissingInputs, ErrTransactionConflict:
+				logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
+				return err
+			case ErrTransactionInMempool:
+				if r.Config.IgnoreAlreadyInMempool {
+					break
+				} else {
+					logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
+					return err
+				}
+			}
+
+			// Hopefully this is a connection issue or delay in data like ErrNotSeen so waiting
+			// might fix it.
 			logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
 			continue
 		}
