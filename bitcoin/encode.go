@@ -217,21 +217,31 @@ func ReadBase128VarInt(r io.Reader) (uint64, error) {
 	return value, nil
 }
 
+const bitLeast7EmptyMask = 0xffffff80
+const bit8thMask = 0x80
+const bitLeast7Mask = 0x0000007f
+
 func WriteBase128VarInt(w io.Writer, value uint64) error {
-	v := value
 	for {
-		if v < 128 {
-			var b [1]byte
-			b[0] = byte(v)
-			_, err := w.Write(b[:])
+		if value&bitLeast7EmptyMask == 0 {
+			b := []byte{byte(value)}
+			_, err := w.Write(b)
 			return err
 		}
 
-		var subValue [1]byte
-		subValue[0] = (byte(v&0x7f) | 0x80) // Get last 7 bits and set high bit
-		if _, err := w.Write(subValue[:]); err != nil {
+		subValue := []byte{(byte(value&bitLeast7Mask) | bit8thMask)} // Get last 7 bits and set high bit
+		if _, err := w.Write(subValue); err != nil {
 			return err
 		}
-		v = v >> 7
+		value = value >> 7
 	}
+}
+
+func ReadBase128VarSignedInt(r io.Reader) (int64, error) {
+	result, err := ReadBase128VarInt(r)
+	return int64(result), err
+}
+
+func WriteBase128VarSignedInt(w io.Writer, value int64) error {
+	return WriteBase128VarInt(w, uint64(value))
 }
