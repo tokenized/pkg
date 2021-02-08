@@ -14,6 +14,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,14 +89,43 @@ func NewNode(config *Config) (*RPCNode, error) {
 	return n, nil
 }
 
+func ParseError(err error) error {
+	parts := strings.Split(err.Error(), ":")
+
+	if len(parts) != 2 {
+		return err
+	}
+
+	value, intErr := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if intErr != nil {
+		return err // return original error
+	}
+
+	switch value {
+	case -5:
+		return ErrNotSeen
+	case -25:
+		return ErrMissingInputs
+	case -26: // txn-mempool-conflict or too-long-mempool-chain
+		return ErrTransactionConflict
+	case -27: // Transaction already in the mempool
+		return ErrTransactionInMempool
+	}
+
+	return err
+
+}
+
 // ConvertError determines if the error is a known RPC type and converts it to the local error type.
 // Should be formatted as JSON at other end
-//   {"code": -5, "message": "No such mempool or blockchain transaction. Use gettransaction for wallet transactions."}
+// {"code": -5, "message": "No such mempool or blockchain transaction. Use gettransaction for
+// wallet transactions."}
 func ConvertError(err error) error {
 	c := errors.Cause(err)
 	jsonErr, ok := c.(*btcjson.Error)
 	if !ok {
-		return err
+		// They don't seem to be btcjson.Error but are formatted text (int code : description). --ce
+		return ParseError(err)
 	}
 
 	switch jsonErr.ErrorCode {
@@ -501,18 +532,22 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 
 		_, err = r.client.SendRawTransaction(nx, false)
 		if err != nil {
-			err = errors.Wrap(ConvertError(err), tx.TxHash().String())
+			err = ConvertError(err)
 
 			switch errors.Cause(err) {
 			case ErrMissingInputs, ErrTransactionConflict:
-				logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
-				return err
+				logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s",
+					err)
+				return errors.Wrap(err, tx.TxHash().String())
+
 			case ErrTransactionInMempool:
+				fmt.Printf("Found Not in mempool\n")
 				if r.Config.IgnoreAlreadyInMempool {
-					break
+					return nil
 				} else {
-					logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
-					return err
+					logger.Error(ctx, "RPCCallFailed SendRawTransaction (Already in mempool) : %s",
+						err)
+					return errors.Wrap(err, tx.TxHash().String())
 				}
 			}
 
@@ -527,7 +562,7 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 
 	if err != nil {
 		logger.Error(ctx, "RPCCallAborted SendRawTransaction : %s", err)
-		return err
+		return errors.Wrap(err, tx.TxHash().String())
 	}
 
 	return nil
