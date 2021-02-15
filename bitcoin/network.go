@@ -56,9 +56,33 @@ func NetworkName(net Network) string {
 		return "stn"
 	case RegTestNet:
 		return "regtest"
+	case InvalidNet:
+		return "invalid"
 	}
 
 	return "testnet"
+}
+
+func (n Network) String() string {
+	return NetworkName(n)
+}
+
+// MarshalText returns the text encoding of the public key.
+// Implements encoding.TextMarshaler interface.
+func (n Network) MarshalText() ([]byte, error) {
+	return []byte(NetworkName(n)), nil
+}
+
+// UnmarshalText parses a text encoded public key and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (n *Network) UnmarshalText(text []byte) error {
+	*n = NetworkFromString(string(text))
+
+	if *n == InvalidNet {
+		return ErrInvalidNetwork
+	}
+
+	return nil
 }
 
 func NewChainParams(network string) *chaincfg.Params {

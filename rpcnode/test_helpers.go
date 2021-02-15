@@ -107,7 +107,18 @@ func (r *MockRpcNode) GetTX(ctx context.Context, txid *bitcoin.Hash32) (*wire.Ms
 	return nil, errors.New("Couldn't find tx in r")
 }
 
-func (r *MockRpcNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]bitcoin.UTXO, error) {
+func (r *MockRpcNode) GetTx(ctx context.Context, txid bitcoin.Hash32) (*wire.MsgTx, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	tx, ok := r.txs[txid]
+	if ok {
+		return tx, nil
+	}
+	return nil, errors.New("Couldn't find tx in r")
+}
+
+func (r *MockRpcNode) GetOutputs(ctx context.Context,
+	outpoints []wire.OutPoint) ([]bitcoin.UTXO, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 

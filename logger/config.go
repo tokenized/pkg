@@ -1,5 +1,9 @@
 package logger
 
+import (
+	"fmt"
+)
+
 // Config defines the logging configuration for the context it is attached to.
 type Config struct {
 	Active             systemConfig
@@ -15,7 +19,13 @@ func NewConfig(isDevelopment, isText bool, filePath string) *Config {
 		SubSystems:         make(map[string]*systemConfig),
 	}
 
-	result.Main, _ = newSystemConfig(isDevelopment, isText, filePath)
+	var err error
+	result.Main, err = newSystemConfig(isDevelopment, isText, filePath)
+	if err != nil {
+		fmt.Printf("Failed to create log config : %s\n", err)
+		return nil
+	}
+
 	result.Active = *result.Main
 	return &result
 }
@@ -27,7 +37,13 @@ func NewEmptyConfig() *Config {
 		SubSystems:         make(map[string]*systemConfig),
 	}
 
-	result.Main, _ = newEmptySystemConfig()
+	var err error
+	result.Main, err = newEmptySystemConfig()
+	if err != nil {
+		fmt.Printf("Failed to create log config : %s\n", err)
+		return nil
+	}
+
 	result.Active = *result.Main
 	return &result
 }
