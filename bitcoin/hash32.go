@@ -3,9 +3,10 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 const Hash32Size = 32
@@ -15,7 +16,7 @@ type Hash32 [Hash32Size]byte
 
 func NewHash32(b []byte) (*Hash32, error) {
 	if len(b) != Hash32Size {
-		return nil, errors.New("Wrong byte length")
+		return nil, errors.Wrapf(ErrWrongSize, "got %d, want %d", len(b), Hash32Size)
 	}
 	result := Hash32{}
 	copy(result[:], b)
@@ -25,7 +26,7 @@ func NewHash32(b []byte) (*Hash32, error) {
 // NewHash32FromStr creates a little endian hash from a big endian string.
 func NewHash32FromStr(s string) (*Hash32, error) {
 	if len(s) != 2*Hash32Size {
-		return nil, fmt.Errorf("Wrong size hex for Hash32 : %d", len(s))
+		return nil, errors.Wrapf(ErrWrongSize, "hex: got %d, want %d", len(s), Hash32Size*2)
 	}
 
 	b := make([]byte, Hash32Size)
@@ -59,7 +60,7 @@ func (h Hash32) Bytes() []byte {
 // SetBytes sets the value of the hash.
 func (h *Hash32) SetBytes(b []byte) error {
 	if len(b) != Hash32Size {
-		return errors.New("Wrong byte length")
+		return errors.Wrapf(ErrWrongSize, "got %d, want %d", len(b), Hash32Size)
 	}
 	copy(h[:], b)
 	return nil

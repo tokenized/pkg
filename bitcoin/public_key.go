@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io"
 	"math/big"
 
@@ -31,7 +32,8 @@ func PublicKeyFromStr(s string) (PublicKey, error) {
 //   there was an issue.
 func PublicKeyFromBytes(b []byte) (PublicKey, error) {
 	if len(b) != PublicKeyCompressedLength {
-		return PublicKey{}, errors.New("Invalid public key length")
+		return PublicKey{}, fmt.Errorf("Invalid public key length : got %d, want %d", len(b),
+			PublicKeyCompressedLength)
 	}
 
 	x, y := expandPublicKey(b)
