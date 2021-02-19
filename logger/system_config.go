@@ -250,6 +250,13 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 	config.output.Write(closeCurly)
 	config.output.Write(newLine)
 
+	switch level {
+	case LevelFatal:
+		defer os.Exit(1)
+	case LevelPanic:
+		defer panic(fmt.Sprintf(format, values...))
+	}
+
 	return nil
 }
 
@@ -337,6 +344,13 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 	}
 
 	config.output.Write(newLine)
+
+	switch level {
+	case LevelFatal:
+		defer os.Exit(1)
+	case LevelPanic:
+		defer panic(fmt.Sprintf(format, values...))
+	}
 
 	return nil
 }
