@@ -249,6 +249,7 @@ func (f FormatterField) ValueJSON() string {
 func Formatter(name string, format string, values ...interface{}) *FormatterField {
 	return &FormatterField{
 		name:   name,
+		format: format,
 		values: values,
 	}
 }

@@ -27,7 +27,7 @@ var (
 	comma      = []byte{byte(',')}
 	newLine    = []byte{byte('\n')}
 	openCurly  = []byte{byte('{')}
-	closeCurly = []byte{byte('}')}
+	closeCurlyNewLine = []byte{byte('}'), byte('\n')}
 )
 
 const (
@@ -247,8 +247,7 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 		config.writeField("\"%s\":%s", field.Name(), field.ValueJSON())
 	}
 
-	config.output.Write(closeCurly)
-	config.output.Write(newLine)
+	config.output.Write(closeCurlyNewLine)
 
 	switch level {
 	case LevelFatal:
@@ -392,6 +391,7 @@ func (p *printer) Lock() {
 }
 
 func (p *printer) Unlock() {
+	os.Stderr.Sync()
 	p.lock.Unlock()
 }
 
