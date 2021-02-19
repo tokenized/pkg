@@ -146,6 +146,29 @@ func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
 	return context.WithValue(ctx, key, *config)
 }
 
+// ContextWithLogFields returns a context with a field added to the logger.
+func ContextWithLogFields(ctx context.Context, fields []Field) context.Context {
+	var config *Config
+
+	configValue := ctx.Value(key)
+	if configValue != nil {
+		contextConfig, ok := configValue.(Config)
+		if ok {
+			config = &contextConfig
+		}
+	}
+
+	if config == nil {
+		newConfig := NewConfig(false, false, "")
+		config = &newConfig
+	}
+
+	for _, field := range fields {
+		config.Active.addField(field)
+	}
+	return context.WithValue(ctx, key, *config)
+}
+
 // Debug adds a debug level entry to the log.
 func Debug(ctx context.Context, format string, values ...interface{}) error {
 	return LogDepth(ctx, LevelDebug, 1, format, values...)

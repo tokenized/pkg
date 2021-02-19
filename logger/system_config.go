@@ -219,7 +219,7 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 
 	// Append Caller
 	if config.format&IncludeCaller != 0 {
-		_, filepath, line, ok := runtime.Caller(depth+1)
+		_, filepath, line, ok := runtime.Caller(depth + 1)
 		if ok {
 			fileParts := strings.Split(filepath, string(os.PathSeparator))
 			l := len(fileParts)
@@ -308,7 +308,7 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 
 	// Append Caller
 	if config.format&IncludeCaller != 0 {
-		_, filepath, line, ok := runtime.Caller(depth+1)
+		_, filepath, line, ok := runtime.Caller(depth + 1)
 		if ok {
 			fileParts := strings.Split(filepath, string(os.PathSeparator))
 			l := len(fileParts)
