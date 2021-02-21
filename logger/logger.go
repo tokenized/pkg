@@ -2,9 +2,8 @@ package logger
 
 import (
 	"context"
-	"fmt"
 
-	"go.uber.org/zap"
+	"github.com/pkg/errors"
 )
 
 // Logger allows you to control logging with message levels and subsystem controls.
@@ -48,34 +47,40 @@ const (
 
 // Log entry formatting (which prefix fields to include)
 const (
-	IncludeDate   = 0x01 // date in the local time zone: 2018/01/01
-	IncludeTime   = 0x02 // time in the local time zone: 06:54:32
-	IncludeMicro  = 0x04 // microseconds .123123
-	IncludeFile   = 0x08 // file name and line number
-	IncludeSystem = 0x10 // system name
-	IncludeLevel  = 0x20 // level of log entry
+	IncludeLevel     = 0x01 // level of log entry
+	IncludeCaller    = 0x02 // file name and line number
+	IncludeDate      = 0x04 // date in the local time zone: 2018/01/01
+	IncludeTime      = 0x08 // time in the local time zone: 06:54:32
+	IncludeMicro     = 0x10 // microseconds .123123
+	IncludeTimeStamp = 0x20 // unix timestamp with microseconds
 )
 
 // ContextWithLogConfig returns a context with the specified logging config attached.
-func ContextWithLogConfig(ctx context.Context, config *Config) context.Context {
-	return context.WithValue(ctx, key, *config)
+func ContextWithLogConfig(ctx context.Context, config Config) context.Context {
+	return context.WithValue(ctx, key, config)
+}
+
+// ContextWithLogger returns a context with the specified logging attached.
+func ContextWithLogger(ctx context.Context, isDevelopment, isText bool,
+	filePath string) context.Context {
+	return context.WithValue(ctx, key, NewConfig(isDevelopment, isText, filePath))
 }
 
 // ContextWithNoLogger returns a context with no logging
 func ContextWithNoLogger(ctx context.Context) context.Context {
-	return context.WithValue(ctx, key, *NewEmptyConfig())
+	return context.WithValue(ctx, key, NewEmptyConfig())
 }
 
 // ContextWithLogSubSystem returns a context with the logging subsystem attached.
 func ContextWithLogSubSystem(ctx context.Context, subsystem string) context.Context {
 	configValue := ctx.Value(key)
 	if configValue == nil {
-		return context.WithValue(ctx, key, *NewEmptyConfig())
+		return context.WithValue(ctx, key, NewEmptyConfig())
 	}
 
 	config, ok := configValue.(Config)
 	if !ok {
-		return context.WithValue(ctx, key, *NewEmptyConfig())
+		return context.WithValue(ctx, key, NewEmptyConfig())
 	}
 
 	include, includeExists := config.IncludedSubSystems[subsystem]
@@ -83,18 +88,20 @@ func ContextWithLogSubSystem(ctx context.Context, subsystem string) context.Cont
 		// Empty logger for this subsystem, but leave the rest of the configuration so it can pop
 		// back up to the main config if it calls through to ContextWithOutLogSubSystem.
 		n, _ := newEmptySystemConfig()
-		config.Active = *n
+		config = config.Copy()
+		config.Active = n
 		return context.WithValue(ctx, key, config)
 	}
 
 	// Log to subsystem specific config
 	subConfig, subExists := config.SubSystems[subsystem]
 	if subExists {
-		config.Active = *subConfig
+		config.Active = subConfig.Copy()
 		return context.WithValue(ctx, key, config)
 	}
 
-	config.Active.logger = config.Active.logger.Named(subsystem)
+	config.Active = config.Main.Copy()
+	config.Active.addSubSystem(subsystem)
 	return context.WithValue(ctx, key, config)
 }
 
@@ -104,16 +111,17 @@ func ContextWithOutLogSubSystem(ctx context.Context) context.Context {
 	configValue := ctx.Value(key)
 	if configValue == nil {
 		// Config not specified. Use default config.
-		return context.WithValue(ctx, key, *NewConfig(false, false, ""))
+		return context.WithValue(ctx, key, NewConfig(false, false, ""))
 	}
 
 	config, ok := configValue.(Config)
 	if !ok {
 		// Config invalid. Use default config.
-		return context.WithValue(ctx, key, *NewConfig(false, false, ""))
+		return context.WithValue(ctx, key, NewConfig(false, false, ""))
 	}
 
-	config.Active = *config.Main
+	config.Active = config.Main.Copy()
+	config.Active.removeSubSystem()
 	return context.WithValue(ctx, key, config)
 }
 
@@ -130,33 +138,35 @@ func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
 	}
 
 	if config == nil {
-		config = NewConfig(false, false, "")
+		newConfig := NewConfig(false, false, "")
+		config = &newConfig
 	}
 
-	if config.Active.logger == nil {
-		return ctx
-	}
-
-	config.Active.logger = config.Active.logger.With(zap.String("trace", trace))
+	config.Active.addField(String("trace", trace))
 	return context.WithValue(ctx, key, *config)
 }
 
-func GetLogger(ctx context.Context) *zap.Logger {
+// ContextWithLogFields returns a context with a field added to the logger.
+func ContextWithLogFields(ctx context.Context, fields []Field) context.Context {
+	var config *Config
+
 	configValue := ctx.Value(key)
-	if configValue == nil {
-		// Config not specified. Use default config.
-		sc, _ := newSystemConfig(false, false, "")
-		return sc.logger
+	if configValue != nil {
+		contextConfig, ok := configValue.(Config)
+		if ok {
+			config = &contextConfig
+		}
 	}
 
-	config, ok := configValue.(Config)
-	if !ok {
-		// Config invalid. Use default config.
-		sc, _ := newSystemConfig(false, false, "")
-		return sc.logger
+	if config == nil {
+		newConfig := NewConfig(false, false, "")
+		config = &newConfig
 	}
 
-	return config.Active.logger
+	for _, field := range fields {
+		config.Active.addField(field)
+	}
+	return context.WithValue(ctx, key, *config)
 }
 
 // Debug adds a debug level entry to the log.
@@ -205,115 +215,101 @@ func Log(ctx context.Context, level Level, format string, values ...interface{})
 
 // LogDepth is the same as Log, but the number of levels above the current call in the stack from
 // which to get the file name/line of code can be specified as depth.
-func LogDepth(ctx context.Context, level Level, depth int, format string, values ...interface{}) error {
-	l := GetLogger(ctx).WithOptions(zap.AddCallerSkip(depth + 1)).Sugar()
+func LogDepth(ctx context.Context, level Level, depth int, format string,
+	values ...interface{}) error {
 
-	switch level {
-	case LevelDebug:
-		l.Debugf(format, values...)
-		return nil
-	case LevelVerbose:
-		l.Debugf(format, values...) // No zap verbose level
-		return nil
-	case LevelInfo:
-		l.Infof(format, values...)
-		return nil
-	case LevelWarn:
-		l.Warnf(format, values...)
-		return nil
-	case LevelError:
-		l.Errorf(format, values...)
-		return nil
-	case LevelFatal:
-		l.Fatalf(format, values...)
-		return nil
-	case LevelPanic:
-		l.Panicf(format, values...)
-		return nil
+	var config *systemConfig
+
+	configValue := ctx.Value(key)
+	if configValue != nil {
+		contextConfig, ok := configValue.(Config)
+		if ok {
+			config = &contextConfig.Active
+		}
 	}
 
-	return fmt.Errorf("Unknown log level %d", level)
+	if config == nil {
+		newConfig, err := newSystemConfig(false, false, "")
+		if err != nil {
+			return errors.Wrap(err, "create default config")
+		}
+		config = &newConfig
+	}
+
+	return config.writeEntry(level, depth+1, nil, format, values...)
 }
 
-// DebugWithZapFields adds a debug level entry to the log with the included zap fields.
-func DebugWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// DebugWithFields adds a debug level entry to the log with the included zap fields.
+func DebugWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelDebug, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelDebug, 1, fields, format, values...)
 }
 
-// VerboseWithZapFields adds a verbose level entry to the log with the included zap fields.
-func VerboseWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// VerboseWithFields adds a verbose level entry to the log with the included zap fields.
+func VerboseWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelVerbose, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelVerbose, 1, fields, format, values...)
 }
 
-// InfoWithZapFields adds a info level entry to the log with the included zap fields.
-func InfoWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// InfoWithFields adds a info level entry to the log with the included zap fields.
+func InfoWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelInfo, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelInfo, 1, fields, format, values...)
 }
 
-// WarnWithZapFields adds a warn level entry to the log with the included zap fields.
-func WarnWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// WarnWithFields adds a warn level entry to the log with the included zap fields.
+func WarnWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelWarn, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelWarn, 1, fields, format, values...)
 }
 
-// ErrorWithZapFields adds a error level entry to the log with the included zap fields.
-func ErrorWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// ErrorWithFields adds a error level entry to the log with the included zap fields.
+func ErrorWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelError, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelError, 1, fields, format, values...)
 }
 
-// FatalWithZapFields adds a fatal level entry to the log with the included zap fields.
-func FatalWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// FatalWithFields adds a fatal level entry to the log with the included zap fields.
+func FatalWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelFatal, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelFatal, 1, fields, format, values...)
 }
 
-// PanicWithZapFields adds a panic level entry to the log with the included zap fields.
-func PanicWithZapFields(ctx context.Context, fields []zap.Field, format string,
+// PanicWithFields adds a panic level entry to the log with the included zap fields.
+func PanicWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithZapFields(ctx, LevelPanic, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelPanic, 1, fields, format, values...)
 }
 
 // LogDepth is the same as Log, but the number of levels above the current call in the stack from
 // which to get the file name/line of code can be specified as depth with the included zap fields.
-func LogDepthWithZapFields(ctx context.Context, level Level, depth int, fields []zap.Field,
+func LogDepthWithFields(ctx context.Context, level Level, depth int, fields []Field,
 	format string, values ...interface{}) error {
 
-	l := GetLogger(ctx).WithOptions(zap.AddCallerSkip(depth + 1)).With(fields...).Sugar()
+	var config *systemConfig
 
-	switch level {
-	case LevelDebug:
-		l.Debugf(format, values...)
-		return nil
-	case LevelVerbose:
-		l.Debugf(format, values...) // No zap verbose level
-		return nil
-	case LevelInfo:
-		l.Infof(format, values...)
-		return nil
-	case LevelWarn:
-		l.Warnf(format, values...)
-		return nil
-	case LevelError:
-		l.Errorf(format, values...)
-		return nil
-	case LevelFatal:
-		l.Fatalf(format, values...)
-		return nil
-	case LevelPanic:
-		l.Panicf(format, values...)
-		return nil
+	configValue := ctx.Value(key)
+	if configValue != nil {
+		contextConfig, ok := configValue.(Config)
+		if ok {
+			config = &contextConfig.Active
+		}
 	}
 
-	return fmt.Errorf("Unknown log level %d", level)
+	if config == nil {
+		newConfig, err := newSystemConfig(false, false, "")
+		if err != nil {
+			return errors.Wrap(err, "create default config")
+		}
+		config = &newConfig
+	}
+
+	return config.writeEntry(level, depth+1, fields, format, values...)
 }
