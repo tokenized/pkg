@@ -23,10 +23,10 @@ var (
 		"panic",
 	}
 
-	tab        = []byte{byte('\t')}
-	comma      = []byte{byte(',')}
-	newLine    = []byte{byte('\n')}
-	openCurly  = []byte{byte('{')}
+	tab               = []byte{byte('\t')}
+	comma             = []byte{byte(',')}
+	newLine           = []byte{byte('\n')}
+	openCurly         = []byte{byte('{')}
 	closeCurlyNewLine = []byte{byte('}'), byte('\n')}
 )
 

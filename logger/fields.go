@@ -253,3 +253,121 @@ func Formatter(name string, format string, values ...interface{}) *FormatterFiel
 		values: values,
 	}
 }
+
+type UintListField struct {
+	name   string
+	values []uint64
+}
+
+func (f UintListField) Name() string {
+	return f.name
+}
+
+func (f UintListField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+		result += strconv.FormatUint(v, 10)
+	}
+	result += "]"
+
+	return result
+}
+
+func Uints(name string, values []uint) *UintListField {
+	result := &UintListField{
+		name: name,
+	}
+
+	for _, value := range values {
+		result.values = append(result.values, uint64(value))
+	}
+
+	return result
+}
+
+func Uint8s(name string, values []uint8) *UintListField {
+	result := &UintListField{
+		name: name,
+	}
+
+	for _, value := range values {
+		result.values = append(result.values, uint64(value))
+	}
+
+	return result
+}
+
+func Uint16s(name string, values []uint16) *UintListField {
+	result := &UintListField{
+		name: name,
+	}
+
+	for _, value := range values {
+		result.values = append(result.values, uint64(value))
+	}
+
+	return result
+}
+
+func Uint32s(name string, values []uint32) *UintListField {
+	result := &UintListField{
+		name: name,
+	}
+
+	for _, value := range values {
+		result.values = append(result.values, uint64(value))
+	}
+
+	return result
+}
+
+func Uint64s(name string, values []uint64) *UintListField {
+	return &UintListField{
+		name:   name,
+		values: values,
+	}
+}
+
+type FloatListField struct {
+	name   string
+	values []float64
+}
+
+func (f FloatListField) Name() string {
+	return f.name
+}
+
+func (f FloatListField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+		result += fmt.Sprintf("%f", v)
+	}
+	result += "]"
+
+	return result
+}
+
+func Float32s(name string, values []float32) *FloatListField {
+	result := &FloatListField{
+		name: name,
+	}
+
+	for _, value := range values {
+		result.values = append(result.values, float64(value))
+	}
+
+	return result
+}
+
+func Float64s(name string, values []float64) *FloatListField {
+	return &FloatListField{
+		name:   name,
+		values: values,
+	}
+}

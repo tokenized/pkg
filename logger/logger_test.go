@@ -92,6 +92,12 @@ func TestFields(t *testing.T) {
 
 	stringWithBackslash := String("with backslash", `\ should escape backslash`)
 	InfoWithFields(ctx, []Field{stringWithBackslash}, "")
+
+	u32s := Uint32s("uint list", []uint32{1, 2, 3})
+	InfoWithFields(ctx, []Field{u32s}, "")
+
+	float32s := Float32s("float list", []float32{1.234, 2.948463, 3.1})
+	InfoWithFields(ctx, []Field{float32s}, "")
 }
 
 func BenchmarkContextWithLogTrace(b *testing.B) {
