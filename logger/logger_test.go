@@ -98,6 +98,16 @@ func TestFields(t *testing.T) {
 
 	float32s := Float32s("float list", []float32{1.234, 2.948463, 3.1})
 	InfoWithFields(ctx, []Field{float32s}, "")
+
+	json := struct {
+		Field1 string `json:"field_1"`
+		Field2 int    `json:"field_2"`
+	}{
+		Field1: "value 1",
+		Field2: 2,
+	}
+	jsonField := JSON("json_struct", &json)
+	InfoWithFields(ctx, []Field{jsonField}, "")
 }
 
 func BenchmarkContextWithLogTrace(b *testing.B) {

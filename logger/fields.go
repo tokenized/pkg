@@ -32,16 +32,16 @@ func String(name string, value string) *StringField {
 	}
 }
 
-type JSONField struct {
+type JSONMarshallerField struct {
 	name  string
 	value json.Marshaler
 }
 
-func (f JSONField) Name() string {
+func (f JSONMarshallerField) Name() string {
 	return f.name
 }
 
-func (f JSONField) ValueJSON() string {
+func (f JSONMarshallerField) ValueJSON() string {
 	b, err := f.value.MarshalJSON()
 	if err != nil {
 		return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
@@ -49,7 +49,31 @@ func (f JSONField) ValueJSON() string {
 	return string(b)
 }
 
-func Marshaler(name string, value json.Marshaler) *JSONField {
+func Marshaler(name string, value json.Marshaler) *JSONMarshallerField {
+	return &JSONMarshallerField{
+		name:  name,
+		value: value,
+	}
+}
+
+type JSONField struct {
+	name  string
+	value interface{}
+}
+
+func (f JSONField) Name() string {
+	return f.name
+}
+
+func (f JSONField) ValueJSON() string {
+	b, err := json.Marshal(f.value)
+	if err != nil {
+		return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
+	}
+	return string(b)
+}
+
+func JSON(name string, value interface{}) *JSONField {
 	return &JSONField{
 		name:  name,
 		value: value,
