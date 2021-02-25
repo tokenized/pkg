@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -237,7 +238,7 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 	}
 
 	// Append actual log entry
-	config.writeField("\"msg\":\"%s\"", fmt.Sprintf(format, values...))
+	config.writeField("\"msg\":%s", strconv.Quote(fmt.Sprintf(format, values...)))
 
 	for _, field := range config.fields {
 		config.writeField("\"%s\":%s", field.Name(), field.ValueJSON())

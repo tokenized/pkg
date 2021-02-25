@@ -541,7 +541,7 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 				return errors.Wrap(err, tx.TxHash().String())
 
 			case ErrTransactionInMempool:
-				fmt.Printf("Found Not in mempool\n")
+				fmt.Printf("Found already in mempool\n")
 				if r.Config.IgnoreAlreadyInMempool {
 					return nil
 				} else {
