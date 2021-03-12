@@ -40,6 +40,7 @@ type mockUser struct {
 	handle      string
 	identityKey bitcoin.Key
 	addressKey  bitcoin.Key
+	p2pTxs      map[string][]*wire.MsgTx
 }
 
 // AddMockUser adds a new mock user.
@@ -48,6 +49,7 @@ func (f *MockFactory) AddMockUser(handle string, identityKey, addressKey bitcoin
 		handle:      handle,
 		identityKey: identityKey,
 		addressKey:  addressKey,
+		p2pTxs:      make(map[string][]*wire.MsgTx),
 	})
 }
 
@@ -57,6 +59,7 @@ func (f *MockFactory) GenerateMockUser(host string,
 
 	result := &mockUser{
 		handle: uuid.New().String() + "@" + host,
+		p2pTxs: make(map[string][]*wire.MsgTx),
 	}
 
 	var err error
@@ -89,8 +92,8 @@ func (c *MockClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, erro
 // GetPaymentDestination gets a locking script that can be used to send bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add
 // a signature to the request.
-func (c *MockClient) GetPaymentDestination(senderName, senderHandle, purpose string, amount uint64,
-	senderKey *bitcoin.Key) ([]byte, error) {
+func (c *MockClient) GetPaymentDestination(ctx context.Context, senderName, senderHandle,
+	purpose string, amount uint64, senderKey *bitcoin.Key) ([]byte, error) {
 
 	ra, err := c.user.addressKey.RawAddress()
 	if err != nil {
@@ -110,8 +113,8 @@ func (c *MockClient) GetPaymentDestination(senderName, senderHandle, purpose str
 //   assetID can be empty or "BSV" to request bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add
 // a signature to the request.
-func (c *MockClient) GetPaymentRequest(senderName, senderHandle, purpose, assetID string,
-	amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
+func (c *MockClient) GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose,
+	assetID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
 
 	ra, err := c.user.addressKey.RawAddress()
 	if err != nil {
@@ -137,4 +140,48 @@ func (c *MockClient) GetPaymentRequest(senderName, senderHandle, purpose, assetI
 		Tx:      tx,
 		Outputs: nil,
 	}, nil
+}
+
+// GetP2PPaymentDestination requests a peer to peer payment destination.
+func (c *MockClient) GetP2PPaymentDestination(ctx context.Context,
+	value uint64) (*P2PPaymentDestinationOutputs, error) {
+
+	ra, err := c.user.addressKey.RawAddress()
+	if err != nil {
+		return nil, errors.Wrap(err, "raw address")
+	}
+
+	script, err := ra.LockingScript()
+	if err != nil {
+		return nil, errors.Wrap(err, "locking script")
+	}
+
+	result := &P2PPaymentDestinationOutputs{
+		Outputs: []*wire.TxOut{
+			&wire.TxOut{
+				Value:    value,
+				PkScript: script,
+			},
+		},
+		Reference: uuid.New().String(),
+	}
+
+	c.user.p2pTxs[result.Reference] = nil
+
+	return result, nil
+}
+
+// PostP2PTransaction posts a P2P transaction to the handle being paid. The same as that used by the
+// corresponding GetP2PPaymentDestination.
+func (c *MockClient) PostP2PTransaction(ctx context.Context, senderHandle, note, reference string,
+	senderKey *bitcoin.Key, tx *wire.MsgTx) (string, error) {
+
+	txs, exists := c.user.p2pTxs[reference]
+	if !exists {
+		return "", errors.New("Unknown reference")
+	}
+
+	c.user.p2pTxs[reference] = append(txs, tx)
+
+	return "Accepted", nil
 }

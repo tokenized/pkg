@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
 )
@@ -25,6 +26,14 @@ const (
 	// required to include a sender handle and signature to validate the sender.
 	// Set the value to true (a boolean, not string)
 	RequireNameSenderValidation = "6745385c3fc0"
+
+	// URLNameP2PPaymentDestination is the name used to identify the peer to peer payment
+	// destination URL and capability.
+	URLNameP2PPaymentDestination = "2a40af698840"
+
+	// URLNameP2PTransactions is the name used to identify the peer to peer transactions URL and
+	// capability.
+	URLNameP2PTransactions = "5f1323cddf31"
 )
 
 var (
@@ -60,14 +69,23 @@ type Client interface {
 	// GetPaymentDestination requests a locking script that can be used to send bitcoin.
 	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
 	// a signature to the request.
-	GetPaymentDestination(senderName, senderHandle, purpose string, amount uint64,
-		senderKey *bitcoin.Key) ([]byte, error)
+	GetPaymentDestination(ctx context.Context, senderName, senderHandle, purpose string,
+		amount uint64, senderKey *bitcoin.Key) ([]byte, error)
 
 	// GetPaymentRequest requests a payment request that can be used to send bitcoin or an asset.
 	//   senderHandle is required.
 	//   assetID can be empty or "BSV" to request bitcoin.
 	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
 	// a signature to the request.
-	GetPaymentRequest(senderName, senderHandle, purpose, assetID string, amount uint64,
-		senderKey *bitcoin.Key) (*PaymentRequest, error)
+	GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose, assetID string,
+		amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error)
+
+	// GetP2PPaymentDestination requests a peer to peer payment destination.
+	GetP2PPaymentDestination(ctx context.Context,
+		value uint64) (*P2PPaymentDestinationOutputs, error)
+
+	// PostP2PTransaction posts a P2P transaction to the handle being paid. The same as that used by
+	// the corresponding GetP2PPaymentDestination.
+	PostP2PTransaction(ctx context.Context, senderHandle, note, reference string,
+		senderKey *bitcoin.Key, tx *wire.MsgTx) (string, error)
 }

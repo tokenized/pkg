@@ -75,9 +75,79 @@ func (r PaymentDestinationRequest) CheckSignature(publicKey bitcoin.PublicKey) e
 	return nil
 }
 
+type P2PPaymentDestinationRequest struct {
+	Value uint64 `json:"satoshis"`
+}
+
+type P2PTransactionRequest struct {
+	Tx        *wire.MsgTx            `json:"hex"`
+	MetaData  P2PTransactionMetaData `json:"metadata"`
+	Reference string                 `json:"reference"` // From prior P2PPaymentDestinationResponse
+}
+
+type P2PTransactionMetaData struct {
+	Sender    string             `json:"sender,omitempty"`
+	Key       *bitcoin.PublicKey `json:"pubkey,omitempty"`
+	Signature string             `json:"signature,omitempty"`
+	Note      string             `json:"note,omitempty"`
+}
+
+// Sign adds a signature to the request. The key should correspond to the sender handle's PKI.
+func (r *P2PTransactionRequest) Sign(key bitcoin.Key) error {
+	// Sign txid
+	txid := *r.Tx.TxHash()
+	sig, err := key.Sign(txid[:])
+	if err != nil {
+		return errors.Wrap(err, "sign txid")
+	}
+
+	r.MetaData.Signature = sig.ToCompact()
+
+	publicKey := key.PublicKey()
+	r.MetaData.Key = &publicKey
+
+	return nil
+}
+
+func (r P2PTransactionRequest) CheckSignature(publicKey bitcoin.PublicKey) error {
+	txid := *r.Tx.TxHash()
+
+	sig, err := bitcoin.SignatureFromCompact(r.MetaData.Signature)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.MetaData.Signature))
+	}
+
+	if !sig.Verify(txid[:], publicKey) {
+		return ErrInvalidSignature
+	}
+
+	return nil
+}
+
 // PaymentDestinationResponse is the raw response from a PaymentDestination endpoint.
 type PaymentDestinationResponse struct {
-	Output string `json:"output"`
+	Output []byte `json:"output"`
+}
+
+// P2PPaymentDestinationResponse is the raw response from a PaymentDestination endpoint.
+type P2PPaymentDestinationResponse struct {
+	Outputs   []P2PPaymentDestinationOutput `json:"outputs"`
+	Reference string                        `json:"reference"` // Used to identify transaction when returned
+}
+
+type P2PPaymentDestinationOutput struct {
+	Script []byte `json:"script"`
+	Value  uint64 `json:"satoshis"`
+}
+
+type P2PPaymentDestinationOutputs struct {
+	Outputs   []*wire.TxOut
+	Reference string
+}
+
+type P2PTransactionResponse struct {
+	TxID bitcoin.Hash32 `json:"txid"`
+	Note string         `json:"note,omitempty"`
 }
 
 // PaymentRequestRequest is the data structure sent to request a payment request.
