@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 // MsgAlert contains a payload and a signature:
@@ -215,7 +217,7 @@ func (alert *Alert) Deserialize(r io.Reader, pver uint32) error {
 	err := readElements(r, &alert.Version, &alert.RelayUntil,
 		&alert.Expiration, &alert.ID, &alert.Cancel)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "read elements")
 	}
 
 	// SetCancel: first read a VarInt that contains
@@ -234,13 +236,13 @@ func (alert *Alert) Deserialize(r io.Reader, pver uint32) error {
 	for i := 0; i < int(count); i++ {
 		err := readElement(r, &alert.SetCancel[i])
 		if err != nil {
-			return err
+			return errors.Wrap(err, "read cancel")
 		}
 	}
 
 	err = readElements(r, &alert.MinVer, &alert.MaxVer)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "read min/max ver")
 	}
 
 	// SetSubVer: similar to SetCancel
@@ -258,7 +260,7 @@ func (alert *Alert) Deserialize(r io.Reader, pver uint32) error {
 	for i := 0; i < int(count); i++ {
 		alert.SetSubVer[i], err = ReadVarString(r, pver)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "read count sub ver")
 		}
 	}
 
