@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"unicode/utf8"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -26,7 +27,7 @@ const CommandSize = 12
 
 // MaxMessagePayload is the maximum bytes a message can be regardless of other
 // individual limits imposed by messages themselves.
-const MaxMessagePayload = (1024 * 1024 * 512) // 512MB
+const MaxMessagePayload = math.MaxUint32
 
 // Commands used in bitcoin message headers which describe the type of message.
 const (
