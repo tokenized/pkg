@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/tokenized/pkg/bitcoin"
 )
@@ -24,7 +25,7 @@ const defaultTransactionAlloc = 2048
 const MaxBlocksPerMsg = 500
 
 // MaxBlockPayload is the maximum bytes a block message can be in bytes.
-const MaxBlockPayload = 512000000 // 512 MB
+const MaxBlockPayload = math.MaxUint32
 
 // maxTxPerBlock is the maximum number of transactions that could
 // possibly fit into a block.
