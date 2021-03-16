@@ -17,6 +17,8 @@ const (
 	ScriptTypeRPH      = 0x23 // RPH
 	ScriptTypePK       = 0x24 // Public Key
 
+	ScriptTypeNonStandard = 0x25 // Unknown, but possibly spendable locking script
+
 	ScriptHashLength = 20 // Length of standard public key, script, and R hashes RIPEMD(SHA256())
 )
 
@@ -112,6 +114,14 @@ func (ra *RawAddress) Decode(b []byte) error {
 		fallthrough
 	case ScriptTypeRPH:
 		return ra.SetRPH(b[1:])
+
+	// Non Standard
+	case AddressTypeMainNonStandard:
+		fallthrough
+	case AddressTypeTestNonStandard:
+		fallthrough
+	case ScriptTypeNonStandard:
+		return ra.SetNonStandard(b[1:])
 	}
 
 	return ErrBadType
@@ -413,6 +423,22 @@ func (ra *RawAddress) SetRPH(rph []byte) error {
 	return nil
 }
 
+/**************************************** Non-Standard ********************************************/
+
+// NewRawAddressNonStandard creates an address from a non-standard but possibly spendable script.
+func NewRawAddressNonStandard(script []byte) (RawAddress, error) {
+	var result RawAddress
+	err := result.SetNonStandard(script)
+	return result, err
+}
+
+// SetNonStandard sets the type as ScriptTypeNonStandard and sets the data to the specified script.
+func (ra *RawAddress) SetNonStandard(script []byte) error {
+	ra.scriptType = ScriptTypeNonStandard
+	ra.data = script
+	return nil
+}
+
 /***************************************** Common *************************************************/
 
 // Type returns the script type of the address.
@@ -424,6 +450,12 @@ func (ra RawAddress) Type() byte {
 func (ra RawAddress) IsSpendable() bool {
 	// TODO Full locking and unlocking support only available for P2PKH.
 	return !ra.IsEmpty() && (ra.scriptType == ScriptTypePKH)
+}
+
+// IsNonStandard returns true if the address represents a script that is possibly spendable, but
+// not one of the standard (known) locking scripts.
+func (ra RawAddress) IsNonStandard() bool {
+	return !ra.IsEmpty() && (ra.scriptType == ScriptTypeNonStandard)
 }
 
 // Bytes returns the byte encoded format of the address.
@@ -466,10 +498,14 @@ func (ra *RawAddress) Hash() (*Hash20, error) {
 		return NewHash20(ra.data)
 	case ScriptTypeSH:
 		return NewHash20(ra.data)
+	case ScriptTypePK:
+		return NewHash20(Hash160(ra.data))
 	case ScriptTypeMultiPKH:
-		return NewHash20(Hash160(ra.Bytes()))
+		return NewHash20(Hash160(ra.data))
 	case ScriptTypeRPH:
 		return NewHash20(ra.data)
+	case ScriptTypeNonStandard:
+		return NewHash20(Hash160(ra.data))
 	}
 	return nil, ErrUnknownScriptTemplate
 }
@@ -510,6 +546,9 @@ func (ra *RawAddress) Hashes() ([]Hash20, error) {
 			result = append(result, *hash)
 		}
 		return result, nil
+
+	case ScriptTypeNonStandard:
+		return PKHsFromLockingScript(ra.data)
 	}
 
 	return nil, ErrUnknownScriptTemplate

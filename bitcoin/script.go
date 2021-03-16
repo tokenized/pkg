@@ -23,6 +23,7 @@ const (
 	OP_PUSH_DATA_33       = 0x21
 	OP_EQUAL              = 0x87
 	OP_EQUALVERIFY        = 0x88
+	OP_LESSTHANOREQUAL    = 0xa1
 	OP_GREATERTHANOREQUAL = 0xa2
 	OP_CHECKSIG           = 0xac
 	OP_CHECKSIGVERIFY     = 0xad
@@ -426,4 +427,22 @@ func PKHsFromLockingScript(script []byte) ([]Hash20, error) {
 	}
 
 	return result, nil
+}
+
+// LockingScriptIsUnspendable returns true if the locking script is known to be unspendable.
+func LockingScriptIsUnspendable(script []byte) bool {
+	l := len(script)
+	if l == 0 {
+		return false
+	}
+
+	if script[0] == OP_RETURN {
+		return true
+	}
+
+	if l > 1 && script[0] == OP_FALSE && script[1] == OP_RETURN {
+		return true
+	}
+
+	return false
 }
