@@ -85,7 +85,8 @@ type Client interface {
 		value uint64) (*P2PPaymentDestinationOutputs, error)
 
 	// PostP2PTransaction posts a P2P transaction to the handle being paid. The same as that used by
-	// the corresponding GetP2PPaymentDestination.
+	// the corresponding GetP2PPaymentDestination. Returns a note that is returned from the
+	// endpoint.
 	PostP2PTransaction(ctx context.Context, senderHandle, note, reference string,
 		senderKey *bitcoin.Key, tx *wire.MsgTx) (string, error)
 }

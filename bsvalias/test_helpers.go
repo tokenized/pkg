@@ -185,3 +185,15 @@ func (c *MockClient) PostP2PTransaction(ctx context.Context, senderHandle, note,
 
 	return "Accepted", nil
 }
+
+func (c *MockClient) CheckP2PTx(txid bitcoin.Hash32) error {
+	for _, txs := range c.user.p2pTxs {
+		for _, tx := range txs {
+			if tx.TxHash().Equal(&txid) {
+				return nil // tx is posted
+			}
+		}
+	}
+
+	return errors.New("Not posted")
+}
