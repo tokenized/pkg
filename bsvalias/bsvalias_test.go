@@ -82,8 +82,8 @@ func TestPaymentDestination(t *testing.T) {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
 
-		script, err := id.GetPaymentDestination("John Bitcoin", "john@bitcoin.com", "Test payment",
-			10000, nil)
+		script, err := id.GetPaymentDestination(ctx, "John Bitcoin", "john@bitcoin.com",
+			"Test payment", 10000, nil)
 		if err != nil {
 			t.Fatalf("Failed to get payment destination : %s", err)
 		}
@@ -108,8 +108,8 @@ func TestPaymentRequest(t *testing.T) {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
 
-		request, err := id.GetPaymentRequest("John Bitcoin", "john@bitcoin.com", "Test payment", "",
-			10000, nil)
+		request, err := id.GetPaymentRequest(ctx, "John Bitcoin", "john@bitcoin.com",
+			"Test payment", "", 10000, nil)
 		if err != nil {
 			if errors.Cause(err) == ErrNotCapable {
 				t.Logf("Payment Request Not Supported")

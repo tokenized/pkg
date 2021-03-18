@@ -14,6 +14,15 @@ func AddressFromLockingScript(lockingScript []byte, net Network) (Address, error
 	return NewAddressFromRawAddress(ra, net), nil
 }
 
+// checkNonStandard returns a non-standard raw address if the locking script is possibly spendable.
+func checkNonStandard(lockingScript []byte) (RawAddress, error) {
+	if LockingScriptIsUnspendable(lockingScript) {
+		return RawAddress{}, ErrUnknownScriptTemplate
+	}
+
+	return NewRawAddressNonStandard(lockingScript)
+}
+
 // RawAddressFromLockingScript returns the script template associated with the specified locking
 //   script.
 func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
@@ -25,18 +34,18 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 	switch script[0] {
 	case OP_DUP: // PKH or RPH
 		if len(script) < 25 {
-			return result, ErrUnknownScriptTemplate
+			return checkNonStandard(lockingScript)
 		}
 		script = script[1:]
 		switch script[0] {
 		case OP_HASH160: // PKH
 			if len(script) != 24 {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_PUSH_DATA_20 {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
@@ -44,12 +53,12 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 			script = script[ScriptHashLength:]
 
 			if script[0] != OP_EQUALVERIFY {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_CHECKSIG {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
@@ -58,52 +67,52 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 
 		case OP_3: // RPH
 			if len(script) != 33 {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_SPLIT {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_NIP {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_1 {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_SPLIT {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_SWAP {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_SPLIT {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_DROP {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_HASH160 {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_PUSH_DATA_20 {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
@@ -111,17 +120,17 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 			script = script[ScriptHashLength:]
 
 			if script[0] != OP_EQUALVERIFY {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_SWAP {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
 			if script[0] != OP_CHECKSIG {
-				return result, ErrUnknownScriptTemplate
+				return checkNonStandard(lockingScript)
 			}
 			script = script[1:]
 
@@ -132,7 +141,7 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 
 	case OP_PUSH_DATA_33: // P2PK
 		if len(script) != 35 {
-			return result, ErrUnknownScriptTemplate
+			return checkNonStandard(lockingScript)
 		}
 		script = script[1:]
 
@@ -140,7 +149,7 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 		script = script[PublicKeyCompressedLength:]
 
 		if script[0] != OP_CHECKSIG {
-			return result, ErrUnknownScriptTemplate
+			return checkNonStandard(lockingScript)
 		}
 		script = script[1:]
 
@@ -149,12 +158,12 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 
 	case OP_HASH160: // P2SH
 		if len(script) != 23 {
-			return result, ErrUnknownScriptTemplate
+			return checkNonStandard(lockingScript)
 		}
 		script = script[1:]
 
 		if script[0] != OP_PUSH_DATA_20 {
-			return result, ErrUnknownScriptTemplate
+			return checkNonStandard(lockingScript)
 		}
 		script = script[1:]
 
@@ -162,7 +171,7 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 		script = script[ScriptHashLength:]
 
 		if script[0] != OP_EQUAL {
-			return result, ErrUnknownScriptTemplate
+			return checkNonStandard(lockingScript)
 		}
 		script = script[1:]
 
@@ -243,15 +252,6 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 
-		if script[0] != OP_FROMALTSTACK {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-		script = script[1:]
-
-		if len(script) < 2 {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-
 		// Parse required signature count
 		required, length, err := ParsePushNumberScript(script)
 		if err != nil {
@@ -259,7 +259,16 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 		}
 		script = script[length:]
 
-		if script[0] != OP_GREATERTHANOREQUAL {
+		if len(script) < 2 {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+
+		if script[0] != OP_FROMALTSTACK {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+		script = script[1:]
+
+		if script[0] != OP_LESSTHANOREQUAL {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 		script = script[1:]
@@ -268,7 +277,7 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 		return result, err
 	}
 
-	return result, ErrUnknownScriptTemplate
+	return checkNonStandard(lockingScript)
 }
 
 func (ra RawAddress) LockingScript() ([]byte, error) {
@@ -381,10 +390,13 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		}
 
 		// Check required signature count
-		result = append(result, OP_FROMALTSTACK)
 		result = append(result, PushNumberScript(int64(required))...)
-		result = append(result, OP_GREATERTHANOREQUAL)
+		result = append(result, OP_FROMALTSTACK)
+		result = append(result, OP_LESSTHANOREQUAL)
 		return result, nil
+
+	case ScriptTypeNonStandard:
+		return ra.data, nil
 	}
 
 	return nil, ErrUnknownScriptTemplate

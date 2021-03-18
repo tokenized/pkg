@@ -17,17 +17,20 @@ var (
 )
 
 const (
-	AddressTypeMainPKH      = 0x00 // Public Key Hash (starts with 1)
-	AddressTypeMainSH       = 0x05 // Script Hash (starts with 3)
-	AddressTypeMainMultiPKH = 0x76 // Multi-PKH (starts with p) - Experimental value. Not standard
-	AddressTypeMainRPH      = 0x7b // RPH (starts with r) - Experimental value. Not standard
-	AddressTypeMainPK       = 0x06 // Public Key - Experimental value. Not standard
+	AddressTypeMainPKH         = 0x00 // Public Key Hash (starts with 1)
+	AddressTypeMainSH          = 0x05 // Script Hash (starts with 3)
+	AddressTypeMainMultiPKH    = 0x76 // Multi-PKH (starts with p) - Experimental value. Not standard
+	AddressTypeMainRPH         = 0x7b // RPH (starts with r) - Experimental value. Not standard
+	AddressTypeMainPK          = 0x06 // Public Key - Experimental value. Not standard
+	AddressTypeMainNonStandard = 0x08 // Unknown, but possibly spendable locking script
 
-	AddressTypeTestPKH      = 0x6f // Testnet Public Key Hash (starts with m or n)
-	AddressTypeTestSH       = 0xc4 // Testnet Script Hash (starts with 2)
-	AddressTypeTestMultiPKH = 0x78 // Multi-PKH (starts with q) - Experimental value. Not standard
-	AddressTypeTestRPH      = 0x7d // RPH (starts with s) - Experimental value. Not standard
-	AddressTypeTestPK       = 0x07 // Public Key - Experimental value. Not standard
+	AddressTypeTestPKH         = 0x6f // Testnet Public Key Hash (starts with m or n)
+	AddressTypeTestSH          = 0xc4 // Testnet Script Hash (starts with 2)
+	AddressTypeTestMultiPKH    = 0x78 // Multi-PKH (starts with q) - Experimental value. Not standard
+	AddressTypeTestRPH         = 0x7d // RPH (starts with s) - Experimental value. Not standard
+	AddressTypeTestPK          = 0x07 // Public Key - Experimental value. Not standard
+	AddressTypeTestNonStandard = 0x09 // Unknown, but possibly spendable locking script
+
 )
 
 type Address struct {
@@ -94,6 +97,8 @@ func (a *Address) decodeBytes(b []byte) error {
 		return nil
 	case AddressTypeMainRPH:
 		return a.SetRPH(b[1:], MainNet)
+	case AddressTypeMainNonStandard:
+		return a.SetNonStandard(b[1:], MainNet)
 
 	// TestNet
 	case AddressTypeTestPKH:
@@ -129,6 +134,8 @@ func (a *Address) decodeBytes(b []byte) error {
 		return nil
 	case AddressTypeTestRPH:
 		return a.SetRPH(b[1:], TestNet)
+	case AddressTypeTestNonStandard:
+		return a.SetNonStandard(b[1:], TestNet)
 	}
 
 	return ErrBadType
@@ -181,6 +188,12 @@ func NewAddressFromRawAddress(ra RawAddress, net Network) Address {
 			result.addressType = AddressTypeMainRPH
 		} else {
 			result.addressType = AddressTypeTestRPH
+		}
+	case ScriptTypeNonStandard:
+		if net == MainNet {
+			result.addressType = AddressTypeMainNonStandard
+		} else {
+			result.addressType = AddressTypeTestNonStandard
 		}
 	}
 
@@ -351,6 +364,28 @@ func (a *Address) SetRPH(rph []byte, net Network) error {
 	return nil
 }
 
+/**************************************** Non-Standard ********************************************/
+
+// NewAddressNonStandard creates an address from a script that is non-standard but possibly
+// spendable.
+func NewAddressNonStandard(script []byte, net Network) (Address, error) {
+	var result Address
+	err := result.SetNonStandard(script, net)
+	return result, err
+}
+
+// SetNonStandard sets the R Puzzle Hash and script type of the address.
+func (a *Address) SetNonStandard(script []byte, net Network) error {
+	if net == MainNet {
+		a.addressType = AddressTypeMainNonStandard
+	} else {
+		a.addressType = AddressTypeTestNonStandard
+	}
+
+	a.data = script
+	return nil
+}
+
 /***************************************** Common *************************************************/
 
 func (a Address) Type() byte {
@@ -365,13 +400,8 @@ func (a Address) String() string {
 // Network returns the network id for the address.
 func (a Address) Network() Network {
 	switch a.addressType {
-	case AddressTypeMainPKH:
-		fallthrough
-	case AddressTypeMainSH:
-		fallthrough
-	case AddressTypeMainMultiPKH:
-		fallthrough
-	case AddressTypeMainRPH:
+	case AddressTypeMainPKH, AddressTypeMainSH, AddressTypeMainMultiPKH, AddressTypeMainRPH,
+		AddressTypeMainNonStandard:
 		return MainNet
 	}
 	return TestNet
@@ -385,25 +415,11 @@ func (a Address) IsEmpty() bool {
 // Hash returns the hash corresponding to the address.
 func (a Address) Hash() (*Hash20, error) {
 	switch a.addressType {
-	case AddressTypeMainPKH:
-		fallthrough
-	case AddressTypeTestPKH:
-		fallthrough
-	case AddressTypeMainSH:
-		fallthrough
-	case AddressTypeTestSH:
-		fallthrough
-	case AddressTypeMainRPH:
-		fallthrough
-	case AddressTypeTestRPH:
+	case AddressTypeMainPKH, AddressTypeTestPKH, AddressTypeMainSH, AddressTypeTestSH,
+		AddressTypeMainRPH, AddressTypeTestRPH:
 		return NewHash20(a.data)
-	case AddressTypeMainPK:
-		fallthrough
-	case AddressTypeTestPK:
-		fallthrough
-	case AddressTypeMainMultiPKH:
-		fallthrough
-	case AddressTypeTestMultiPKH:
+	case AddressTypeMainPK, AddressTypeTestPK, AddressTypeMainMultiPKH, AddressTypeTestMultiPKH,
+		AddressTypeMainNonStandard, AddressTypeTestNonStandard:
 		return NewHash20(Hash160(a.data))
 	}
 	return nil, ErrUnknownScriptTemplate
