@@ -96,7 +96,13 @@ type P2PTransactionMetaData struct {
 func (r *P2PTransactionRequest) Sign(key bitcoin.Key) error {
 	// Sign txid
 	txid := *r.Tx.TxHash()
-	sig, err := key.Sign(txid[:])
+
+	sigHash, err := SignatureHashForMessage(txid.String())
+	if err != nil {
+		return errors.Wrap(err, "signature hash")
+	}
+
+	sig, err := key.Sign(sigHash[:])
 	if err != nil {
 		return errors.Wrap(err, "sign txid")
 	}
@@ -112,12 +118,17 @@ func (r *P2PTransactionRequest) Sign(key bitcoin.Key) error {
 func (r P2PTransactionRequest) CheckSignature(publicKey bitcoin.PublicKey) error {
 	txid := *r.Tx.TxHash()
 
+	sigHash, err := SignatureHashForMessage(txid.String())
+	if err != nil {
+		return errors.Wrap(err, "signature hash")
+	}
+
 	sig, err := bitcoin.SignatureFromCompact(r.MetaData.Signature)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.MetaData.Signature))
 	}
 
-	if !sig.Verify(txid[:], publicKey) {
+	if !sig.Verify(sigHash[:], publicKey) {
 		return ErrInvalidSignature
 	}
 
