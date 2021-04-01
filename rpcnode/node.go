@@ -91,9 +91,8 @@ func NewNode(config *Config) (*RPCNode, error) {
 
 func ParseError(err error) error {
 	parts := strings.Split(err.Error(), ":")
-
-	if len(parts) != 2 {
-		return err
+	if len(parts) == 0 {
+		return err // return original error
 	}
 
 	value, intErr := strconv.Atoi(strings.TrimSpace(parts[0]))
@@ -103,13 +102,14 @@ func ParseError(err error) error {
 
 	switch value {
 	case -5:
-		return ErrNotSeen
+		return errors.Wrap(ErrNotSeen, err.Error())
 	case -25:
-		return ErrMissingInputs
+		return errors.Wrap(ErrMissingInputs, err.Error())
 	case -26: // txn-mempool-conflict or too-long-mempool-chain
-		return ErrTransactionConflict
+		// -26: 258: txn-mempool-conflict
+		return errors.Wrap(ErrTransactionConflict, err.Error())
 	case -27: // Transaction already in the mempool
-		return ErrTransactionInMempool
+		return errors.Wrap(ErrTransactionInMempool, err.Error())
 	}
 
 	return err
@@ -130,15 +130,13 @@ func ConvertError(err error) error {
 
 	switch jsonErr.ErrorCode {
 	case -5:
-		return ErrNotSeen
+		return errors.Wrap(ErrNotSeen, err.Error())
 	case -25:
-		return ErrMissingInputs
+		return errors.Wrap(ErrMissingInputs, err.Error())
 	case -26: // txn-mempool-conflict or too-long-mempool-chain
-		return ErrTransactionConflict
+		return errors.Wrap(ErrTransactionConflict, err.Error())
 	case -27: // Transaction already in the mempool
-		return ErrTransactionInMempool
-	default:
-		return err
+		return errors.Wrap(ErrTransactionInMempool, err.Error())
 	}
 
 	return err
@@ -153,22 +151,22 @@ func (r *RPCNode) SendTx(ctx context.Context, tx *wire.MsgTx) error {
 }
 
 // GetTX requests a tx from the remote server.
-func (r *RPCNode) GetTX(ctx context.Context, id *bitcoin.Hash32) (*wire.MsgTx, error) {
+func (r *RPCNode) GetTX(ctx context.Context, txid *bitcoin.Hash32) (*wire.MsgTx, error) {
 	ctx = logger.ContextWithLogSubSystem(ctx, SubSystem)
 	defer logger.Elapsed(ctx, time.Now(), "GetTX")
 
 	r.lock.Lock()
-	msg, ok := r.txCache[*id]
+	msg, ok := r.txCache[*txid]
 	if ok {
-		logger.Verbose(ctx, "Using tx from RPC cache : %s\n", id.String())
-		delete(r.txCache, *id)
+		logger.Verbose(ctx, "Using tx from RPC cache : %s\n", txid.String())
+		delete(r.txCache, *txid)
 		r.lock.Unlock()
 		return msg, nil
 	}
 	r.lock.Unlock()
 
-	logger.Verbose(ctx, "Requesting tx from RPC : %s\n", id.String())
-	ch, _ := chainhash.NewHash(id[:])
+	logger.Verbose(ctx, "Requesting tx from RPC : %s\n", txid.String())
+	ch, _ := chainhash.NewHash(txid[:])
 	var err error
 	var raw *btcjson.TxRawResult
 	for i := 0; i <= r.Config.MaxRetries; i++ {
@@ -177,18 +175,18 @@ func (r *RPCNode) GetTX(ctx context.Context, id *bitcoin.Hash32) (*wire.MsgTx, e
 			break
 		}
 
-		err = errors.Wrap(ConvertError(err), id.String())
+		err = errors.Wrap(ConvertError(err), txid.String())
 		if errors.Cause(err) == ErrNotSeen {
-			logger.Error(ctx, "RPCTxNotSeenYet GetTxs receive tx %s : %v", id.String(), err)
+			logger.Error(ctx, "RPCTxNotSeenYet GetTxs receive tx %s : %v", txid, err)
 		} else {
-			logger.Error(ctx, "RPCCallFailed GetTx %s : %v", id.String(), err)
+			logger.Error(ctx, "RPCCallFailed GetTx %s : %v", txid, err)
 		}
 		time.Sleep(time.Duration(r.Config.RetryDelay) * time.Millisecond)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "RPCCallAborted GetTx %s : %v", id.String(), err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to GetTx %v", id.String()))
+		logger.Error(ctx, "RPCCallAborted GetTx %s : %v", txid, err)
+		return nil, err
 	}
 
 	b, err := hex.DecodeString(raw.Hex)
@@ -234,7 +232,7 @@ func (r *RPCNode) GetTXs(ctx context.Context, txids []*bitcoin.Hash32) ([]*wire.
 
 		for i, txid := range txids {
 			if results[i] == nil {
-				logger.Verbose(ctx, "Requesting tx from RPC : %s\n", txid.String())
+				logger.Verbose(ctx, "Requesting tx from RPC : %s\n", txid)
 				ch, _ := chainhash.NewHash(txid[:])
 				request := r.client.GetRawTransactionVerboseAsync(ch)
 				requests[i] = &request
@@ -262,7 +260,7 @@ func (r *RPCNode) GetTXs(ctx context.Context, txids []*bitcoin.Hash32) ([]*wire.
 			b, err := hex.DecodeString(rawTx.Hex)
 			if err != nil {
 				lastError = err
-				logger.Error(ctx, "RPCCallFailed GetTxs decode tx hex %s : %v", txids[i].String(), err)
+				logger.Error(ctx, "RPCCallFailed GetTxs decode tx hex %s : %v", txids[i], err)
 				continue
 			}
 
@@ -271,7 +269,7 @@ func (r *RPCNode) GetTXs(ctx context.Context, txids []*bitcoin.Hash32) ([]*wire.
 
 			if err := tx.Deserialize(buf); err != nil {
 				lastError = err
-				logger.Error(ctx, "RPCCallFailed GetTxs deserialize tx %s : %v", txids[i].String(), err)
+				logger.Error(ctx, "RPCCallFailed GetTxs deserialize tx %s : %v", txids[i], err)
 				continue
 			}
 
@@ -301,7 +299,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 	for i, outpoint := range outpoints {
 		tx, ok := r.txCache[outpoint.Hash]
 		if ok && len(tx.TxOut) > int(outpoint.Index) {
-			logger.Verbose(ctx, "Using tx from RPC cache : %s\n", outpoint.Hash.String())
+			logger.Verbose(ctx, "Using tx from RPC cache : %s\n", outpoint.Hash)
 			delete(r.txCache, outpoint.Hash)
 			results[i] = bitcoin.UTXO{
 				Hash:          outpoint.Hash,
@@ -324,7 +322,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 
 		for i, outpoint := range outpoints {
 			if !filled[i] {
-				logger.Verbose(ctx, "Requesting tx from RPC : %s\n", outpoint.Hash.String())
+				logger.Verbose(ctx, "Requesting tx from RPC : %s\n", outpoint.Hash)
 				ch, _ := chainhash.NewHash(outpoint.Hash[:])
 				request := r.client.GetRawTransactionVerboseAsync(ch)
 				requests[i] = &request
@@ -352,7 +350,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 			b, err := hex.DecodeString(rawTx.Hex)
 			if err != nil {
 				lastError = err
-				logger.Error(ctx, "RPCCallFailed GetRawTx decode tx hex %s : %v",
+				logger.Error(ctx, "RPCCallFailed GetRawTx decode tx hex %s : %s",
 					outpoints[i].Hash.String(), err)
 				continue
 			}
@@ -362,8 +360,8 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 
 			if err := tx.Deserialize(buf); err != nil {
 				lastError = err
-				logger.Error(ctx, "RPCCallFailed GetRawTx deserialize tx %s : %v",
-					outpoints[i].Hash.String(), err)
+				logger.Error(ctx, "RPCCallFailed GetRawTx deserialize tx %s : %s",
+					outpoints[i].Hash, err)
 				continue
 			}
 
@@ -371,7 +369,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 
 			if int(outpoint.Index) >= len(tx.TxOut) {
 				return results, fmt.Errorf("Invalid output index for txid %d/%d : %s",
-					outpoint.Index, len(tx.TxOut), outpoint.Hash.String())
+					outpoint.Index, len(tx.TxOut), outpoint.Hash)
 			}
 
 			results[i] = bitcoin.UTXO{
@@ -536,8 +534,7 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 
 			switch errors.Cause(err) {
 			case ErrMissingInputs, ErrTransactionConflict:
-				logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s",
-					err)
+				logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
 				return errors.Wrap(err, tx.TxHash().String())
 
 			case ErrTransactionInMempool:
