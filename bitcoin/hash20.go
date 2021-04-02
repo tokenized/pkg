@@ -3,9 +3,14 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
+
+	"github.com/pkg/errors"
+)
+
+var (
+	ErrWrongSize = errors.New("Wrong size")
 )
 
 const Hash20Size = 20
@@ -15,7 +20,7 @@ type Hash20 [Hash20Size]byte
 
 func NewHash20(b []byte) (*Hash20, error) {
 	if len(b) != Hash20Size {
-		return nil, errors.New("Wrong byte length")
+		return nil, errors.Wrapf(ErrWrongSize, "got %d, want %d", len(b), Hash20Size)
 	}
 	result := Hash20{}
 	copy(result[:], b)
@@ -25,7 +30,7 @@ func NewHash20(b []byte) (*Hash20, error) {
 // NewHash20FromStr creates a little endian hash from a big endian string.
 func NewHash20FromStr(s string) (*Hash20, error) {
 	if len(s) != 2*Hash20Size {
-		return nil, fmt.Errorf("Wrong size hex for Hash20 : %d", len(s))
+		return nil, errors.Wrapf(ErrWrongSize, "hex: got %d, want %d", len(s), Hash20Size*2)
 	}
 
 	b := make([]byte, Hash20Size)
@@ -52,7 +57,7 @@ func (h Hash20) Bytes() []byte {
 // SetBytes sets the value of the hash.
 func (h *Hash20) SetBytes(b []byte) error {
 	if len(b) != Hash20Size {
-		return errors.New("Wrong byte length")
+		return errors.Wrapf(ErrWrongSize, "got %d, want %d", len(b), Hash20Size)
 	}
 	copy(h[:], b)
 	return nil
@@ -74,6 +79,11 @@ func (h *Hash20) Equal(o *Hash20) bool {
 		return false
 	}
 	return bytes.Equal(h[:], o[:])
+}
+
+func (h Hash20) IsZero() bool {
+	var zero Hash20 // automatically initializes to zero
+	return h.Equal(&zero)
 }
 
 // Serialize writes the hash into a writer.

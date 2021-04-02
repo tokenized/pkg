@@ -137,6 +137,14 @@ func GenerateKey(net Network) (Key, error) {
 	return Key{net: net, value: *key.D}, nil
 }
 
+func (k Key) Equal(other Key) bool {
+	if k.net != other.net {
+		return false
+	}
+
+	return k.value.Cmp(&other.value) == 0
+}
+
 // String returns the type followed by the key data with a checksum, encoded with Base58.
 func (k Key) String() string {
 	var keyType byte

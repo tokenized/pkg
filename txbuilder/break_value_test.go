@@ -84,6 +84,81 @@ func Test_BreakValue(t *testing.T) {
 	}
 }
 
+func Test_BreakValueNoFee(t *testing.T) {
+	feeRate := float32(0.0)
+	dustFeeRate := float32(1.0)
+
+	addresses := make([]AddressKeyID, 5)
+	for i := 0; i < len(addresses); i++ {
+		key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+		if err != nil {
+			t.Fatalf("Failed to generate key : %s", err)
+		}
+
+		ra, err := key.RawAddress()
+		if err != nil {
+			t.Fatalf("Failed to generate address : %s", err)
+		}
+
+		ak := AddressKeyID{Address: ra}
+		addresses[i] = ak
+	}
+
+	lockingScript, err := addresses[0].Address.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create locking script : %s", err)
+	}
+
+	_, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate, feeRate)
+
+	values := []uint64{
+		100000000,
+		50000000,
+		25000000,
+		10000000,
+		5000000,
+		2500000,
+		1000000,
+		500000,
+		250000,
+		100000,
+		50000,
+		25000,
+		10000,
+		5000,
+		500,
+	}
+	breakValue := uint64(10000)
+
+	for _, value := range values {
+		t.Logf("Testing BreakValue %d/%d", value, breakValue)
+
+		outputs, err := BreakValue(value, breakValue, addresses, dustFeeRate, feeRate, true)
+		if err != nil {
+			t.Fatalf("Failed to break change : %s", err)
+		}
+
+		sum := uint64(0)
+		for _, output := range outputs {
+			sum += output.TxOut.Value
+			t.Logf("Output %d : %x", output.TxOut.Value, output.TxOut.PkScript)
+		}
+
+		if value > dustLimit {
+			if sum != value {
+				t.Fatalf("Total output is wrong : got %d, want %d", sum, value)
+			}
+		} else {
+			// change is less than dust so it can't be included in an output
+			if sum != 0 {
+				t.Fatalf("Total output + fees is wrong : got %d, want %d", sum, 0)
+			}
+		}
+
+		t.Logf("Total output value : %d", sum)
+	}
+}
+
 func Test_AddFundingBreakChange(t *testing.T) {
 	changeAddresses := make([]AddressKeyID, 5)
 	for i := 0; i < len(changeAddresses); i++ {

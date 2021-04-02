@@ -66,3 +66,7 @@ func (l *LoggerObject) Panicf(format string, v ...interface{}) {
 func (l *LoggerObject) Panicln(v ...interface{}) {
 	LogDepth(l.ctx, LevelPanic, 1, fmt.Sprint(v...))
 }
+
+func (l *LoggerObject) AddFields(fields []Field) {
+	l.ctx = ContextWithLogFields(l.ctx, fields)
+}

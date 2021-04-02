@@ -18,6 +18,38 @@ var (
 	}
 )
 
+func TestP2PTransactionSignature(t *testing.T) {
+	keyText := "037d391ec99f5fbc48894986391d3d2388045bcf85409ce2e2a92a683dc7a76581"
+	signatureText := "H84lMGpH1L2iFf8BzPuxzevTjyij8i2lej1OBmBVBqF1ZwnLn5+R3VdgLFUS+fUQgMkZmPCb85xlw1R6PtSe0DY="
+	txidText := "43b83509a310acbbcdb91164285829505ae415ad476e773f1e9ce49023387ac8"
+
+	key, err := bitcoin.PublicKeyFromStr(keyText)
+	if err != nil {
+		t.Fatalf("Failed to parse key : %s", err)
+	}
+
+	signature, err := bitcoin.SignatureFromCompact(signatureText)
+	if err != nil {
+		t.Fatalf("Failed to parse signature : %s", err)
+	}
+
+	txid, err := bitcoin.NewHash32FromStr(txidText)
+	if err != nil {
+		t.Fatalf("Failed to parse txid : %s", err)
+	}
+
+	sigHash, err := SignatureHashForMessage(txid.String())
+	if err != nil {
+		t.Fatalf("Failed to create txid message sig hash : %s", err)
+	}
+
+	if !signature.Verify(sigHash[:], key) {
+		t.Errorf("Not message hash")
+	} else {
+		t.Logf("Signature is valid")
+	}
+}
+
 func TestCapabilities(t *testing.T) {
 	ctx := context.Background()
 
@@ -82,8 +114,8 @@ func TestPaymentDestination(t *testing.T) {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
 
-		script, err := id.GetPaymentDestination("John Bitcoin", "john@bitcoin.com", "Test payment",
-			10000, nil)
+		script, err := id.GetPaymentDestination(ctx, "John Bitcoin", "john@bitcoin.com",
+			"Test payment", 10000, nil)
 		if err != nil {
 			t.Fatalf("Failed to get payment destination : %s", err)
 		}
@@ -99,6 +131,35 @@ func TestPaymentDestination(t *testing.T) {
 	}
 }
 
+func TestP2PPaymentDestination(t *testing.T) {
+	ctx := context.Background()
+
+	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+		id, err := NewHTTPClient(ctx, handle)
+		if err != nil {
+			t.Fatalf("Failed to get identity : %s", err)
+		}
+
+		outputs, err := id.GetP2PPaymentDestination(ctx, 10000)
+		if err != nil {
+			t.Fatalf("Failed to get p2p payment destination : %s", err)
+		}
+
+		for _, output := range outputs.Outputs {
+			t.Logf("Output Value %d : Script %x", output.Value, output.PkScript)
+
+			ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
+			if err != nil {
+				t.Fatalf("Failed to parse locking script : %s", err)
+			}
+
+			ad := bitcoin.NewAddressFromRawAddress(ra, bitcoin.MainNet)
+			t.Logf("Address : %s", ad.String())
+		}
+	}
+}
+
 func TestPaymentRequest(t *testing.T) {
 	ctx := context.Background()
 
@@ -108,8 +169,8 @@ func TestPaymentRequest(t *testing.T) {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
 
-		request, err := id.GetPaymentRequest("John Bitcoin", "john@bitcoin.com", "Test payment", "",
-			10000, nil)
+		request, err := id.GetPaymentRequest(ctx, "John Bitcoin", "john@bitcoin.com",
+			"Test payment", "", 10000, nil)
 		if err != nil {
 			if errors.Cause(err) == ErrNotCapable {
 				t.Logf("Payment Request Not Supported")

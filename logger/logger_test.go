@@ -2,7 +2,11 @@ package logger
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestLogger(test *testing.T) {
@@ -12,6 +16,7 @@ func TestLogger(test *testing.T) {
 	{
 		logConfig := NewConfig(true, false, "")
 		logConfig.EnableSubSystem(showsystem)
+		// fmt.Printf("Original log config : %+v\n", logConfig)
 
 		ctx := ContextWithLogConfig(context.Background(), logConfig)
 
@@ -24,13 +29,17 @@ func TestLogger(test *testing.T) {
 		hideCtx := ContextWithLogSubSystem(ctx, hidesystem)
 		Log(hideCtx, LevelInfo, "First Hidden Sub entry. You should not see this!")
 
+		// fmt.Printf("Log config after hide : %+v\n", logConfig)
+
 		Log(ctx, LevelInfo, "Second main entry")
 
 		ctxTrace1 := ContextWithLogTrace(ctx, "trace 1")
 		Log(ctxTrace1, LevelInfo, "Entry with trace 1")
+		fmt.Printf("^ should contain \"trace 1\"\n")
 
 		ctxTrace2 := ContextWithLogTrace(ctx, "trace 2")
 		Log(ctxTrace2, LevelInfo, "Entry with trace 2")
+		fmt.Printf("^ should contain \"trace 2\"\n")
 	}
 }
 
@@ -63,6 +72,44 @@ func TestDisabledSubSystem(test *testing.T) {
 	Log(wospyCtx, LevelInfo, "Without Spynode")
 }
 
+func TestFields(t *testing.T) {
+	ctx := ContextWithLogger(context.Background(), false, false, "")
+
+	s := String("string", "value")
+	i := Int("integer", 10)
+	ui := Uint("unsigned int", uint(20))
+	f := Float32("float32", 1.0)
+	f64 := Float64("float64", 2.0)
+	InfoWithFields(ctx, []Field{s, i, ui, f, f64}, "")
+
+	stringWithQuotes := String("with quote", `"should escape quote`)
+	stringWithBackspace := String("with backspace", "\b should escape backspace")
+	InfoWithFields(ctx, []Field{stringWithQuotes, stringWithBackspace}, "")
+
+	stringWithNewLine := String("with newline", `
+	should escape newline and tab`)
+	InfoWithFields(ctx, []Field{stringWithNewLine}, "")
+
+	stringWithBackslash := String("with backslash", `\ should escape backslash`)
+	InfoWithFields(ctx, []Field{stringWithBackslash}, "")
+
+	u32s := Uint32s("uint list", []uint32{1, 2, 3})
+	InfoWithFields(ctx, []Field{u32s}, "")
+
+	float32s := Float32s("float list", []float32{1.234, 2.948463, 3.1})
+	InfoWithFields(ctx, []Field{float32s}, "")
+
+	json := struct {
+		Field1 string `json:"field_1"`
+		Field2 int    `json:"field_2"`
+	}{
+		Field1: "value 1",
+		Field2: 2,
+	}
+	jsonField := JSON("json_struct", &json)
+	InfoWithFields(ctx, []Field{jsonField}, "")
+}
+
 func BenchmarkContextWithLogTrace(b *testing.B) {
 	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, ""))
 
@@ -76,5 +123,55 @@ func BenchmarkContextWithOutLogSubSystem(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		ContextWithOutLogSubSystem(ctx)
+	}
+}
+
+func BenchmarkFileNoFields(b *testing.B) {
+	os.Mkdir("./tmp", 0755)
+
+	logFileName := "./tmp/bench_" + uuid.New().String() + ".log"
+	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, logFileName))
+
+	for i := 0; i < b.N; i++ {
+		Info(ctx, "Simple log entry %d", i)
+	}
+
+	os.Remove(logFileName)
+}
+
+func BenchmarkFileWithFields(b *testing.B) {
+	os.Mkdir("./tmp", 0755)
+
+	logFileName := "./tmp/bench_" + uuid.New().String() + ".log"
+	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, logFileName))
+
+	for i := 0; i < b.N; i++ {
+		InfoWithFields(ctx, []Field{
+			String("title", "string value"),
+			Int("index", i),
+			Float32("float", 123.556),
+		}, "Simple log entry with fields")
+	}
+
+	os.Remove(logFileName)
+}
+
+func BenchmarkDummyNoFields(b *testing.B) {
+	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, "dummy"))
+
+	for i := 0; i < b.N; i++ {
+		Info(ctx, "Simple log entry %d", i)
+	}
+}
+
+func BenchmarkDummyWithFields(b *testing.B) {
+	ctx := ContextWithLogConfig(context.Background(), NewConfig(false, false, "dummy"))
+
+	for i := 0; i < b.N; i++ {
+		InfoWithFields(ctx, []Field{
+			String("title", "string value"),
+			Int("index", i),
+			Float32("float", 123.556),
+		}, "Simple log entry with fields")
 	}
 }

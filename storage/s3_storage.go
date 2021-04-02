@@ -17,6 +17,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// S3ListLimit seems to need to be 1000. It is the default value according to the documentation,
+	// but changing it doesn't seem to do anything. So we hard code it so it doesn't change on us.
+	S3ListLimit = int64(1000)
+)
+
 // S3Storage implements the Storage interface for interacting with AWS S3.
 type S3Storage struct {
 	Config  Config
@@ -319,23 +325,39 @@ func (s S3Storage) List(ctx context.Context, path string) ([]string, error) {
 func (s S3Storage) findKeys(ctx context.Context, path string) ([]string, error) {
 
 	svc := s3.New(s.Session)
+	var last *string
+	var result []string
+	limit := S3ListLimit
 
-	input := &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.Config.Bucket),
-		Prefix: &path,
+	for {
+		input := &s3.ListObjectsV2Input{
+			Bucket:     aws.String(s.Config.Bucket),
+			Prefix:     &path,
+			MaxKeys:    &limit,
+			StartAfter: last,
+		}
+
+		out, err := svc.ListObjectsV2(input)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, o := range out.Contents {
+			result = append(result, *o.Key)
+		}
+
+		l := len(out.Contents)
+		if l != int(S3ListLimit) {
+			// Contents not full, so we must be done.
+			break
+		}
+
+		// Keep calling until the result is not full.
+		newLast := *out.Contents[l-1].Key // make a copy for safety
+		last = &newLast
 	}
 
-	out, err := svc.ListObjectsV2(input)
-	if err != nil {
-		return nil, err
-	}
-
-	keys := make([]string, len(out.Contents), len(out.Contents))
-	for i, o := range out.Contents {
-		keys[i] = *o.Key
-	}
-
-	return keys, nil
+	return result, nil
 }
 
 // newAwsSession creates a new AWS Session from the credentials in the Config.
