@@ -113,7 +113,6 @@ func ParseError(err error) error {
 	}
 
 	return err
-
 }
 
 // ConvertError determines if the error is a known RPC type and converts it to the local error type.

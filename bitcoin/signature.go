@@ -456,7 +456,6 @@ var (
 
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979 and BIP 62.
 func signRFC6979(pk big.Int, hash []byte) (Signature, error) {
-
 	N := curveS256.N
 	k := nonceRFC6979(pk, hash)
 	inv := new(big.Int).ModInverse(k, N)

@@ -44,7 +44,9 @@ func OutputFeeAndDustForLockingScript(lockingScript []byte, dustFeeRate, feeRate
 
 // OutputFeeAndDustForAddress returns the tx fee required to include the address as an output in a
 // tx and the dust limit of that output.
-func OutputFeeAndDustForAddress(ra bitcoin.RawAddress, dustFeeRate, feeRate float32) (uint64, uint64, error) {
+func OutputFeeAndDustForAddress(ra bitcoin.RawAddress, dustFeeRate,
+	feeRate float32) (uint64, uint64, error) {
+
 	lockingScript, err := ra.LockingScript()
 	if err != nil {
 		return 0, 0, errors.Wrap(err, "address locking script")
@@ -83,7 +85,9 @@ func (tx *TxBuilder) SetChangeAddress(address bitcoin.RawAddress, keyID string) 
 // AddPaymentOutput adds an output to TxBuilder with the specified value and a script paying the
 //   specified address.
 // isRemainder marks the output to receive remaining bitcoin after fees are taken.
-func (tx *TxBuilder) AddPaymentOutput(address bitcoin.RawAddress, value uint64, isRemainder bool) error {
+func (tx *TxBuilder) AddPaymentOutput(address bitcoin.RawAddress, value uint64,
+	isRemainder bool) error {
+
 	script, err := address.LockingScript()
 	if err != nil {
 		return err

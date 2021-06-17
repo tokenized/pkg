@@ -15,10 +15,10 @@ type SigHashType uint32
 
 const (
 	SigHashOld          SigHashType = 0x0
-	SigHashAll          SigHashType = 0x1
-	SigHashNone         SigHashType = 0x2
-	SigHashSingle       SigHashType = 0x3
-	SigHashAnyOneCanPay SigHashType = 0x80
+	SigHashAll          SigHashType = 0x1  // Sign all inputs, all outputs
+	SigHashNone         SigHashType = 0x2  // Sign all inputs, no outputs
+	SigHashSingle       SigHashType = 0x3  // Sign all inputs, only the output at same index as input
+	SigHashAnyOneCanPay SigHashType = 0x80 // When combined, only sign contained input
 	SigHashForkID       SigHashType = 0x40
 
 	// sigHashMask defines the number of bits of the hash type which is used to identify which

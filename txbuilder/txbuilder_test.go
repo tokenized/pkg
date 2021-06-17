@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 func TestBasic(t *testing.T) {
