@@ -297,6 +297,24 @@ func (c *HTTPClient) PostP2PTransaction(ctx context.Context, senderHandle, note,
 	return response.Note, nil
 }
 
+// ListTokenizedAssets returns the list of asset aliases for this paymail handle.
+func (c *HTTPClient) ListTokenizedAssets(ctx context.Context) ([]AssetAlias, error) {
+	url, err := c.Site.Capabilities.GetURL(URLNameListTokenizedAssetAlias)
+	if err != nil {
+		return nil, errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	var response AssetAliasListResponse
+	if err := get(ctx, url, &response); err != nil {
+		return nil, errors.Wrap(err, "http get")
+	}
+
+	return response.AssetAliases, nil
+}
+
 // post sends a request to the HTTP server using the POST method.
 func post(ctx context.Context, url string, request, response interface{}) error {
 	var transport = &http.Transport{

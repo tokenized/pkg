@@ -34,6 +34,10 @@ const (
 	// URLNameP2PTransactions is the name used to identify the peer to peer transactions URL and
 	// capability.
 	URLNameP2PTransactions = "5f1323cddf31"
+
+	// URLNameListTokenizedAssetAlias is the name used to identify the list Tokenized asset alias
+	// URL and capability.
+	URLNameListTokenizedAssetAlias = "e243785d1f17"
 )
 
 var (
@@ -89,4 +93,7 @@ type Client interface {
 	// endpoint.
 	PostP2PTransaction(ctx context.Context, senderHandle, note, reference string,
 		senderKey *bitcoin.Key, tx *wire.MsgTx) (string, error)
+
+	// ListTokenizedAssets returns the list of asset aliases for this paymail handle.
+	ListTokenizedAssets(ctx context.Context) ([]AssetAlias, error)
 }

@@ -37,10 +37,11 @@ func (f *MockFactory) NewClient(ctx context.Context, handle string) (Client, err
 
 // mockUser is a mock user for testing systems that use paymail.
 type mockUser struct {
-	handle      string
-	identityKey bitcoin.Key
-	addressKey  bitcoin.Key
-	p2pTxs      map[string][]*wire.MsgTx
+	handle       string
+	identityKey  bitcoin.Key
+	addressKey   bitcoin.Key
+	p2pTxs       map[string][]*wire.MsgTx
+	assetAliases []AssetAlias
 }
 
 // AddMockUser adds a new mock user.
@@ -51,6 +52,21 @@ func (f *MockFactory) AddMockUser(handle string, identityKey, addressKey bitcoin
 		addressKey:  addressKey,
 		p2pTxs:      make(map[string][]*wire.MsgTx),
 	})
+}
+
+// AddMockUser adds a new mock user.
+func (f *MockFactory) AddMockAsset(handle string, assetAlias, assetID string) {
+	for _, user := range f.users {
+		if user.handle != handle {
+			continue
+		}
+
+		user.assetAliases = append(user.assetAliases, AssetAlias{
+			AssetAlias: assetAlias,
+			AssetID:    assetID,
+		})
+		return
+	}
 }
 
 // GenerateMockUser generates a mock user and returns the user's handle, public key, and address.
@@ -196,4 +212,9 @@ func (c *MockClient) CheckP2PTx(txid bitcoin.Hash32) error {
 	}
 
 	return errors.New("Not posted")
+}
+
+// ListTokenizedAssets returns the list of asset aliases for this paymail handle.
+func (c *MockClient) ListTokenizedAssets(ctx context.Context) ([]AssetAlias, error) {
+	return c.user.assetAliases, nil
 }

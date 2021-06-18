@@ -219,3 +219,12 @@ type PaymentRequest struct {
 	Tx      *wire.MsgTx
 	Outputs []*wire.TxOut
 }
+
+type AssetAliasListResponse struct {
+	AssetAliases []AssetAlias `json:"asset_aliases"`
+}
+
+type AssetAlias struct {
+	AssetAlias string `json:"asset_alias"`
+	AssetID    string `json:"asset_id"`
+}

@@ -206,7 +206,19 @@ func TestBRFCID(t *testing.T) {
 	if hash.String()[:12] != "f7ecaab847eb" {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f7ecaab847eb")
 	}
-	t.Logf("BRFC ID : %s", hash.String()[:12])
+	t.Logf("Payment Request BRFC ID : %s", hash.String()[:12])
+
+	// Our payment request transaction BRFC ID
+	title = "List Tokenized Asset Alias"
+	author = "Jonathan Vaage (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "e243785d1f17" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "e243785d1f17")
+	}
+	t.Logf("List Asset Alias BRFC ID : %s", hash.String()[:12])
 }
 
 func TestMessageSignature(t *testing.T) {
