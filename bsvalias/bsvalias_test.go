@@ -183,6 +183,30 @@ func TestPaymentRequest(t *testing.T) {
 	}
 }
 
+func TestAssetAlias(t *testing.T) {
+	ctx := context.Background()
+
+	for _, handle := range handles {
+		id, err := NewHTTPClient(ctx, handle)
+		if err != nil {
+			t.Fatalf("Failed to get identity : %s", err)
+		}
+
+		request, err := id.ListTokenizedAssets(ctx)
+		if err != nil {
+			if errors.Cause(err) == ErrNotCapable {
+				t.Logf("Payment Request Not Supported")
+				continue
+			}
+			t.Fatalf("Failed to get payment request : %s", err)
+		}
+
+		for _, asset := range request {
+			t.Logf("Asset alias %s : %s", asset.AssetAlias, asset.AssetID)
+		}
+	}
+}
+
 func TestBRFCID(t *testing.T) {
 	// Example
 	title := "BRFC Specifications"
