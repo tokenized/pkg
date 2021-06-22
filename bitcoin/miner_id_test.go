@@ -1,0 +1,136 @@
+package bitcoin
+
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"testing"
+)
+
+func TestMinerIDAPIStruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     string
+		endpoint string
+	}{
+		{
+			name: "Taal",
+			data: `{
+				"version":"0.1",
+				"height":692657,
+				"prevMinerId":"03e92d3e5c3f7bd945dfbf48e7a99393b1bfb3f11f380ae30d286e7ff2aec5a270",
+				"prevMinerIdSig":"3045022100d76360e4d21331ca86f018c046e57c938f1977507473335360be37048cae1af302200be660454021bf9464e99f5a9581a98c9cf495407598c59b4734b2fdb482bf97",
+				"minerId":"03e92d3e5c3f7bd945dfbf48e7a99393b1bfb3f11f380ae30d286e7ff2aec5a270",
+				"vctx":{
+					"txId":"579b435925a90ee39a37be3b00b9061e74c30c82413f6d0a2098e1bea7a2515f",
+					"vout":0
+				},
+				"minerContact":{
+					"email":"info@taal.com",
+					"name":"TAAL Distributed Information Technologies",
+					"merchantAPIEndPoint":"https://merchantapi.taal.com/"
+				}
+			}`,
+			endpoint: "https://merchantapi.taal.com/",
+		},
+		{
+			name: "Taal 2",
+			data: `{
+				"version":"0.1",
+				"height":692661,
+				"prevMinerId":"03e92d3e5c3f7bd945dfbf48e7a99393b1bfb3f11f380ae30d286e7ff2aec5a270",
+				"prevMinerIdSig":"3045022100d76360e4d21331ca86f018c046e57c938f1977507473335360be37048cae1af302200be660454021bf9464e99f5a9581a98c9cf495407598c59b4734b2fdb482bf97",
+				"minerId":"03e92d3e5c3f7bd945dfbf48e7a99393b1bfb3f11f380ae30d286e7ff2aec5a270",
+				"vctx":{
+					"txId":"579b435925a90ee39a37be3b00b9061e74c30c82413f6d0a2098e1bea7a2515f",
+					"vout":0
+				},
+				"minerContact":{
+					"email":"info@taal.com",
+					"name":"TAAL Distributed Information Technologies",
+					"merchantAPIEndPoint":"https://merchantapi.taal.com/"
+				}
+			}`,
+			endpoint: "https://merchantapi.taal.com/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var minerID MinerID
+			if err := json.Unmarshal([]byte(tt.data), &minerID); err != nil {
+				t.Fatalf("Failed to unmarshal json : %s", err)
+			}
+
+			if tt.endpoint != *minerID.Contact.MerchantAPIEndpoint {
+				t.Errorf("Wrong endpoint : got \"%s\", want \"%s\"", tt.endpoint,
+					*minerID.Contact.MerchantAPIEndpoint)
+			}
+
+			if err := minerID.VerifyPrevious(); err != nil {
+				t.Errorf("Failed to verify previous : %s", err)
+			}
+		})
+	}
+}
+
+func TestMinerIDScript(t *testing.T) {
+	tests := []struct {
+		name     string
+		hex      string
+		endpoint string
+	}{
+		{
+			name:     "Taal",
+			hex:      "006a04ac1eed884d53027b2276657273696f6e223a22302e31222c22686569676874223a3639323636312c22707265764d696e65724964223a22303365393264336535633366376264393435646662663438653761393933393362316266623366313166333830616533306432383665376666326165633561323730222c22707265764d696e65724964536967223a2233303435303232313030643736333630653464323133333163613836663031386330343665353763393338663139373735303734373333333533363062653337303438636165316166333032323030626536363034353430323162663934363465393966356139353831613938633963663439353430373539386335396234373334623266646234383262663937222c226d696e65724964223a22303365393264336535633366376264393435646662663438653761393933393362316266623366313166333830616533306432383665376666326165633561323730222c2276637478223a7b2274784964223a2235373962343335393235613930656533396133376265336230306239303631653734633330633832343133663664306132303938653162656137613235313566222c22766f7574223a307d2c226d696e6572436f6e74616374223a7b22656d61696c223a22696e666f407461616c2e636f6d222c226e616d65223a225441414c20446973747269627574656420496e666f726d6174696f6e20546563686e6f6c6f67696573222c226d65726368616e74415049456e64506f696e74223a2268747470733a2f2f6d65726368616e746170692e7461616c2e636f6d2f227d7d473045022100aafde9b45ad1cf31927e05d770bc167c84248bee254982f01ac428629f8a7547022045702f24b168a9a47ed8daeb9e9857f61908fe512e698503e3c9d01d41ef6b8e",
+			endpoint: "https://merchantapi.taal.com/",
+		},
+		{
+			name:     "Taal 2",
+			hex:      "006a04ac1eed884d53027b2276657273696f6e223a22302e31222c22686569676874223a3639323636332c22707265764d696e65724964223a22303365393264336535633366376264393435646662663438653761393933393362316266623366313166333830616533306432383665376666326165633561323730222c22707265764d696e65724964536967223a2233303435303232313030643736333630653464323133333163613836663031386330343665353763393338663139373735303734373333333533363062653337303438636165316166333032323030626536363034353430323162663934363465393966356139353831613938633963663439353430373539386335396234373334623266646234383262663937222c226d696e65724964223a22303365393264336535633366376264393435646662663438653761393933393362316266623366313166333830616533306432383665376666326165633561323730222c2276637478223a7b2274784964223a2235373962343335393235613930656533396133376265336230306239303631653734633330633832343133663664306132303938653162656137613235313566222c22766f7574223a307d2c226d696e6572436f6e74616374223a7b22656d61696c223a22696e666f407461616c2e636f6d222c226e616d65223a225441414c20446973747269627574656420496e666f726d6174696f6e20546563686e6f6c6f67696573222c226d65726368616e74415049456e64506f696e74223a2268747470733a2f2f6d65726368616e746170692e7461616c2e636f6d2f227d7d463044022066cc7635c930d574b87c0196bedac6c2022687275b5a80e3bf9b8c74bab55d79022066ca7b7abd76fff4215e84fb8889c9d9008dbe09fe859ea45a67a9e95c5cb557",
+			endpoint: "https://merchantapi.taal.com/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script, err := hex.DecodeString(tt.hex)
+			if err != nil {
+				t.Fatalf("Failed to parse hex : %s", err)
+			}
+
+			minerID, err := ParseMinerIDFromScript(script)
+			if err != nil {
+				t.Fatalf("Failed to parse miner ID script : %s", err)
+			}
+
+			if tt.endpoint != *minerID.Contact.MerchantAPIEndpoint {
+				t.Errorf("Wrong endpoint : got \"%s\", want \"%s\"", tt.endpoint,
+					*minerID.Contact.MerchantAPIEndpoint)
+			}
+
+			var buf bytes.Buffer
+			if err := minerID.Serialize(&buf); err != nil {
+				t.Errorf("Failed to serialize : %s", err)
+				return
+			}
+
+			var newMinerID MinerID
+			if err := newMinerID.Deserialize(&buf); err != nil {
+				t.Errorf("Failed to deserialize : %s", err)
+			}
+
+			if tt.endpoint != *newMinerID.Contact.MerchantAPIEndpoint {
+				t.Errorf("Wrong endpoint : got \"%s\", want \"%s\"", tt.endpoint,
+					*minerID.Contact.MerchantAPIEndpoint)
+			}
+
+			js, err := json.MarshalIndent(newMinerID, "", "  ")
+			if err != nil {
+				t.Errorf("Failed to marshal : %s", err)
+			}
+
+			t.Logf("Deserialized : %s", string(js))
+		})
+	}
+}
