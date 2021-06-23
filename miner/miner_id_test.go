@@ -1,10 +1,11 @@
-package bitcoin
+package miner
 
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"testing"
+
+	"github.com/tokenized/pkg/json"
 )
 
 func TestMinerIDAPIStruct(t *testing.T) {
