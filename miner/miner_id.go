@@ -1,12 +1,14 @@
-package bitcoin
+package miner
 
 import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/json"
 
 	"github.com/pkg/errors"
 )
@@ -27,11 +29,11 @@ type MinerID struct {
 	Version string `json:"version"`
 	Height  uint32 `json:"height"`
 
-	PreviousMinerID    *PublicKey `json:"prevMinerId"`
-	PreviousMinerIDSig *Signature `json:"prevMinerIdSig"`
-	DynamicMinerID     *PublicKey `json:"dynamicMinerId"`
+	PreviousMinerID    *bitcoin.PublicKey `json:"prevMinerId"`
+	PreviousMinerIDSig *bitcoin.Signature `json:"prevMinerIdSig"`
+	DynamicMinerID     *bitcoin.PublicKey `json:"dynamicMinerId"`
 
-	MinerID PublicKey `json:"minerId"`
+	MinerID bitcoin.PublicKey `json:"minerId"`
 
 	ValidityCheckTx *MinerIDValidityCheckTx `json:"vctx"`
 
@@ -39,8 +41,8 @@ type MinerID struct {
 }
 
 type MinerIDValidityCheckTx struct {
-	TxID  Hash32 `json:"txId"`
-	Index uint32 `json:"vout"`
+	TxID  bitcoin.Hash32 `json:"txId"`
+	Index uint32         `json:"vout"`
 }
 
 type MinerIDContact struct {
@@ -252,7 +254,7 @@ func (mid *MinerID) Deserialize(r io.Reader) error {
 			return errors.Wrap(err, "PreviousMinerID")
 		}
 
-		key, err := PublicKeyFromBytes(b)
+		key, err := bitcoin.PublicKeyFromBytes(b)
 		if err != nil {
 			return errors.Wrap(err, "parse PreviousMinerID")
 		}
@@ -272,7 +274,7 @@ func (mid *MinerID) Deserialize(r io.Reader) error {
 			return errors.Wrap(err, "PreviousMinerIDSig")
 		}
 
-		sig, err := SignatureFromBytes(b)
+		sig, err := bitcoin.SignatureFromBytes(b)
 		if err != nil {
 			return errors.Wrap(err, "parse PreviousMinerIDSig")
 		}
@@ -292,7 +294,7 @@ func (mid *MinerID) Deserialize(r io.Reader) error {
 			return errors.Wrap(err, "DynamicMinerID")
 		}
 
-		key, err := PublicKeyFromBytes(b)
+		key, err := bitcoin.PublicKeyFromBytes(b)
 		if err != nil {
 			return errors.Wrap(err, "parse DynamicMinerID")
 		}
@@ -300,12 +302,12 @@ func (mid *MinerID) Deserialize(r io.Reader) error {
 	}
 
 	// MinerID
-	b = make([]byte, PublicKeyCompressedLength)
+	b = make([]byte, bitcoin.PublicKeyCompressedLength)
 	if _, err := io.ReadFull(r, b); err != nil {
 		return errors.Wrap(err, "MinerID")
 	}
 
-	key, err := PublicKeyFromBytes(b)
+	key, err := bitcoin.PublicKeyFromBytes(b)
 	if err != nil {
 		return errors.Wrap(err, "parse MinerID")
 	}
@@ -322,12 +324,12 @@ func (mid *MinerID) Deserialize(r io.Reader) error {
 		mid.ValidityCheckTx = &MinerIDValidityCheckTx{}
 
 		// TxID
-		b = make([]byte, Hash32Size)
+		b = make([]byte, bitcoin.Hash32Size)
 		if _, err := io.ReadFull(r, b); err != nil {
 			return errors.Wrap(err, "ValidityCheckTx.TxID")
 		}
 
-		txid, err := NewHash32(b)
+		txid, err := bitcoin.NewHash32(b)
 		if err != nil {
 			return errors.Wrap(err, "parse ValidityCheckTx.TxID")
 		}
@@ -399,8 +401,8 @@ func ParseMinerIDFromScript(script []byte) (*MinerID, error) {
 		return nil, errors.Wrap(err, "read op return")
 	}
 
-	if b != OP_RETURN {
-		if b != OP_FALSE {
+	if b != bitcoin.OP_RETURN {
+		if b != bitcoin.OP_FALSE {
 			return nil, errors.Wrap(ErrNotMinerID, "not OP_FALSE")
 		}
 
@@ -409,13 +411,13 @@ func ParseMinerIDFromScript(script []byte) (*MinerID, error) {
 			return nil, errors.Wrap(err, "read op return")
 		}
 
-		if b != OP_RETURN {
+		if b != bitcoin.OP_RETURN {
 			return nil, errors.Wrap(ErrNotMinerID, "not OP_RETURN")
 		}
 	}
 
 	// Protocol ID
-	_, protocolIDBytes, err := ParsePushDataScript(buf)
+	_, protocolIDBytes, err := bitcoin.ParsePushDataScript(buf)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse protocol ID")
 	}
@@ -428,7 +430,7 @@ func ParseMinerIDFromScript(script []byte) (*MinerID, error) {
 		return nil, errors.Wrap(ErrNotMinerID, "wrong protocol id")
 	}
 
-	_, documentBytes, err := ParsePushDataScript(buf)
+	_, documentBytes, err := bitcoin.ParsePushDataScript(buf)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse static document")
 	}
@@ -438,12 +440,12 @@ func ParseMinerIDFromScript(script []byte) (*MinerID, error) {
 		return nil, errors.Wrap(err, "Unmarshal static document")
 	}
 
-	_, documentSigBytes, err := ParsePushDataScript(buf)
+	_, documentSigBytes, err := bitcoin.ParsePushDataScript(buf)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse static document signature")
 	}
 
-	documentSig, err := SignatureFromBytes(documentSigBytes)
+	documentSig, err := bitcoin.SignatureFromBytes(documentSigBytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "static document signature")
 	}
