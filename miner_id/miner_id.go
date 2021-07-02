@@ -1,4 +1,4 @@
-package miner
+package miner_id
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package miner
+package spv_channel
 
 import (
 	"bytes"
@@ -8,8 +8,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/google/uuid"
 	"github.com/tokenized/pkg/json"
+
+	"github.com/pkg/errors"
+)
+
+var (
+	ErrHTTPNotFound = errors.New("HTTP Not Found")
 )
 
 type SPVMessage struct {
@@ -17,6 +23,32 @@ type SPVMessage struct {
 	Received    time.Time `json:"received"`
 	ContentType string    `json:"content_type"`
 	Payload     string    `json:"payload"`
+}
+
+// CreateAccount creates a new account on the SPVChannel service.
+// Note: This is a non-standard endpoint and is only implemented by the Tokenized Service.
+func CreateAccount(ctx context.Context, baseURL, token string) (*uuid.UUID, *uuid.UUID, error) {
+	var response struct {
+		AccountID uuid.UUID `json:"account_id"`
+		Token     uuid.UUID `json:"token"`
+	}
+	if err := postWithToken(ctx, baseURL+"/api/v1/account", token, nil, &response); err != nil {
+		return nil, nil, errors.Wrap(err, "http post")
+	}
+
+	return &response.AccountID, &response.Token, nil
+}
+
+func CreateChannel(ctx context.Context, baseURL, accountID, token string) (*Channel, error) {
+
+	url := fmt.Sprintf("%s/api/v1/account/%s/channel", baseURL, accountID)
+
+	var response Channel
+	if err := postWithToken(ctx, url, token, nil, &response); err != nil {
+		return nil, errors.Wrap(err, "http post")
+	}
+
+	return &response, nil
 }
 
 func PostMessage(ctx context.Context, baseURL, channelID, token,

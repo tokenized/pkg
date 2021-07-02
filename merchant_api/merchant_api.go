@@ -1,4 +1,4 @@
-package miner
+package merchant_api
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/json"
+	"github.com/tokenized/pkg/json_envelope"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -49,7 +50,7 @@ func GetFeeQuote(ctx context.Context, baseURL string) (*FeeQuoteResponse, error)
 		baseURL = baseURL[:len(baseURL)-1]
 	}
 
-	envelope := &JSONEnvelope{}
+	envelope := &json_envelope.JSONEnvelope{}
 	if err := get(ctx, baseURL+"/mapi/feeQuote", envelope); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
@@ -100,7 +101,7 @@ func SubmitTx(ctx context.Context, baseURL string,
 		baseURL = baseURL[:len(baseURL)-1]
 	}
 
-	envelope := &JSONEnvelope{}
+	envelope := &json_envelope.JSONEnvelope{}
 	if err := post(ctx, baseURL+"/mapi/tx", request, envelope); err != nil {
 		return nil, errors.Wrap(err, "http post")
 	}
@@ -141,7 +142,7 @@ func GetTxStatus(ctx context.Context, baseURL string,
 		baseURL = baseURL[:len(baseURL)-1]
 	}
 
-	envelope := &JSONEnvelope{}
+	envelope := &json_envelope.JSONEnvelope{}
 	if err := get(ctx, baseURL+"/mapi/tx/"+txid.String(), envelope); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}

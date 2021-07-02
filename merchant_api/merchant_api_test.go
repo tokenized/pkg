@@ -1,4 +1,4 @@
-package miner
+package merchant_api
 
 import (
 	"context"
