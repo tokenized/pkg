@@ -1,4 +1,4 @@
-package miner
+package json_envelope
 
 import (
 	"crypto/sha256"
