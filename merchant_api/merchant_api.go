@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	ErrHTTPNotFound = errors.New("HTTP Not Found")
+	ErrHTTPNotFound   = errors.New("HTTP Not Found")
+	ErrWrongPublicKey = errors.New("Wrong Public Key")
 )
 
 type FeeQuoteResponse struct {
@@ -115,6 +116,10 @@ func SubmitTx(ctx context.Context, baseURL string,
 		return nil, errors.Wrap(err, "json unmarshal")
 	}
 
+	if envelope.PublicKey != nil && !result.MinerID.Equal(*envelope.PublicKey) {
+		return nil, ErrWrongPublicKey
+	}
+
 	return result, envelope.Verify()
 }
 
@@ -154,6 +159,10 @@ func GetTxStatus(ctx context.Context, baseURL string,
 	result := &GetTxStatusResponse{}
 	if err := json.Unmarshal([]byte(envelope.Payload), result); err != nil {
 		return nil, errors.Wrap(err, "json unmarshal")
+	}
+
+	if envelope.PublicKey != nil && !result.MinerID.Equal(*envelope.PublicKey) {
+		return nil, ErrWrongPublicKey
 	}
 
 	return result, envelope.Verify()
