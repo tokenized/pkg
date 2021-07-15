@@ -52,6 +52,9 @@ var (
 	// ErrTransactionConflict means that the transaction's inputs conflict with an existing tx or
 	// the unconfirmed UTXO dependency chain is longer than the limit.
 	ErrTransactionConflict = errors.New("Transaction Conflict")
+
+	// ErrTransactionAlreadyKnown means that the sent tx is already known.
+	ErrTransactionAlreadyKnown = errors.New("Transaction already known")
 )
 
 type RPCNode struct {
@@ -106,8 +109,26 @@ func ParseError(err error) error {
 	case -25:
 		return errors.Wrap(ErrMissingInputs, err.Error())
 	case -26: // txn-mempool-conflict or too-long-mempool-chain
-		// -26: 258: txn-mempool-conflict
+		if len(parts) < 2 {
+			return errors.Wrap(ErrTransactionConflict, err.Error())
+		}
+
+		value, intErr := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if intErr != nil {
+			return errors.Wrap(ErrTransactionConflict, err.Error())
+		}
+
+		switch value {
+		case 257:
+			// -26: 257: txn-already-known
+			return errors.Wrap(ErrTransactionAlreadyKnown, err.Error())
+		case 258:
+			// -26: 258: txn-mempool-conflict
+			return errors.Wrap(ErrTransactionConflict, err.Error())
+		}
+
 		return errors.Wrap(ErrTransactionConflict, err.Error())
+
 	case -27: // Transaction already in the mempool
 		return errors.Wrap(ErrTransactionInMempool, err.Error())
 	}
@@ -536,9 +557,11 @@ func (r *RPCNode) SendRawTransaction(ctx context.Context, tx *wire.MsgTx) error 
 				logger.Error(ctx, "RPCCallFailed SendRawTransaction : %s", err)
 				return errors.Wrap(err, tx.TxHash().String())
 
-			case ErrTransactionInMempool:
-				fmt.Printf("Found already in mempool\n")
+			case ErrTransactionInMempool, ErrTransactionAlreadyKnown:
 				if r.Config.IgnoreAlreadyInMempool {
+					logger.InfoWithFields(ctx, []logger.Field{
+						logger.Stringer("txid", tx.TxHash()),
+					}, "Already known : %s", err)
 					return nil
 				} else {
 					logger.Error(ctx, "RPCCallFailed SendRawTransaction (Already in mempool) : %s",
