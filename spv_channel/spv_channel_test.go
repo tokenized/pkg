@@ -10,6 +10,19 @@ import (
 
 const rootURL = "http://localhost:8080"
 
+func TestCreateAccount(t *testing.T) {
+	t.Skip()
+	ctx := context.Background()
+
+	accountID, accountToken, err := CreateAccount(ctx, rootURL, "<uuid>")
+	if err != nil {
+		t.Fatalf("Failed to create account : %s", err)
+	}
+
+	t.Logf("Account ID : %s", *accountID)
+	t.Logf("Account Token : %s", *accountToken)
+}
+
 func TestCreateChannel(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
@@ -93,7 +106,7 @@ func TestMarkMessages(t *testing.T) {
 	}
 }
 
-func TestNotifyMessages(t *testing.T) {
+func TestListen(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -132,10 +145,10 @@ func TestNotifyMessages(t *testing.T) {
 		}
 	}()
 
-	if err := NotifyMessages(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	if err := Listen(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", incoming, interrupt); err != nil {
 		t.Fatalf("Failed to notify messages : %s", err)
 	}
 
-	t.Logf("Finished NotifyMessages")
+	t.Logf("Finished Listen")
 }

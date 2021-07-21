@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -19,15 +20,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrHTTPNotFound = errors.New("HTTP Not Found")
-)
-
 type SPVMessage struct {
 	Sequence    uint32    `json:"sequence"`
 	Received    time.Time `json:"received"`
 	ContentType string    `json:"content_type"`
 	Payload     string    `json:"payload"`
+}
+
+type HTTPError struct {
+	Status  int
+	Message string
+}
+
+func (err HTTPError) Error() string {
+	if len(err.Message) > 0 {
+		return fmt.Sprintf("HTTP Status %d : %s", err.Status, err.Message)
+	}
+
+	return fmt.Sprintf("HTTP Status %d", err.Status)
 }
 
 // CreateAccount creates a new account on the SPVChannel service.
@@ -38,7 +48,7 @@ func CreateAccount(ctx context.Context, baseURL, token string) (*uuid.UUID, *uui
 		Token     uuid.UUID `json:"token"`
 	}
 	if err := postWithToken(ctx, baseURL+"/api/v1/account", token, nil, &response); err != nil {
-		return nil, nil, errors.Wrap(err, "http post")
+		return nil, nil, err
 	}
 
 	return &response.AccountID, &response.Token, nil
@@ -50,7 +60,7 @@ func CreateChannel(ctx context.Context, baseURL, accountID, token string) (*Chan
 
 	var response Channel
 	if err := postWithToken(ctx, url, token, nil, &response); err != nil {
-		return nil, errors.Wrap(err, "http post")
+		return nil, err
 	}
 
 	return &response, nil
@@ -62,7 +72,7 @@ func PostMessage(ctx context.Context, baseURL, channelID, token string,
 	response := &SPVMessage{}
 	if err := postWithToken(ctx, baseURL+"/api/v1/channel/"+channelID, token, message,
 		response); err != nil {
-		return nil, errors.Wrap(err, "http post")
+		return nil, err
 	}
 
 	return response, nil
@@ -80,7 +90,7 @@ func GetMessages(ctx context.Context, baseURL, channelID, token string,
 
 	var response []*SPVMessage
 	if err := getWithToken(ctx, url, token, &response); err != nil {
-		return nil, errors.Wrap(err, "http get")
+		return nil, err
 	}
 
 	return response, nil
@@ -91,7 +101,7 @@ func GetMaxMessageSequence(ctx context.Context, baseURL, channelID, token string
 
 	headers, err := headWithToken(ctx, url, token)
 	if err != nil {
-		return 0, errors.Wrap(err, "http head")
+		return 0, err
 	}
 
 	tag := headers.Get("ETag")
@@ -119,15 +129,15 @@ func MarkMessages(ctx context.Context, baseURL, channelID, token string, sequenc
 		Read: read,
 	}
 	if err := postWithToken(ctx, url, token, requestData, nil); err != nil {
-		return errors.Wrap(err, "http post")
+		return err
 	}
 
 	return nil
 }
 
-// NotifyMessages starts a websocket for push notifications. `incoming` is the channel new messages
-// will be fed through. `interrupt` will stop listening if something is fed into it.
-func NotifyMessages(ctx context.Context, baseURL, channelID, token string,
+// Listen starts a websocket for push notifications. `incoming` is the channel new messages will be
+// fed through. `interrupt` will stop listening if something is fed into it.
+func Listen(ctx context.Context, baseURL, channelID, token string,
 	incoming chan SPVMessage, interrupt chan interface{}) error {
 
 	url := fmt.Sprintf("%s/api/v1/channel/%s/notify", baseURL, channelID)
@@ -138,24 +148,32 @@ func NotifyMessages(ctx context.Context, baseURL, channelID, token string,
 	// Authorization: Bearer <token>
 	header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 
-	conn, _, err := websocket.DefaultDialer.Dial(url, header)
+	conn, response, err := websocket.DefaultDialer.Dial(url, header)
 	if err != nil {
+		if errors.Cause(err) == websocket.ErrBadHandshake && response != nil {
+			b, rerr := ioutil.ReadAll(response.Body)
+			if rerr == nil {
+				logger.WarnWithFields(ctx, []logger.Field{
+					logger.String("body", string(b)),
+				}, "Failed to dial websocket : %s", err)
+				return errors.Wrap(err, "dial")
+			}
+		}
+
+		logger.Warn(ctx, "Failed to dial websocket : %s", err)
 		return errors.Wrap(err, "dial")
 	}
 	defer conn.Close()
 
 	// Listen for messages in separate thread.
-	done := make(chan interface{})
+	stopPing := make(chan interface{})
 	go func() {
 		for {
 			messageType, messageBytes, err := conn.ReadMessage()
 			if err != nil {
-				closeError, ok := err.(*websocket.CloseError)
-				if ok {
-					if closeError.Code != websocket.CloseNormalClosure &&
-						closeError.Code != websocket.CloseGoingAway {
-						logger.Info(ctx, "Non-normal websocket close message received : %s", err)
-					}
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure,
+					websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					logger.Info(ctx, "Websocket close : %s", err)
 				} else {
 					logger.Info(ctx, "Failed to read websocket message : %s", err)
 					if err := conn.WriteMessage(websocket.CloseMessage,
@@ -185,18 +203,39 @@ func NotifyMessages(ctx context.Context, baseURL, channelID, token string,
 			incoming <- message
 		}
 
-		close(incoming)
-		close(done)
+		logger.Info(ctx, "Finished listening for messages")
+		close(stopPing) // hit select to stop ping thread.
+	}()
+
+	// Send pings periodicatlly in separate thread.
+	done := make(chan interface{})
+	go func() {
+		stop := false
+		for !stop {
+			select {
+			case <-stopPing:
+				stop = true
+
+			case <-time.After(30 * time.Second): // send ping every 30 seconds to keep alive
+				if err := conn.WriteControl(websocket.PingMessage, []byte("ping"),
+					time.Now().Add(time.Second)); err != nil {
+					logger.Warn(ctx, "Failed to send ping : %s", err)
+					stop = true
+				}
+			}
+		}
+
+		logger.Info(ctx, "Finished sending pings")
+		close(done) // hit top level select to return from listen function
 	}()
 
 	// Wait for interrupt or for listening to finish.
 	select {
 	case <-done:
-		logger.Info(ctx, "Finished listening for messages")
 		return nil
 
 	case <-interrupt:
-		logger.Info(ctx, "Listening stopped")
+		logger.Info(ctx, "Stopping listen")
 
 		// Cleanly close the connection by sending a close message and then waiting (with timeout)
 		// for the server to close the connection.
@@ -207,7 +246,7 @@ func NotifyMessages(ctx context.Context, baseURL, channelID, token string,
 
 		select {
 		case <-done:
-			logger.Info(ctx, "Finished listening for messages")
+			break
 		case <-time.After(time.Second * 3):
 			logger.Info(ctx, "Server didn't close connection")
 		}
@@ -264,10 +303,7 @@ func postWithToken(ctx context.Context, url, token string, request, response int
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
-		if httpResponse.StatusCode == 404 {
-			return errors.Wrap(ErrHTTPNotFound, httpResponse.Status)
-		}
-		return fmt.Errorf("%v %s", httpResponse.StatusCode, httpResponse.Status)
+		return HTTPError{Status: httpResponse.StatusCode}
 	}
 
 	defer httpResponse.Body.Close()
@@ -309,10 +345,7 @@ func getWithToken(ctx context.Context, url, token string, response interface{}) 
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
-		if httpResponse.StatusCode == 404 {
-			return errors.Wrap(ErrHTTPNotFound, httpResponse.Status)
-		}
-		return fmt.Errorf("%v %s", httpResponse.StatusCode, httpResponse.Status)
+		return HTTPError{Status: httpResponse.StatusCode}
 	}
 
 	defer httpResponse.Body.Close()
@@ -354,10 +387,7 @@ func headWithToken(ctx context.Context, url, token string) (*http.Header, error)
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
-		if httpResponse.StatusCode == 404 {
-			return nil, errors.Wrap(ErrHTTPNotFound, httpResponse.Status)
-		}
-		return nil, fmt.Errorf("%v %s", httpResponse.StatusCode, httpResponse.Status)
+		return nil, HTTPError{Status: httpResponse.StatusCode}
 	}
 
 	return &httpResponse.Header, nil
