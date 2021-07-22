@@ -303,6 +303,16 @@ func postWithToken(ctx context.Context, url, token string, request, response int
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
+		if httpResponse.Body != nil {
+			b, rerr := ioutil.ReadAll(httpResponse.Body)
+			if rerr == nil {
+				return HTTPError{
+					Status:  httpResponse.StatusCode,
+					Message: string(b),
+				}
+			}
+		}
+
 		return HTTPError{Status: httpResponse.StatusCode}
 	}
 
@@ -345,6 +355,16 @@ func getWithToken(ctx context.Context, url, token string, response interface{}) 
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
+		if httpResponse.Body != nil {
+			b, rerr := ioutil.ReadAll(httpResponse.Body)
+			if rerr == nil {
+				return HTTPError{
+					Status:  httpResponse.StatusCode,
+					Message: string(b),
+				}
+			}
+		}
+
 		return HTTPError{Status: httpResponse.StatusCode}
 	}
 
@@ -387,6 +407,16 @@ func headWithToken(ctx context.Context, url, token string) (*http.Header, error)
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
+		if httpResponse.Body != nil {
+			b, rerr := ioutil.ReadAll(httpResponse.Body)
+			if rerr == nil {
+				return nil, HTTPError{
+					Status:  httpResponse.StatusCode,
+					Message: string(b),
+				}
+			}
+		}
+
 		return nil, HTTPError{Status: httpResponse.StatusCode}
 	}
 
