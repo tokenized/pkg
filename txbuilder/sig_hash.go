@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"io"
 
+	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 )
@@ -98,6 +100,18 @@ func (shc *SigHashCache) HashOutputs(tx *wire.MsgTx) []byte {
 	return shc.hashOutputs
 }
 
+func SignatureHashPreimageBytes(tx *wire.MsgTx, index int, lockScript []byte, value uint64,
+	hashType SigHashType, hashCache *SigHashCache) ([]byte, error) {
+
+	buf := &bytes.Buffer{}
+	if err := writeSignatureHashPreimageBytes(buf, tx, index, lockScript, value, hashType,
+		hashCache); err != nil {
+		return nil, errors.Wrap(err, "write sig hash bytes")
+	}
+
+	return buf.Bytes(), nil
+}
+
 // signatureHash computes the hash to be signed for a transaction's input using the new, optimized
 //   digest calculation algorithm defined in BIP0143:
 //   https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki.
@@ -111,16 +125,27 @@ func (shc *SigHashCache) HashOutputs(tx *wire.MsgTx) []byte {
 func signatureHash(tx *wire.MsgTx, index int, lockScript []byte, value uint64,
 	hashType SigHashType, hashCache *SigHashCache) ([]byte, error) {
 
-	// As a sanity check, ensure the passed input index for the transaction is valid.
-	if index > len(tx.TxIn)-1 {
-		return nil, fmt.Errorf("signatureHash error: index %d but %d txins", index, len(tx.TxIn))
-	}
-
-	// Buffer for data to be hashed.
 	s := sha256.New()
 
+	if err := writeSignatureHashPreimageBytes(s, tx, index, lockScript, value, hashType,
+		hashCache); err != nil {
+		return nil, errors.Wrap(err, "write sig hash bytes")
+	}
+
+	hash := sha256.Sum256(s.Sum(nil))
+	return hash[:], nil
+}
+
+func writeSignatureHashPreimageBytes(w io.Writer, tx *wire.MsgTx, index int, lockScript []byte,
+	value uint64, hashType SigHashType, hashCache *SigHashCache) error {
+
+	// As a sanity check, ensure the passed input index for the transaction is valid.
+	if index > len(tx.TxIn)-1 {
+		return fmt.Errorf("signatureHash error: index %d but %d txins", index, len(tx.TxIn))
+	}
+
 	// First write out, then encode the transaction's version number.
-	binary.Write(s, binary.LittleEndian, tx.Version)
+	binary.Write(w, binary.LittleEndian, tx.Version)
 
 	// Next write out the possibly pre-calculated hashes for the sequence
 	// numbers of all inputs, and the hashes of the previous outs for all
@@ -129,47 +154,45 @@ func signatureHash(tx *wire.MsgTx, index int, lockScript []byte, value uint64,
 
 	// If anyone can pay is active we just write zeroes for the prev outs hash.
 	if hashType&SigHashAnyOneCanPay == 0 {
-		s.Write(hashCache.HashPrevOuts(tx))
+		w.Write(hashCache.HashPrevOuts(tx))
 	} else {
-		s.Write(zeroHash[:])
+		w.Write(zeroHash[:])
 	}
 
 	// If the sighash is anyone can pay, single, or none we write all zeroes for the sequence hash.
 	if hashType&SigHashAnyOneCanPay == 0 &&
 		hashType&sigHashMask != SigHashSingle &&
 		hashType&sigHashMask != SigHashNone {
-		s.Write(hashCache.HashSequence(tx))
+		w.Write(hashCache.HashSequence(tx))
 	} else {
-		s.Write(zeroHash[:])
+		w.Write(zeroHash[:])
 	}
 
 	// Next, write the outpoint being spent.
-	tx.TxIn[index].PreviousOutPoint.Serialize(s)
+	tx.TxIn[index].PreviousOutPoint.Serialize(w)
 
 	// Write the locking script being spent.
-	wire.WriteVarBytes(s, 0, lockScript)
+	wire.WriteVarBytes(w, 0, lockScript)
 
 	// Next, add the input amount, and sequence number of the input being signed.
-	binary.Write(s, binary.LittleEndian, value)
-	binary.Write(s, binary.LittleEndian, tx.TxIn[index].Sequence)
+	binary.Write(w, binary.LittleEndian, value)
+	binary.Write(w, binary.LittleEndian, tx.TxIn[index].Sequence)
 
 	// If the current signature mode is single, or none, then we'll serialize and add only the
 	//   target output index to the signature pre-image.
-	if hashType&SigHashSingle != SigHashSingle &&
-		hashType&SigHashNone != SigHashNone {
-		s.Write(hashCache.HashOutputs(tx))
+	if hashType&SigHashSingle != SigHashSingle && hashType&SigHashNone != SigHashNone {
+		w.Write(hashCache.HashOutputs(tx))
 	} else if hashType&sigHashMask == SigHashSingle && index < len(tx.TxOut) {
 		var b bytes.Buffer
 		tx.TxOut[index].Serialize(&b, 0, 0)
-		s.Write(bitcoin.DoubleSha256(b.Bytes()))
+		w.Write(bitcoin.DoubleSha256(b.Bytes()))
 	} else {
-		s.Write(zeroHash[:])
+		w.Write(zeroHash[:])
 	}
 
 	// Finally, write out the transaction's locktime, and the sig hash type.
-	binary.Write(s, binary.LittleEndian, tx.LockTime)
-	binary.Write(s, binary.LittleEndian, uint32(hashType|SigHashForkID))
+	binary.Write(w, binary.LittleEndian, tx.LockTime)
+	binary.Write(w, binary.LittleEndian, uint32(hashType|SigHashForkID))
 
-	hash := sha256.Sum256(s.Sum(nil))
-	return hash[:], nil
+	return nil
 }

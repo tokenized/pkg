@@ -327,7 +327,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 			} else {
 				// Break change between supplied addresses.
 				outputs, err := BreakValue(changeValue, breakValue, changeAddresses, tx.DustFeeRate,
-					tx.FeeRate, true)
+					tx.FeeRate, true, true)
 				if err != nil {
 					return errors.Wrap(err, "break change")
 				}

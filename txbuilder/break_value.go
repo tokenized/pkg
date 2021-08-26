@@ -21,7 +21,7 @@ var (
 // breakValue should be a fairly low value that is the smallest UTXO you want created other than
 // the remainder.
 func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
-	dustFeeRate, feeRate float32, lastIsRemainder bool) ([]*Output, error) {
+	dustFeeRate, feeRate float32, lastIsRemainder bool, subtractFee bool) ([]*Output, error) {
 	// Choose random multiples of breakValue until the value is taken up.
 
 	// Find the average value to break the value into the provided addresses
@@ -54,14 +54,18 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		outputFee, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate,
 			feeRate)
 
-		if remaining <= outputFee {
-			break // remaining amount is less than fee to include another output
-		}
-		remaining -= outputFee
+		if subtractFee {
+			if remaining <= outputFee {
+				break // remaining amount is less than fee to include another output
+			}
+			remaining -= outputFee
 
-		if remaining <= dustLimit || remaining < breakValue {
-			remaining += outputFee // abort adding this output, so add the fee for it back in
-			break                  // remaining amount is less than dust required to include next address
+			if remaining <= dustLimit || remaining < breakValue {
+				remaining += outputFee // abort adding this output, so add the fee for it back in
+				break                  // remaining amount is less than dust required to include next address
+			}
+		} else if remaining <= dustLimit || remaining < breakValue {
+			break // remaining amount is less than dust required to include next address
 		}
 
 		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
@@ -105,26 +109,47 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		return nil, errors.Wrap(err, "locking script")
 	}
 
-	outputFee, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate,
-		feeRate)
+	if subtractFee {
+		outputFee, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate,
+			feeRate)
 
-	if remaining > outputFee+dustLimit {
-		remaining -= outputFee
+		if remaining > outputFee+dustLimit {
+			remaining -= outputFee
 
-		result = append(result, &Output{
-			TxOut: wire.TxOut{
-				Value:    remaining,
-				PkScript: lockingScript,
-			},
-			Supplement: OutputSupplement{
-				IsRemainder: lastIsRemainder,
-				KeyID:       changeAddresses[nextIndex].KeyID,
-			},
-		})
-	} else if len(result) > 1 {
-		// Add to last output
-		result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
-		result[len(result)-1].TxOut.Value += remaining
+			result = append(result, &Output{
+				TxOut: wire.TxOut{
+					Value:    remaining,
+					PkScript: lockingScript,
+				},
+				Supplement: OutputSupplement{
+					IsRemainder: lastIsRemainder,
+					KeyID:       changeAddresses[nextIndex].KeyID,
+				},
+			})
+		} else if len(result) > 1 {
+			// Add to last output
+			result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
+			result[len(result)-1].TxOut.Value += remaining
+		}
+	} else {
+		_, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate, feeRate)
+
+		if remaining > dustLimit {
+			result = append(result, &Output{
+				TxOut: wire.TxOut{
+					Value:    remaining,
+					PkScript: lockingScript,
+				},
+				Supplement: OutputSupplement{
+					IsRemainder: lastIsRemainder,
+					KeyID:       changeAddresses[nextIndex].KeyID,
+				},
+			})
+		} else if len(result) > 1 {
+			// Add to last output
+			result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
+			result[len(result)-1].TxOut.Value += remaining
+		}
 	}
 
 	// Random sort outputs

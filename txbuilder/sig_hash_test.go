@@ -3,6 +3,7 @@ package txbuilder
 import (
 	"bytes"
 	"encoding/hex"
+	"math/rand"
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -210,4 +211,47 @@ func reverse32(h, rh []byte) {
 		h[i] = b
 		i--
 	}
+}
+
+func TestSigHashBytes(t *testing.T) {
+	tx := NewTxBuilder(0.5, 0.25)
+
+	ad, err := bitcoin.DecodeAddress("12QTzHPj6vLPzsfcjZVtrPad5wiQ6TDvFV")
+	if err != nil {
+		t.Fatalf("Failed to decode address : %s", err)
+	}
+	ra := bitcoin.NewRawAddressFromAddress(ad)
+
+	utxo := bitcoin.UTXO{
+		Index:         1,
+		Value:         10000,
+		LockingScript: []byte{0},
+	}
+
+	rand.Read(utxo.Hash[:])
+
+	tx.AddPaymentOutput(ra, 2000, false)
+	tx.AddInputUTXO(utxo)
+
+	buf := &bytes.Buffer{}
+	if err := tx.MsgTx.Serialize(buf); err != nil {
+		t.Fatalf("Failed to serialize tx : %s", err)
+	}
+
+	t.Logf("Tx : %x", buf.Bytes())
+
+	buf = &bytes.Buffer{}
+	if err := tx.MsgTx.TxOut[0].Serialize(buf, 0, 0); err != nil {
+		t.Fatalf("Failed to serialize tx output : %s", err)
+	}
+
+	t.Logf("Outputs : %x", buf.Bytes())
+
+	b, err := SignatureHashPreimageBytes(tx.MsgTx, 0, []byte{0}, 10000, SigHashAll|SigHashForkID,
+		&SigHashCache{})
+	if err != nil {
+		t.Fatalf("Failed to get sig hash preimage bytes : %s", err)
+	}
+
+	t.Logf("Sig Hash Preimage : %x", b)
 }

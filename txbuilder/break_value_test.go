@@ -52,7 +52,7 @@ func Test_BreakValue(t *testing.T) {
 		t.Logf("Testing BreakValue %d/%d", changeValue, breakValue)
 
 		outputs, err := BreakValue(changeValue, breakValue, changeAddresses, dustFeeRate, feeRate,
-			true)
+			true, true)
 		if err != nil {
 			t.Fatalf("Failed to break change : %s", err)
 		}
@@ -133,7 +133,7 @@ func Test_BreakValueNoFee(t *testing.T) {
 	for _, value := range values {
 		t.Logf("Testing BreakValue %d/%d", value, breakValue)
 
-		outputs, err := BreakValue(value, breakValue, addresses, dustFeeRate, feeRate, true)
+		outputs, err := BreakValue(value, breakValue, addresses, dustFeeRate, feeRate, true, true)
 		if err != nil {
 			t.Fatalf("Failed to break change : %s", err)
 		}
