@@ -2,7 +2,8 @@ package bitcoin
 
 import (
 	"bytes"
-	"encoding/binary"
+
+	"github.com/pkg/errors"
 )
 
 // AddressFromLockingScript returns the address associated with the specified locking script.
@@ -252,6 +253,15 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 
+		if script[0] != OP_FROMALTSTACK {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+		script = script[1:]
+
+		if len(script) < 2 {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+
 		// Parse required signature count
 		required, length, err := ParsePushNumberScript(script)
 		if err != nil {
@@ -259,16 +269,11 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 		}
 		script = script[length:]
 
-		if len(script) < 2 {
+		if len(script) != 1 {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 
-		if script[0] != OP_FROMALTSTACK {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-		script = script[1:]
-
-		if script[0] != OP_LESSTHANOREQUAL {
+		if script[0] != OP_GREATERTHANOREQUAL {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 		script = script[1:]
@@ -344,14 +349,14 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 	case ScriptTypeMultiPKH:
 		buf := bytes.NewReader(ra.data)
 
-		var required uint16
-		if err := binary.Read(buf, binary.LittleEndian, &required); err != nil {
-			return nil, err
+		required, err := ReadBase128VarInt(buf)
+		if err != nil {
+			return nil, errors.Wrap(err, "read required")
 		}
 
-		var count uint16
-		if err := binary.Read(buf, binary.LittleEndian, &count); err != nil {
-			return nil, err
+		count, err := ReadBase128VarInt(buf)
+		if err != nil {
+			return nil, errors.Wrap(err, "read count")
 		}
 
 		pkh := make([]byte, ScriptHashLength)
@@ -363,7 +368,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		result = append(result, OP_FALSE)
 		result = append(result, OP_TOALTSTACK)
 
-		for i := uint16(0); i < count; i++ {
+		for i := uint64(0); i < count; i++ {
 			// Check if this pkh has a signature
 			result = append(result, OP_IF)
 
@@ -374,7 +379,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 			// Push public key hash
 			result = append(result, OP_PUSH_DATA_20) // Single byte push op code of 20 bytes
 			if _, err := buf.Read(pkh); err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "read pkh")
 			}
 			result = append(result, pkh...)
 
@@ -390,9 +395,9 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		}
 
 		// Check required signature count
-		result = append(result, PushNumberScript(int64(required))...)
 		result = append(result, OP_FROMALTSTACK)
-		result = append(result, OP_LESSTHANOREQUAL)
+		result = append(result, PushNumberScript(int64(required))...)
+		result = append(result, OP_GREATERTHANOREQUAL)
 		return result, nil
 
 	case ScriptTypeNonStandard:

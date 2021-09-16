@@ -3,8 +3,10 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -13,8 +15,22 @@ const (
 	OP_FALSE              = 0x00
 	OP_TRUE               = 0x51
 	OP_1NEGATE            = 0x4f
+	OP_0                  = 0x00
 	OP_1                  = 0x51
+	OP_2                  = 0x52
 	OP_3                  = 0x53
+	OP_4                  = 0x54
+	OP_5                  = 0x55
+	OP_6                  = 0x56
+	OP_7                  = 0x57
+	OP_8                  = 0x58
+	OP_9                  = 0x59
+	OP_10                 = 0x5a
+	OP_11                 = 0x5b
+	OP_12                 = 0x5c
+	OP_13                 = 0x5d
+	OP_14                 = 0x5e
+	OP_15                 = 0x5f
 	OP_16                 = 0x60
 	OP_RETURN             = 0x6a
 	OP_DUP                = 0x76
@@ -63,6 +79,90 @@ var (
 
 	ErrNotP2PKH  = errors.New("Not P2PKH")
 	ErrNotPushOp = errors.New("Not Push Op")
+
+	OPCodeToNames = map[byte]string{
+		OP_FALSE:              "OP_FALSE",
+		OP_1NEGATE:            "OP_1NEGATE",
+		OP_1:                  "OP_1",
+		OP_2:                  "OP_2",
+		OP_3:                  "OP_3",
+		OP_4:                  "OP_4",
+		OP_5:                  "OP_5",
+		OP_6:                  "OP_6",
+		OP_7:                  "OP_7",
+		OP_8:                  "OP_8",
+		OP_9:                  "OP_9",
+		OP_10:                 "OP_10",
+		OP_11:                 "OP_11",
+		OP_12:                 "OP_12",
+		OP_13:                 "OP_13",
+		OP_14:                 "OP_14",
+		OP_15:                 "OP_15",
+		OP_16:                 "OP_16",
+		OP_RETURN:             "OP_RETURN",
+		OP_DUP:                "OP_DUP",
+		OP_HASH160:            "OP_HASH160",
+		OP_EQUAL:              "OP_EQUAL",
+		OP_EQUALVERIFY:        "OP_EQUALVERIFY",
+		OP_LESSTHANOREQUAL:    "OP_LESSTHANOREQUAL",
+		OP_GREATERTHANOREQUAL: "OP_GREATERTHANOREQUAL",
+		OP_CHECKSIG:           "OP_CHECKSIG",
+		OP_CHECKSIGVERIFY:     "OP_CHECKSIGVERIFY",
+		OP_IF:                 "OP_IF",
+		OP_ENDIF:              "OP_ENDIF",
+		OP_TOALTSTACK:         "OP_TOALTSTACK",
+		OP_FROMALTSTACK:       "OP_FROMALTSTACK",
+		OP_1ADD:               "OP_1ADD",
+		OP_SPLIT:              "OP_SPLIT",
+		OP_NIP:                "OP_NIP",
+		OP_SWAP:               "OP_SWAP",
+		OP_DROP:               "OP_DROP",
+		OP_PUBKEY:             "OP_PUBKEY",
+		OP_PUBKEYHASH:         "OP_PUBKEYHASH",
+	}
+
+	OPCodeFromNames = map[string]byte{
+		"OP_FALSE":              OP_FALSE,
+		"OP_TRUE":               OP_TRUE,
+		"OP_1NEGATE":            OP_1NEGATE,
+		"OP_0":                  OP_0,
+		"OP_1":                  OP_1,
+		"OP_2":                  OP_2,
+		"OP_3":                  OP_3,
+		"OP_4":                  OP_4,
+		"OP_5":                  OP_5,
+		"OP_6":                  OP_6,
+		"OP_7":                  OP_7,
+		"OP_8":                  OP_8,
+		"OP_9":                  OP_9,
+		"OP_10":                 OP_10,
+		"OP_11":                 OP_11,
+		"OP_12":                 OP_12,
+		"OP_13":                 OP_13,
+		"OP_14":                 OP_14,
+		"OP_15":                 OP_15,
+		"OP_16":                 OP_16,
+		"OP_RETURN":             OP_RETURN,
+		"OP_DUP":                OP_DUP,
+		"OP_HASH160":            OP_HASH160,
+		"OP_EQUAL":              OP_EQUAL,
+		"OP_EQUALVERIFY":        OP_EQUALVERIFY,
+		"OP_LESSTHANOREQUAL":    OP_LESSTHANOREQUAL,
+		"OP_GREATERTHANOREQUAL": OP_GREATERTHANOREQUAL,
+		"OP_CHECKSIG":           OP_CHECKSIG,
+		"OP_CHECKSIGVERIFY":     OP_CHECKSIGVERIFY,
+		"OP_IF":                 OP_IF,
+		"OP_ENDIF":              OP_ENDIF,
+		"OP_TOALTSTACK":         OP_TOALTSTACK,
+		"OP_FROMALTSTACK":       OP_FROMALTSTACK,
+		"OP_1ADD":               OP_1ADD,
+		"OP_SPLIT":              OP_SPLIT,
+		"OP_NIP":                OP_NIP,
+		"OP_SWAP":               OP_SWAP,
+		"OP_DROP":               OP_DROP,
+		"OP_PUBKEY":             OP_PUBKEY,
+		"OP_PUBKEYHASH":         OP_PUBKEYHASH,
+	}
 )
 
 // PushDataScriptSize returns the encoded push data script size op codes.
@@ -165,13 +265,15 @@ func ParsePushDataScript(buf *bytes.Reader) (uint8, []byte, error) {
 
 	isPushOp := false
 	dataSize := 0
-	if opCode <= OP_MAX_SINGLE_BYTE_PUSH_DATA {
+	if opCode == OP_FALSE {
+		return opCode, nil, ErrNotPushOp
+	} else if opCode <= OP_MAX_SINGLE_BYTE_PUSH_DATA {
 		isPushOp = true
 		dataSize = int(opCode)
 	} else if opCode >= OP_1 && opCode <= OP_16 {
-		return opCode, []byte{opCode - OP_1 + 1}, nil
+		return opCode, []byte{opCode - OP_1 + 1}, ErrNotPushOp
 	} else if opCode == OP_1NEGATE {
-		return opCode, []byte{0xff}, nil
+		return opCode, []byte{0xff}, ErrNotPushOp
 	} else {
 		switch opCode {
 		case OP_PUSH_DATA_1:
@@ -445,4 +547,89 @@ func LockingScriptIsUnspendable(script []byte) bool {
 	}
 
 	return false
+}
+
+// ScriptToString converts a bitcoin script into a text representation.
+func ScriptToString(script []byte) string {
+	var result string
+	buf := bytes.NewReader(script)
+
+	for {
+		opCode, data, err := ParsePushDataScript(buf)
+		if err == io.EOF {
+			break
+		}
+
+		if len(result) > 0 {
+			result += " "
+		}
+
+		if err == nil {
+			// Push data
+			result += fmt.Sprintf("0x%s", hex.EncodeToString(data))
+			continue
+		}
+
+		if err != ErrNotPushOp {
+			result += fmt.Sprintf("{error %s}", err)
+			continue
+		}
+
+		// Op Code
+		name, exists := OPCodeToNames[opCode]
+		if exists {
+			result += name
+			continue
+		}
+
+		// Undefined op code
+		result += fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{opCode}))
+	}
+
+	return result
+}
+
+// StringToScript converts a text representation of a bitcoin script to a string.
+func StringToScript(text string) ([]byte, error) {
+	buf := &bytes.Buffer{}
+
+	parts := strings.Fields(text)
+	for _, part := range parts {
+		opCode, exists := OPCodeFromNames[part]
+		if exists {
+			buf.WriteByte(opCode)
+			continue
+		}
+
+		if len(part) < 2 {
+			return nil, fmt.Errorf("Invalid part : \"%s\"", part)
+		}
+
+		if part[0] == '{' && part[len(part)-1] == '}' {
+			// Undefined op code
+			b, err := hex.DecodeString(part)
+			if err != nil {
+				return nil, errors.Wrapf(err, "decode undefined op code hex: %s", part)
+			}
+
+			buf.Write(b)
+			continue
+		}
+
+		b, err := hex.DecodeString(part[2:]) // skip leading "0x"
+		if err != nil {
+			return nil, errors.Wrapf(err, "decode push data hex: %s", part[2:])
+		}
+
+		if err := WritePushDataScript(buf, b); err != nil {
+			return nil, errors.Wrap(err, "write push data")
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func CleanScriptText(text string) string {
+	parts := strings.Fields(text)
+	return strings.Join(parts, " ")
 }

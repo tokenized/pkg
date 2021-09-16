@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 )
 
@@ -75,11 +76,48 @@ func TestParsePushDataScript(t *testing.T) {
 		}
 		r := bytes.NewReader(buf.Bytes())
 		_, result, err := ParsePushDataScript(r)
-		if err != nil {
+		if err != nil && err != ErrNotPushOp {
 			t.Fatalf("Failed test %d : %s", i, err)
 		}
 		if uint64(len(result)) != test.size {
 			t.Fatalf("Failed test %d :\nResult : %d\nCorrect : %d\n", i, result, test.size)
 		}
+	}
+}
+
+func TestScriptToString(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		hex  string
+	}{
+		{
+			name: "PKH",
+			text: "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
+			hex:  "76a914999ac355257736dfa1ad9652fcb51c7136fc27f988ac",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script, err := hex.DecodeString(tt.hex)
+			if err != nil {
+				t.Fatalf("Failed to decode hex : %s", err)
+			}
+
+			str := ScriptToString(script)
+			if str != tt.text {
+				t.Fatalf("Wrong text : \ngot  : %s\nwant : %s", str, tt.text)
+			}
+
+			scr, err := StringToScript(tt.text)
+			if err != nil {
+				t.Fatalf("Failed to convert string to script : %s", err)
+			}
+
+			if !bytes.Equal(scr, script) {
+				t.Fatalf("Wrong bytes : \ngot  : %x\nwant : %x", scr, script)
+			}
+		})
 	}
 }
