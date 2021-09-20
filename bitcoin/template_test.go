@@ -73,7 +73,7 @@ func TestTemplatePKH(t *testing.T) {
 		t.Fatalf("Failed to generate script : %s", err)
 	}
 
-	t.Logf("Script : %s", script)
+	t.Logf("Script : %s", ScriptToString(script))
 
 	template := PKHTemplate
 	t.Logf("Template : %x", template.Bytes())
@@ -112,7 +112,7 @@ func TestTemplateMultiPKH(t *testing.T) {
 		t.Fatalf("Failed to generate script : %s", err)
 	}
 
-	t.Logf("Script : %s", script)
+	t.Logf("Script : %s", ScriptToString(script))
 
 	template, err := NewMultiPKHTemplate(1, 2)
 	if err != nil {

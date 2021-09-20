@@ -167,9 +167,8 @@ var (
 
 type Script []byte
 
-func NewScript(b []byte) *Script {
-	result := Script(b)
-	return &result
+func NewScript(b []byte) Script {
+	return Script(b)
 }
 
 func (s Script) String() string {

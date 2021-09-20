@@ -7,7 +7,7 @@ import (
 )
 
 // AddressFromLockingScript returns the address associated with the specified locking script.
-func AddressFromLockingScript(lockingScript []byte, net Network) (Address, error) {
+func AddressFromLockingScript(lockingScript Script, net Network) (Address, error) {
 	ra, err := RawAddressFromLockingScript(lockingScript)
 	if err != nil {
 		return Address{}, err
@@ -16,7 +16,7 @@ func AddressFromLockingScript(lockingScript []byte, net Network) (Address, error
 }
 
 // checkNonStandard returns a non-standard raw address if the locking script is possibly spendable.
-func checkNonStandard(lockingScript []byte) (RawAddress, error) {
+func checkNonStandard(lockingScript Script) (RawAddress, error) {
 	if LockingScriptIsUnspendable(lockingScript) {
 		return RawAddress{}, ErrUnknownScriptTemplate
 	}
@@ -26,7 +26,7 @@ func checkNonStandard(lockingScript []byte) (RawAddress, error) {
 
 // RawAddressFromLockingScript returns the script template associated with the specified locking
 //   script.
-func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
+func RawAddressFromLockingScript(lockingScript Script) (RawAddress, error) {
 	var result RawAddress
 	if len(lockingScript) == 0 {
 		return result, ErrUnknownScriptTemplate
@@ -285,10 +285,10 @@ func RawAddressFromLockingScript(lockingScript []byte) (RawAddress, error) {
 	return checkNonStandard(lockingScript)
 }
 
-func (ra RawAddress) LockingScript() ([]byte, error) {
+func (ra RawAddress) LockingScript() (Script, error) {
 	switch ra.scriptType {
 	case ScriptTypePKH:
-		result := make([]byte, 0, 25)
+		result := make(Script, 0, 25)
 
 		result = append(result, OP_DUP)
 		result = append(result, OP_HASH160)
@@ -302,7 +302,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		return result, nil
 
 	case ScriptTypePK:
-		result := make([]byte, 0, PublicKeyCompressedLength+2)
+		result := make(Script, 0, PublicKeyCompressedLength+2)
 
 		// Push public key
 		result = append(result, OP_PUSH_DATA_33) // Single byte push op code of 33 bytes
@@ -312,7 +312,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		return result, nil
 
 	case ScriptTypeSH:
-		result := make([]byte, 0, 23)
+		result := make(Script, 0, 23)
 
 		result = append(result, OP_HASH160)
 
@@ -324,7 +324,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		return result, nil
 
 	case ScriptTypeRPH:
-		result := make([]byte, 0, 34)
+		result := make(Script, 0, 34)
 
 		result = append(result, OP_DUP)
 		result = append(result, OP_3)
@@ -363,7 +363,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 
 		// 14 = 10 max number push + 4 op codes outside of pkh if statements
 		// 30 = 10 op codes + 20 byte pkh per pkh
-		result := make([]byte, 0, 14+(count*30))
+		result := make(Script, 0, 14+(count*30))
 
 		result = append(result, OP_FALSE)
 		result = append(result, OP_TOALTSTACK)
@@ -401,7 +401,7 @@ func (ra RawAddress) LockingScript() ([]byte, error) {
 		return result, nil
 
 	case ScriptTypeNonStandard:
-		return ra.data, nil
+		return NewScript(ra.data), nil
 	}
 
 	return nil, ErrUnknownScriptTemplate

@@ -17,7 +17,7 @@ const (
 var (
 	ErrNotEnoughPublicKeys = errors.New("Not Enough Public Keys")
 
-	PKHTemplate  = Template{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG}
+	PKHTemplate = Template{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG}
 
 	MultiPKHWrap = Script{OP_IF, OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY,
 		OP_CHECKSIGVERIFY, OP_FROMALTSTACK, OP_1ADD, OP_TOALTSTACK, OP_ENDIF}
@@ -27,7 +27,7 @@ var (
 // locking script without the public keys or other specific values needed to make it complete.
 type Template Script
 
-func NewMultiPKHTemplate(required, total int) (*Template, error) {
+func NewMultiPKHTemplate(required, total int) (Template, error) {
 	result := &bytes.Buffer{}
 
 	// Push zero to alt stack to initialize the counter.
@@ -58,12 +58,11 @@ func NewMultiPKHTemplate(required, total int) (*Template, error) {
 		return nil, errors.Wrap(err, "write byte")
 	}
 
-	t := Template(result.Bytes())
-	return &t, nil
+	return Template(result.Bytes()), nil
 }
 
 // LockingScript populates the template with public key values and creates a locking script.
-func (t Template) LockingScript(publicKeys []PublicKey) (*Script, error) {
+func (t Template) LockingScript(publicKeys []PublicKey) (Script, error) {
 	result := &bytes.Buffer{}
 	buf := bytes.NewReader(t)
 	pubKeyIndex := 0
