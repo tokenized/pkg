@@ -17,20 +17,15 @@ const (
 var (
 	ErrNotEnoughPublicKeys = errors.New("Not Enough Public Keys")
 
-	PKHTemplate  = []byte{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG}
-	MultiPKHWrap = []byte{OP_IF, OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY,
+	PKHTemplate  = Template{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG}
+
+	MultiPKHWrap = Script{OP_IF, OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY,
 		OP_CHECKSIGVERIFY, OP_FROMALTSTACK, OP_1ADD, OP_TOALTSTACK, OP_ENDIF}
 )
 
-type Template struct {
-	bytes []byte
-}
-
-func NewPKHTemplate() *Template {
-	return &Template{
-		bytes: PKHTemplate,
-	}
-}
+// Template represents a locking script that is incomplete. It represents the function of the
+// locking script without the public keys or other specific values needed to make it complete.
+type Template Script
 
 func NewMultiPKHTemplate(required, total int) (*Template, error) {
 	result := &bytes.Buffer{}
@@ -63,15 +58,14 @@ func NewMultiPKHTemplate(required, total int) (*Template, error) {
 		return nil, errors.Wrap(err, "write byte")
 	}
 
-	return &Template{
-		bytes: result.Bytes(),
-	}, nil
+	t := Template(result.Bytes())
+	return &t, nil
 }
 
 // LockingScript populates the template with public key values and creates a locking script.
-func (t Template) LockingScript(publicKeys []PublicKey) ([]byte, error) {
+func (t Template) LockingScript(publicKeys []PublicKey) (*Script, error) {
 	result := &bytes.Buffer{}
-	buf := bytes.NewReader(t.bytes)
+	buf := bytes.NewReader(t)
 	pubKeyIndex := 0
 
 	for {
@@ -124,15 +118,15 @@ func (t Template) LockingScript(publicKeys []PublicKey) ([]byte, error) {
 		}
 	}
 
-	return result.Bytes(), nil
+	return NewScript(result.Bytes()), nil
 }
 
 func (t Template) String() string {
-	return ScriptToString(t.bytes)
+	return ScriptToString(t)
 }
 
 func (t Template) Bytes() []byte {
-	return t.bytes
+	return t
 }
 
 // MarshalText returns the text encoding of the raw address.
@@ -162,15 +156,15 @@ func (t Template) MarshalBinary() ([]byte, error) {
 // Implements encoding.BinaryUnmarshaler interface.
 func (t *Template) UnmarshalBinary(data []byte) error {
 	// Copy byte slice in case it is reused after this call.
-	t.bytes = make([]byte, len(data))
-	copy(t.bytes, data)
+	*t = make([]byte, len(data))
+	copy(*t, data)
 	return nil
 }
 
 // Scan converts from a database column.
 func (t *Template) Scan(data interface{}) error {
 	if data == nil {
-		t.bytes = nil
+		*t = nil
 		return nil
 	}
 
@@ -180,13 +174,13 @@ func (t *Template) Scan(data interface{}) error {
 	}
 
 	if len(b) == 0 {
-		t.bytes = nil
+		*t = nil
 		return nil
 	}
 
 	// Copy byte slice because it will be wiped out by the database after this call.
-	t.bytes = make([]byte, len(b))
-	copy(t.bytes, b)
+	*t = make([]byte, len(b))
+	copy(*t, b)
 
 	return nil
 }

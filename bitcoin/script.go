@@ -165,6 +165,77 @@ var (
 	}
 )
 
+type Script []byte
+
+func NewScript(b []byte) *Script {
+	result := Script(b)
+	return &result
+}
+
+func (s Script) String() string {
+	return ScriptToString(s)
+}
+
+func (s Script) Bytes() []byte {
+	return s
+}
+
+// MarshalText returns the text encoding of the raw address.
+// Implements encoding.TextMarshaler interface.
+func (s Script) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+// UnmarshalText parses a text encoded raw address and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (s *Script) UnmarshalText(text []byte) error {
+	b, err := StringToScript(string(text))
+	if err != nil {
+		return errors.Wrap(err, "script to string")
+	}
+
+	return s.UnmarshalBinary(b)
+}
+
+// MarshalBinary returns the binary encoding of the raw address.
+// Implements encoding.BinaryMarshaler interface.
+func (s Script) MarshalBinary() ([]byte, error) {
+	return s.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded raw address and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (s *Script) UnmarshalBinary(data []byte) error {
+	// Copy byte slice in case it is reused after this call.
+	*s = make([]byte, len(data))
+	copy(*s, data)
+	return nil
+}
+
+// Scan converts from a database column.
+func (s *Script) Scan(data interface{}) error {
+	if data == nil {
+		*s = nil
+		return nil
+	}
+
+	b, ok := data.([]byte)
+	if !ok {
+		return errors.New("Script db column not bytes")
+	}
+
+	if len(b) == 0 {
+		*s = nil
+		return nil
+	}
+
+	// Copy byte slice because it will be wiped out by the database after this call.
+	*s = make([]byte, len(b))
+	copy(*s, b)
+
+	return nil
+}
+
 // PushDataScriptSize returns the encoded push data script size op codes.
 func PushDataScriptSize(size uint64) []byte {
 	if size <= uint64(OP_MAX_SINGLE_BYTE_PUSH_DATA) {

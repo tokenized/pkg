@@ -73,10 +73,9 @@ func TestTemplatePKH(t *testing.T) {
 		t.Fatalf("Failed to generate script : %s", err)
 	}
 
-	t.Logf("Script : %s", ScriptToString(script))
+	t.Logf("Script : %s", script)
 
-	template := NewPKHTemplate()
-
+	template := PKHTemplate
 	t.Logf("Template : %x", template.Bytes())
 
 	templateScript, err := template.LockingScript([]PublicKey{key.PublicKey()})
@@ -84,10 +83,10 @@ func TestTemplatePKH(t *testing.T) {
 		t.Fatalf("Failed to create template script : %s", err)
 	}
 
-	t.Logf("Template Script : %s", ScriptToString(templateScript))
+	t.Logf("Template Script : %s", templateScript)
 
-	if !bytes.Equal(script, templateScript) {
-		t.Fatalf("Wrong script : \ngot  : %x\nwant : %x", script, templateScript)
+	if !bytes.Equal(script, templateScript.Bytes()) {
+		t.Fatalf("Wrong script : \ngot  : %x\nwant : %x", script, templateScript.Bytes())
 	}
 }
 
@@ -113,7 +112,7 @@ func TestTemplateMultiPKH(t *testing.T) {
 		t.Fatalf("Failed to generate script : %s", err)
 	}
 
-	t.Logf("Script : %s", ScriptToString(script))
+	t.Logf("Script : %s", script)
 
 	template, err := NewMultiPKHTemplate(1, 2)
 	if err != nil {
@@ -127,10 +126,10 @@ func TestTemplateMultiPKH(t *testing.T) {
 		t.Fatalf("Failed to create template script : %s", err)
 	}
 
-	t.Logf("Template Script : %s", ScriptToString(templateScript))
+	t.Logf("Template Script : %s", templateScript)
 
-	if !bytes.Equal(script, templateScript) {
-		t.Fatalf("Wrong script : \ngot  : %x\nwant : %x", script, templateScript)
+	if !bytes.Equal(script, templateScript.Bytes()) {
+		t.Fatalf("Wrong script : \ngot  : %x\nwant : %x", script, templateScript.Bytes())
 	}
 }
 
@@ -154,7 +153,7 @@ func TestTemplateLockingScript(t *testing.T) {
 				t.Fatalf("Failed to parse public key : %s", err)
 			}
 
-			template := NewPKHTemplate()
+			template := PKHTemplate
 
 			script, err := template.LockingScript([]PublicKey{publicKey})
 			if err != nil {
@@ -166,8 +165,8 @@ func TestTemplateLockingScript(t *testing.T) {
 				t.Fatalf("Failed to decode hex : %s", err)
 			}
 
-			if !bytes.Equal(b, script) {
-				t.Fatalf("Wrong bytes : \ngot  : %x\nwant : %x", b, script)
+			if !bytes.Equal(b, script.Bytes()) {
+				t.Fatalf("Wrong bytes : \ngot  : %x\nwant : %x", b, script.Bytes())
 			}
 		})
 	}
