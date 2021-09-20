@@ -16,19 +16,13 @@ type Deserializer interface {
 	Deserialize(io.Reader) error
 }
 
-// Savable is the interface required for saving objects.
-type Savable interface {
-	Serializer
-	Path() string
-}
-
-func Save(ctx context.Context, store Writer, object Savable) error {
+func Save(ctx context.Context, store Writer, path string, object Serializer) error {
 	buf := &bytes.Buffer{}
 	if err := object.Serialize(buf); err != nil {
 		return errors.Wrap(err, "serialize")
 	}
 
-	if err := store.Write(ctx, object.Path(), buf.Bytes(), nil); err != nil {
+	if err := store.Write(ctx, path, buf.Bytes(), nil); err != nil {
 		return errors.Wrap(err, "write")
 	}
 
