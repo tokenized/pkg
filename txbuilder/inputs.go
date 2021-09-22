@@ -74,9 +74,9 @@ func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) 
 
 // AddInput adds an input to TxBuilder.
 //   outpoint reference the output being spent.
-//   lockScript is the script from the output being spent.
+//   lockingScript is the script from the output being spent.
 //   value is the number of satoshis from the output being spent.
-func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value uint64) error {
+func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockingScript bitcoin.Script, value uint64) error {
 	// Check that outpoint isn't already an input.
 	for _, input := range tx.MsgTx.TxIn {
 		if input.PreviousOutPoint.Hash.Equal(&outpoint.Hash) &&
@@ -86,7 +86,7 @@ func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value u
 	}
 
 	input := InputSupplement{
-		LockingScript: lockScript,
+		LockingScript: lockingScript,
 		Value:         value,
 	}
 	tx.Inputs = append(tx.Inputs, &input)
@@ -370,6 +370,6 @@ func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 		return 0, errors.Wrap(err, "locking script")
 	}
 
-	txout := wire.TxOut{PkScript: lockingScript}
+	txout := wire.TxOut{LockingScript: lockingScript}
 	return uint64(txout.SerializeSize()), nil
 }

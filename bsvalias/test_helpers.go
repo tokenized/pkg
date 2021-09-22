@@ -175,8 +175,8 @@ func (c *MockClient) GetP2PPaymentDestination(ctx context.Context,
 	result := &P2PPaymentDestinationOutputs{
 		Outputs: []*wire.TxOut{
 			&wire.TxOut{
-				Value:    value,
-				PkScript: script,
+				Value:         value,
+				LockingScript: script,
 			},
 		},
 		Reference: uuid.New().String(),

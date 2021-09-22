@@ -48,6 +48,11 @@ func (k PublicKey) RawAddress() (RawAddress, error) {
 	return NewRawAddressPKH(Hash160(k.Bytes()))
 }
 
+// LockingScript returns a PKH locking script for this key.
+func (k PublicKey) LockingScript() (Script, error) {
+	return PKHTemplate.LockingScript([]PublicKey{k})
+}
+
 // String returns the key data with a checksum, encoded with Base58.
 func (k PublicKey) String() string {
 	return hex.EncodeToString(k.Bytes())

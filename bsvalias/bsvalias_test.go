@@ -147,9 +147,9 @@ func TestP2PPaymentDestination(t *testing.T) {
 		}
 
 		for _, output := range outputs.Outputs {
-			t.Logf("Output Value %d : Script %x", output.Value, output.PkScript)
+			t.Logf("Output Value %d : Script %x", output.Value, output.LockingScript)
 
-			ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
+			ra, err := bitcoin.RawAddressFromLockingScript(output.LockingScript)
 			if err != nil {
 				t.Fatalf("Failed to parse locking script : %s", err)
 			}

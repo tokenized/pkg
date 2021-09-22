@@ -68,20 +68,19 @@ func (t Template) LockingScript(publicKeys []PublicKey) (Script, error) {
 	pubKeyIndex := 0
 
 	for {
-		opCode, data, err := ParsePushDataScript(buf)
-		if err == io.EOF {
-			break
+		typ, opCode, data, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Wrap(err, "parse script")
 		}
 
-		if err == nil {
+		if typ == ScriptItemTypePushData {
 			if err := WritePushDataScript(result, data); err != nil {
 				return nil, errors.Wrap(err, "write push data")
 			}
 			continue
-		}
-
-		if err != ErrNotPushOp {
-			return nil, errors.Wrap(err, "parse")
 		}
 
 		switch opCode {

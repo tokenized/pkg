@@ -16,13 +16,13 @@ func (tx *TxBuilder) InputIsSigned(index int) bool {
 		return false
 	}
 
-	return len(tx.MsgTx.TxIn[index].SignatureScript) > 0
+	return len(tx.MsgTx.TxIn[index].UnlockingScript) > 0
 }
 
 // AllInputsAreSigned returns true if all inputs have a signature script.
 func (tx *TxBuilder) AllInputsAreSigned() bool {
 	for _, input := range tx.MsgTx.TxIn {
-		if len(input.SignatureScript) == 0 {
+		if len(input.UnlockingScript) == 0 {
 			return false
 		}
 	}
@@ -54,7 +54,7 @@ func (tx *TxBuilder) SignP2PKHInput(index int, key bitcoin.Key, hashCache *SigHa
 		return errors.Wrap(ErrWrongPrivateKey, fmt.Sprintf("Required : %x", hash.Bytes()))
 	}
 
-	tx.MsgTx.TxIn[index].SignatureScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
+	tx.MsgTx.TxIn[index].UnlockingScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
 		tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID, hashCache)
 
 	return err
@@ -139,7 +139,7 @@ func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) error {
 	shc := SigHashCache{}
 
 	for index, _ := range tx.Inputs {
-		if len(tx.MsgTx.TxIn[index].SignatureScript) > 0 {
+		if len(tx.MsgTx.TxIn[index].UnlockingScript) > 0 {
 			continue // already signed
 		}
 
@@ -171,7 +171,7 @@ func (tx *TxBuilder) signInput(index int, keys []bitcoin.Key, shc SigHashCache) 
 				continue
 			}
 
-			tx.MsgTx.TxIn[index].SignatureScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
+			tx.MsgTx.TxIn[index].UnlockingScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
 				tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID,
 				&shc)
 
@@ -199,7 +199,7 @@ func (tx *TxBuilder) signInput(index int, keys []bitcoin.Key, shc SigHashCache) 
 				continue
 			}
 
-			tx.MsgTx.TxIn[index].SignatureScript, err = P2PKUnlockingScript(key, tx.MsgTx, index,
+			tx.MsgTx.TxIn[index].UnlockingScript, err = P2PKUnlockingScript(key, tx.MsgTx, index,
 				tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID,
 				&shc)
 

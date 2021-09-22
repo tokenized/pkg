@@ -24,7 +24,7 @@ var genesisCoinbaseTx = MsgTx{
 				Hash:  bitcoin.Hash32{},
 				Index: 0xffffffff,
 			},
-			SignatureScript: []byte{
+			UnlockingScript: []byte{
 				0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04, 0x45, /* |.......E| */
 				0x54, 0x68, 0x65, 0x20, 0x54, 0x69, 0x6d, 0x65, /* |The Time| */
 				0x73, 0x20, 0x30, 0x33, 0x2f, 0x4a, 0x61, 0x6e, /* |s 03/Jan| */
@@ -42,7 +42,7 @@ var genesisCoinbaseTx = MsgTx{
 	TxOut: []*TxOut{
 		{
 			Value: 0x12a05f200,
-			PkScript: []byte{
+			LockingScript: []byte{
 				0x41, 0x04, 0x67, 0x8a, 0xfd, 0xb0, 0xfe, 0x55, /* |A.g....U| */
 				0x48, 0x27, 0x19, 0x67, 0xf1, 0xa6, 0x71, 0x30, /* |H'.g..q0| */
 				0xb7, 0x10, 0x5c, 0xd6, 0xa8, 0x28, 0xe0, 0x39, /* |..\..(.9| */
@@ -225,7 +225,7 @@ func BenchmarkReadTxOut(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r.Seek(0, 0)
 		readTxOut(r, 0, 0, &txOut)
-		scriptPool.Return(txOut.PkScript)
+		scriptPool.Return(txOut.LockingScript)
 	}
 }
 
@@ -256,7 +256,7 @@ func BenchmarkReadTxIn(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r.Seek(0, 0)
 		readTxIn(r, 0, 0, &txIn)
-		scriptPool.Return(txIn.SignatureScript)
+		scriptPool.Return(txIn.UnlockingScript)
 	}
 }
 

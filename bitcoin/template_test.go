@@ -85,7 +85,7 @@ func TestTemplatePKH(t *testing.T) {
 
 	t.Logf("Template Script : %s", templateScript)
 
-	if !bytes.Equal(script, templateScript.Bytes()) {
+	if !bytes.Equal(script, templateScript) {
 		t.Fatalf("Wrong script : \ngot  : %x\nwant : %x", script, templateScript.Bytes())
 	}
 }
@@ -128,7 +128,7 @@ func TestTemplateMultiPKH(t *testing.T) {
 
 	t.Logf("Template Script : %s", templateScript)
 
-	if !bytes.Equal(script, templateScript.Bytes()) {
+	if !bytes.Equal(script, templateScript) {
 		t.Fatalf("Wrong script : \ngot  : %x\nwant : %x", script, templateScript.Bytes())
 	}
 }

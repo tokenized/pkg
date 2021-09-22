@@ -178,14 +178,14 @@ func (r *RPCNode) GetTX(ctx context.Context, txid *bitcoin.Hash32) (*wire.MsgTx,
 	r.lock.Lock()
 	msg, ok := r.txCache[*txid]
 	if ok {
-		logger.Verbose(ctx, "Using tx from RPC cache : %s\n", txid.String())
+		logger.Verbose(ctx, "Using tx from RPC cache : %s\n", txid)
 		delete(r.txCache, *txid)
 		r.lock.Unlock()
 		return msg, nil
 	}
 	r.lock.Unlock()
 
-	logger.Verbose(ctx, "Requesting tx from RPC : %s\n", txid.String())
+	logger.Verbose(ctx, "Requesting tx from RPC : %s\n", txid)
 	ch, _ := chainhash.NewHash(txid[:])
 	var err error
 	var raw *btcjson.TxRawResult
@@ -235,7 +235,7 @@ func (r *RPCNode) GetTXs(ctx context.Context, txids []*bitcoin.Hash32) ([]*wire.
 	for i, txid := range txids {
 		msg, ok := r.txCache[*txid]
 		if ok {
-			logger.Verbose(ctx, "Using tx from RPC cache : %s\n", txid.String())
+			logger.Verbose(ctx, "Using tx from RPC cache : %s\n", txid)
 			delete(r.txCache, *txid)
 			results[i] = msg
 		}
@@ -308,7 +308,9 @@ func (r *RPCNode) GetTXs(ctx context.Context, txids []*bitcoin.Hash32) ([]*wire.
 	return results, lastError
 }
 
-func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]bitcoin.UTXO, error) {
+func (r *RPCNode) GetOutputs(ctx context.Context,
+	outpoints []wire.OutPoint) ([]bitcoin.UTXO, error) {
+
 	ctx = logger.ContextWithLogSubSystem(ctx, SubSystem)
 	defer logger.Elapsed(ctx, time.Now(), "GetOutputs")
 
@@ -325,7 +327,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 				Hash:          outpoint.Hash,
 				Index:         outpoint.Index,
 				Value:         tx.TxOut[outpoint.Index].Value,
-				LockingScript: tx.TxOut[outpoint.Index].PkScript,
+				LockingScript: tx.TxOut[outpoint.Index].LockingScript,
 			}
 			filled[i] = true
 		}
@@ -371,7 +373,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 			if err != nil {
 				lastError = err
 				logger.Error(ctx, "RPCCallFailed GetRawTx decode tx hex %s : %s",
-					outpoints[i].Hash.String(), err)
+					outpoints[i].Hash, err)
 				continue
 			}
 
@@ -396,7 +398,7 @@ func (r *RPCNode) GetOutputs(ctx context.Context, outpoints []wire.OutPoint) ([]
 				Hash:          outpoint.Hash,
 				Index:         outpoint.Index,
 				Value:         tx.TxOut[outpoint.Index].Value,
-				LockingScript: tx.TxOut[outpoint.Index].PkScript,
+				LockingScript: tx.TxOut[outpoint.Index].LockingScript,
 			}
 			filled[i] = true
 		}
@@ -429,12 +431,12 @@ func (r *RPCNode) WatchAddress(ctx context.Context, address bitcoin.Address) err
 			break
 		}
 
-		logger.Error(ctx, "RPCCallFailed WatchAddress %s : %v", address.String(), err)
+		logger.Error(ctx, "RPCCallFailed WatchAddress %s : %v", address, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "RPCCallAborted WatchAddress %s : %v", address.String(), err)
-		return errors.Wrap(err, fmt.Sprintf("Failed to GetTx %s", address.String()))
+		logger.Error(ctx, "RPCCallAborted WatchAddress %s : %v", address, err)
+		return errors.Wrap(err, fmt.Sprintf("Failed to GetTx %s", address))
 	}
 
 	return err
@@ -497,7 +499,8 @@ func (r *RPCNode) ListTransactions(ctx context.Context) ([]btcjson.ListTransacti
 }
 
 // ListUnspent returns unspent transactions
-func (r *RPCNode) ListUnspent(ctx context.Context, address bitcoin.Address) ([]btcjson.ListUnspentResult, error) {
+func (r *RPCNode) ListUnspent(ctx context.Context,
+	address bitcoin.Address) ([]btcjson.ListUnspentResult, error) {
 
 	// Make address known to node without rescan
 	if err := r.WatchAddress(ctx, address); err != nil {
@@ -518,7 +521,7 @@ func (r *RPCNode) ListUnspent(ctx context.Context, address bitcoin.Address) ([]b
 		// out []btcjson.ListUnspentResult
 		result, err = r.client.ListUnspentMinMaxAddresses(0, 999999, addresses)
 		if err != nil {
-			logger.Error(ctx, "RPCCallFailed ListUnspent %s : %v", address.String(), err)
+			logger.Error(ctx, "RPCCallFailed ListUnspent %s : %s", address, err)
 			continue
 		}
 
@@ -526,8 +529,8 @@ func (r *RPCNode) ListUnspent(ctx context.Context, address bitcoin.Address) ([]b
 	}
 
 	if err != nil {
-		logger.Error(ctx, "RPCCallAborted ListUnspent %s: %v", address.String(), err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to ListUnspent %s", address.String()))
+		logger.Error(ctx, "RPCCallAborted ListUnspent %s: %s", address, err)
+		return nil, errors.Wrap(err, fmt.Sprintf("Failed to ListUnspent %s", address))
 	}
 
 	return result, nil
@@ -594,7 +597,7 @@ func (r *RPCNode) SaveTX(ctx context.Context, msg *wire.MsgTx) error {
 
 	ctx = logger.ContextWithLogSubSystem(ctx, SubSystem)
 	hash := msg.TxHash()
-	logger.Verbose(ctx, "Saving tx to rpc cache : %s\n", hash.String())
+	logger.Verbose(ctx, "Saving tx to rpc cache : %s\n", hash)
 	r.txCache[*hash] = msg
 	return nil
 }

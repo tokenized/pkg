@@ -27,16 +27,18 @@ func DustLimitForAddress(ra bitcoin.RawAddress, feeRate float32) (uint64, error)
 		return 0, errors.Wrap(err, "address locking script")
 	}
 	output := &wire.TxOut{
-		PkScript: lockingScript,
+		LockingScript: lockingScript,
 	}
 	return DustLimitForOutput(output, feeRate), nil
 }
 
 // OutputFeeAndDustForLockingScript returns the tx fee required to include the locking script as an
 // output in a tx and the dust limit of that output.
-func OutputFeeAndDustForLockingScript(lockingScript []byte, dustFeeRate, feeRate float32) (uint64, uint64) {
+func OutputFeeAndDustForLockingScript(lockingScript bitcoin.Script,
+	dustFeeRate, feeRate float32) (uint64, uint64) {
+
 	output := &wire.TxOut{
-		PkScript: lockingScript,
+		LockingScript: lockingScript,
 	}
 	outputSize := output.SerializeSize()
 	return uint64(float32(outputSize) * feeRate), DustLimit(outputSize, dustFeeRate)
@@ -60,7 +62,7 @@ func (tx *TxBuilder) OutputAddress(index int) (bitcoin.RawAddress, error) {
 	if index >= len(tx.MsgTx.TxOut) {
 		return bitcoin.RawAddress{}, errors.New("Output index out of range")
 	}
-	return bitcoin.RawAddressFromLockingScript(tx.MsgTx.TxOut[index].PkScript)
+	return bitcoin.RawAddressFromLockingScript(tx.MsgTx.TxOut[index].LockingScript)
 }
 
 func (tx *TxBuilder) SetChangeAddress(address bitcoin.RawAddress, keyID string) error {
@@ -73,7 +75,27 @@ func (tx *TxBuilder) SetChangeAddress(address bitcoin.RawAddress, keyID string) 
 		return err
 	}
 	for i, output := range tx.MsgTx.TxOut {
-		if bytes.Equal(output.PkScript, changeScript) {
+		if bytes.Equal(output.LockingScript, changeScript) {
+			tx.Outputs[i].IsRemainder = true
+			tx.Outputs[i].KeyID = keyID
+		}
+	}
+
+	return nil
+}
+
+func (tx *TxBuilder) SetChangeLockingScript(lockingScript bitcoin.Script, keyID string) error {
+	ra, err := bitcoin.RawAddressFromLockingScript(lockingScript)
+	if err != nil {
+		return errors.Wrap(err, "address")
+	}
+
+	tx.ChangeAddress = ra
+	tx.ChangeKeyID = keyID
+
+	// Update existing outputs
+	for i, output := range tx.MsgTx.TxOut {
+		if output.LockingScript.Equal(lockingScript) {
 			tx.Outputs[i].IsRemainder = true
 			tx.Outputs[i].KeyID = keyID
 		}
@@ -124,21 +146,24 @@ func (tx *TxBuilder) AddMaxOutput(address bitcoin.RawAddress) error {
 // isRemainder marks the output to receive remaining bitcoin after fees are taken.
 // isDust marks the output as a dust amount which will be replaced by any non-dust amount if an
 //    amount is added later. It also sets the amount to the calculated dust value.
-func (tx *TxBuilder) AddOutput(lockScript []byte, value uint64, isRemainder bool, isDust bool) error {
+func (tx *TxBuilder) AddOutput(lockScript bitcoin.Script, value uint64,
+	isRemainder, isDust bool) error {
+
 	output := &OutputSupplement{
 		IsRemainder: isRemainder,
 		IsDust:      isDust,
 	}
 
 	txout := &wire.TxOut{
-		Value:    value,
-		PkScript: lockScript,
+		Value:         value,
+		LockingScript: lockScript,
 	}
 
 	dust := DustLimitForOutput(txout, tx.DustFeeRate)
 	if isDust {
 		txout.Value = dust
-	} else if value < dust && (!tx.SendMax || !isRemainder) && !isUnspendable(lockScript) {
+	} else if value < dust && (!tx.SendMax || !isRemainder) &&
+		!bitcoin.LockingScriptIsUnspendable(lockScript) {
 		// Below dust and not send max output
 		return ErrBelowDustValue
 	}
@@ -149,8 +174,8 @@ func (tx *TxBuilder) AddOutput(lockScript []byte, value uint64, isRemainder bool
 }
 
 // InsertOutput inserts an output into TxBuilder at the specified index.
-func (tx *TxBuilder) InsertOutput(index int, lockScript []byte, value uint64, isRemainder bool,
-	isDust bool) error {
+func (tx *TxBuilder) InsertOutput(index int, lockScript bitcoin.Script, value uint64,
+	isRemainder, isDust bool) error {
 
 	output := &OutputSupplement{
 		IsRemainder: isRemainder,
@@ -158,14 +183,15 @@ func (tx *TxBuilder) InsertOutput(index int, lockScript []byte, value uint64, is
 	}
 
 	txout := &wire.TxOut{
-		Value:    value,
-		PkScript: lockScript,
+		Value:         value,
+		LockingScript: lockScript,
 	}
 
 	dust := DustLimitForOutput(txout, tx.DustFeeRate)
 	if isDust {
 		txout.Value = dust
-	} else if value < dust && (!tx.SendMax || !isRemainder) && !isUnspendable(lockScript) {
+	} else if value < dust && (!tx.SendMax || !isRemainder) &&
+		!bitcoin.LockingScriptIsUnspendable(lockScript) {
 		// Below dust and not send max output
 		return ErrBelowDustValue
 	}
@@ -221,20 +247,11 @@ func (tx *TxBuilder) SetOutputToDust(index uint32) error {
 }
 
 // UpdateOutput updates the locking script of an output.
-func (tx *TxBuilder) UpdateOutput(index uint32, lockScript []byte) error {
+func (tx *TxBuilder) UpdateOutput(index uint32, lockingScript bitcoin.Script) error {
 	if int(index) >= len(tx.MsgTx.TxOut) {
 		return errors.New("Output index out of range")
 	}
 
-	tx.MsgTx.TxOut[index].PkScript = lockScript
+	tx.MsgTx.TxOut[index].LockingScript = lockingScript
 	return nil
-}
-
-// isUnspendable returns true if the script is known to be unspendable.
-func isUnspendable(lockScript []byte) bool {
-	if len(lockScript) > 1 && lockScript[0] == bitcoin.OP_FALSE &&
-		lockScript[1] == bitcoin.OP_RETURN {
-		return true
-	}
-	return len(lockScript) > 0 && lockScript[0] == bitcoin.OP_RETURN
 }

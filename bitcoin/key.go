@@ -230,6 +230,11 @@ func (k Key) RawAddress() (RawAddress, error) {
 	return k.PublicKey().RawAddress()
 }
 
+// LockingScript returns a PKH locking script for this key.
+func (k Key) LockingScript() (Script, error) {
+	return k.PublicKey().LockingScript()
+}
+
 // IsEmpty returns true if the value is zero.
 func (k Key) IsEmpty() bool {
 	return k.value.Cmp(&zeroBigInt) == 0

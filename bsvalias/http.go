@@ -242,8 +242,8 @@ func (c *HTTPClient) GetP2PPaymentDestination(ctx context.Context,
 	totalValue := uint64(0)
 	for i, output := range response.Outputs {
 		result.Outputs[i] = &wire.TxOut{
-			PkScript: output.Script,
-			Value:    output.Value,
+			LockingScript: output.Script,
+			Value:         output.Value,
 		}
 		totalValue += output.Value
 	}

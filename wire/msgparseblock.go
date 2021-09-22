@@ -481,7 +481,7 @@ func ReadInputBytes(b []byte, pver uint32) (uint64, *TxIn, error) {
 	// Unlocking script
 	var scriptSize uint64
 	var err error
-	scriptSize, result.SignatureScript, err = ReadScriptBytes(b[offset:], pver)
+	scriptSize, result.UnlockingScript, err = ReadScriptBytes(b[offset:], pver)
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "read script")
 	}
@@ -512,7 +512,7 @@ func ReadOutputBytes(b []byte, pver uint32) (uint64, *TxOut, error) {
 	// Locking script
 	var scriptSize uint64
 	var err error
-	scriptSize, result.PkScript, err = ReadScriptBytes(b[offset:], pver)
+	scriptSize, result.LockingScript, err = ReadScriptBytes(b[offset:], pver)
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "read script")
 	}

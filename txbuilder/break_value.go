@@ -93,8 +93,8 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 
 		result = append(result, &Output{
 			TxOut: wire.TxOut{
-				Value:    outputValue,
-				PkScript: lockingScript,
+				Value:         outputValue,
+				LockingScript: lockingScript,
 			},
 			Supplement: OutputSupplement{
 				KeyID: changeAddress.KeyID,
@@ -118,8 +118,8 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 
 			result = append(result, &Output{
 				TxOut: wire.TxOut{
-					Value:    remaining,
-					PkScript: lockingScript,
+					Value:         remaining,
+					LockingScript: lockingScript,
 				},
 				Supplement: OutputSupplement{
 					IsRemainder: lastIsRemainder,
@@ -137,8 +137,8 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 		if remaining > dustLimit {
 			result = append(result, &Output{
 				TxOut: wire.TxOut{
-					Value:    remaining,
-					PkScript: lockingScript,
+					Value:         remaining,
+					LockingScript: lockingScript,
 				},
 				Supplement: OutputSupplement{
 					IsRemainder: lastIsRemainder,

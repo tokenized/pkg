@@ -73,9 +73,9 @@ func TestTx(t *testing.T) {
 			spew.Sprint(&txIn.PreviousOutPoint),
 			spew.Sprint(prevOut))
 	}
-	if !bytes.Equal(txIn.SignatureScript, sigScript) {
+	if !bytes.Equal(txIn.UnlockingScript, sigScript) {
 		t.Errorf("NewTxIn: wrong signature script - got %v, want %v",
-			spew.Sdump(txIn.SignatureScript),
+			spew.Sdump(txIn.UnlockingScript),
 			spew.Sdump(sigScript))
 	}
 
@@ -100,9 +100,9 @@ func TestTx(t *testing.T) {
 			txOut.Value, txValue)
 
 	}
-	if !bytes.Equal(txOut.PkScript, pkScript) {
+	if !bytes.Equal(txOut.LockingScript, pkScript) {
 		t.Errorf("NewTxOut: wrong pk script - got %v, want %v",
-			spew.Sdump(txOut.PkScript),
+			spew.Sdump(txOut.LockingScript),
 			spew.Sdump(pkScript))
 	}
 
@@ -145,12 +145,12 @@ func TestTxHash(t *testing.T) {
 			Hash:  bitcoin.Hash32{},
 			Index: 0xffffffff,
 		},
-		SignatureScript: []byte{0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62},
+		UnlockingScript: []byte{0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62},
 		Sequence:        0xffffffff,
 	}
 	txOut := TxOut{
 		Value: 5000000000,
-		PkScript: []byte{
+		LockingScript: []byte{
 			0x41, // OP_DATA_65
 			0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 			0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
@@ -402,7 +402,7 @@ func TestTxSerialize(t *testing.T) {
 			multiTx,
 			multiTx,
 			multiTxEncoded,
-			multiTxPkScriptLocs,
+			multiTxLockingScriptLocs,
 		},
 	}
 
@@ -436,21 +436,21 @@ func TestTxSerialize(t *testing.T) {
 		}
 
 		// Ensure the public key script locations are accurate.
-		pkScriptLocs := test.in.PkScriptLocs()
+		pkScriptLocs := test.in.LockingScriptLocs()
 		if !reflect.DeepEqual(pkScriptLocs, test.pkScriptLocs) {
-			t.Errorf("PkScriptLocs #%d\n got: %s want: %s", i,
+			t.Errorf("LockingScriptLocs #%d\n got: %s want: %s", i,
 				spew.Sdump(pkScriptLocs),
 				spew.Sdump(test.pkScriptLocs))
 			continue
 		}
 		for j, loc := range pkScriptLocs {
-			wantPkScript := test.in.TxOut[j].PkScript
-			gotPkScript := test.buf[loc : loc+len(wantPkScript)]
-			if !bytes.Equal(gotPkScript, wantPkScript) {
-				t.Errorf("PkScriptLocs #%d:%d\n unexpected "+
+			wantLockingScript := test.in.TxOut[j].LockingScript
+			gotLockingScript := test.buf[loc : loc+len(wantLockingScript)]
+			if !bytes.Equal(gotLockingScript, wantLockingScript) {
+				t.Errorf("LockingScriptLocs #%d:%d\n unexpected "+
 					"script got: %s want: %s", i, j,
-					spew.Sdump(gotPkScript),
-					spew.Sdump(wantPkScript))
+					spew.Sdump(gotLockingScript),
+					spew.Sdump(wantLockingScript))
 			}
 		}
 	}
@@ -751,7 +751,7 @@ var multiTx = &MsgTx{
 				Hash:  bitcoin.Hash32{},
 				Index: 0xffffffff,
 			},
-			SignatureScript: []byte{
+			UnlockingScript: []byte{
 				0x04, 0x31, 0xdc, 0x00, 0x1b, 0x01, 0x62,
 			},
 			Sequence: 0xffffffff,
@@ -760,7 +760,7 @@ var multiTx = &MsgTx{
 	TxOut: []*TxOut{
 		{
 			Value: 0x12a05f200,
-			PkScript: []byte{
+			LockingScript: []byte{
 				0x41, // OP_DATA_65
 				0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 				0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
@@ -776,7 +776,7 @@ var multiTx = &MsgTx{
 		},
 		{
 			Value: 0x5f5e100,
-			PkScript: []byte{
+			LockingScript: []byte{
 				0x41, // OP_DATA_65
 				0x04, 0xd6, 0x4b, 0xdf, 0xd0, 0x9e, 0xb1, 0xc5,
 				0xfe, 0x29, 0x5a, 0xbd, 0xeb, 0x1d, 0xca, 0x42,
@@ -837,6 +837,6 @@ var multiTxEncoded = []byte{
 	0x00, 0x00, 0x00, 0x00, // Lock time
 }
 
-// multiTxPkScriptLocs is the location information for the public key scripts
+// multiTxLockingScriptLocs is the location information for the public key scripts
 // located in multiTx.
-var multiTxPkScriptLocs = []int{63, 139}
+var multiTxLockingScriptLocs = []int{63, 139}

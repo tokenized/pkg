@@ -503,7 +503,7 @@ var blockOne = MsgBlock{
 						Hash:  bitcoin.Hash32{},
 						Index: 0xffffffff,
 					},
-					SignatureScript: []byte{
+					UnlockingScript: []byte{
 						0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04,
 					},
 					Sequence: 0xffffffff,
@@ -512,7 +512,7 @@ var blockOne = MsgBlock{
 			TxOut: []*TxOut{
 				{
 					Value: 0x12a05f200,
-					PkScript: []byte{
+					LockingScript: []byte{
 						0x41, // OP_DATA_65
 						0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
 						0x72, 0x6a, 0x2c, 0x91, 0xe6, 0x1e, 0xc1, 0x16,
