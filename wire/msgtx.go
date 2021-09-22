@@ -356,39 +356,39 @@ func (msg *MsgTx) TxHash() *bitcoin.Hash32 {
 }
 
 func (msg *MsgTx) String() string {
-	result := fmt.Sprintf("TxId: %s (%d bytes)\n", msg.TxHash().String(), msg.SerializeSize())
+	result := fmt.Sprintf("TxId: %s (%d bytes)\n", msg.TxHash(), msg.SerializeSize())
 	result += fmt.Sprintf("  Version: %d\n", msg.Version)
 	result += "  Inputs:\n\n"
 	for _, input := range msg.TxIn {
 		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
 			input.PreviousOutPoint.Hash.String())
-		result += fmt.Sprintf("    Script: %x\n", input.UnlockingScript)
+		result += fmt.Sprintf("    Script: %s\n", input.UnlockingScript)
 		result += fmt.Sprintf("    Sequence: %x\n\n", input.Sequence)
 	}
 	result += "  Outputs:\n\n"
 	for _, output := range msg.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
-		result += fmt.Sprintf("    Script: %x\n\n", output.LockingScript)
+		result += fmt.Sprintf("    Script: %s\n\n", output.LockingScript)
 	}
 	result += fmt.Sprintf("  LockTime: %d\n", msg.LockTime)
 	return result
 }
 
 func (msg *MsgTx) StringWithAddresses(net bitcoin.Network) string {
-	result := fmt.Sprintf("TxId: %s\n", msg.TxHash().String())
+	result := fmt.Sprintf("TxId: %s\n", msg.TxHash())
 	result += fmt.Sprintf("  Version: %d\n", msg.Version)
 	result += "  Inputs:\n\n"
 	for _, input := range msg.TxIn {
 		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
-			input.PreviousOutPoint.Hash.String())
-		result += fmt.Sprintf("    Script: %x\n", input.UnlockingScript)
+			input.PreviousOutPoint.Hash)
+		result += fmt.Sprintf("    Script: %s\n", input.UnlockingScript)
 		result += fmt.Sprintf("    Sequence: %x\n", input.Sequence)
 
 		// Address
 		ra, err := bitcoin.RawAddressFromUnlockingScript(input.UnlockingScript)
 		if err == nil {
 			ad := bitcoin.NewAddressFromRawAddress(ra, net)
-			result += fmt.Sprintf("    Address: %s\n", ad.String())
+			result += fmt.Sprintf("    Address: %s\n", ad)
 		}
 
 		result += "\n"
@@ -396,13 +396,13 @@ func (msg *MsgTx) StringWithAddresses(net bitcoin.Network) string {
 	result += "  Outputs:\n\n"
 	for _, output := range msg.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
-		result += fmt.Sprintf("    Script: %x\n", output.LockingScript)
+		result += fmt.Sprintf("    Script: %s\n", output.LockingScript)
 
 		// Address
 		ra, err := bitcoin.RawAddressFromLockingScript(output.LockingScript)
 		if err == nil {
 			ad := bitcoin.NewAddressFromRawAddress(ra, net)
-			result += fmt.Sprintf("    Address: %s\n", ad.String())
+			result += fmt.Sprintf("    Address: %s\n", ad)
 		}
 
 		result += "\n"
