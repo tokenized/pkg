@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"testing"
 )
 
@@ -117,6 +118,165 @@ func TestScriptToString(t *testing.T) {
 
 			if !bytes.Equal(scr, script) {
 				t.Fatalf("Wrong bytes : \ngot  : %x\nwant : %x", scr, script)
+			}
+		})
+	}
+}
+
+func Test_MatchesTemplate(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		template string
+	}{
+		{
+			name:     "PKH",
+			text:     "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
+			template: "OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIG",
+		},
+		{
+			name:     "PK",
+			text:     "0x029ac355257736dfa1ad9652fcb51c7136fc27f9ad9652fcb51c7136fc27f95257 OP_CHECKSIG",
+			template: "OP_PUBKEY OP_CHECKSIG",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script, err := StringToScript(tt.text)
+			if err != nil {
+				t.Fatalf("Failed to decode script : %s", err)
+			}
+			template, err := StringToScript(tt.template)
+			if err != nil {
+				t.Fatalf("Failed to decode template : %s", err)
+			}
+
+			if !script.MatchesTemplate(Template(template)) {
+				t.Fatalf("Failed to match template")
+			}
+		})
+	}
+}
+
+func Test_MatchesTemplate_MultiPKH(t *testing.T) {
+	tests := []struct {
+		required uint32
+		count    uint32
+	}{
+		{
+			required: 1,
+			count:    1,
+		},
+		{
+			required: 1,
+			count:    2,
+		},
+		{
+			required: 2,
+			count:    3,
+		},
+		{
+			required: 3,
+			count:    3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d of %d", tt.required, tt.count), func(t *testing.T) {
+			template, err := NewMultiPKHTemplate(tt.required, tt.count)
+			if err != nil {
+				t.Fatalf("Failed to create template : %s", err)
+			}
+
+			pubKeys := make([]PublicKey, tt.count)
+			for i := range pubKeys {
+				key, _ := GenerateKey(MainNet)
+				pubKeys[i] = key.PublicKey()
+			}
+
+			script, err := template.LockingScript(pubKeys)
+			if err != nil {
+				t.Fatalf("Failed to create script : %s", err)
+			}
+
+			if !script.MatchesTemplate(template) {
+				t.Fatalf("Failed to match template")
+			}
+
+			count := script.PubKeyCount()
+			if count != tt.count {
+				t.Fatalf("Wrong script pub key count : got %d, want %d", count, tt.count)
+			}
+
+			required, err := script.RequiredSignatures()
+			if err != nil {
+				t.Fatalf("Failed to get script required signature count : %s", err)
+			}
+
+			if required != tt.required {
+				t.Fatalf("Wrong script required signature count : got %d, want %d", required,
+					tt.required)
+			}
+
+			count = template.PubKeyCount()
+			if count != tt.count {
+				t.Fatalf("Wrong template pub key count : got %d, want %d", count, tt.count)
+			}
+
+			required, err = template.RequiredSignatures()
+			if err != nil {
+				t.Fatalf("Failed to get template required signature count : %s", err)
+			}
+
+			if required != tt.required {
+				t.Fatalf("Wrong template required signature count : got %d, want %d", required,
+					tt.required)
+			}
+		})
+	}
+}
+
+func Test_PubKeyCount_RequiredSignatures(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		count    uint32
+		required uint32
+	}{
+		{
+			name:     "PKH",
+			text:     "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
+			count:    1,
+			required: 1,
+		},
+		{
+			name:     "PK",
+			text:     "0x029ac355257736dfa1ad9652fcb51c7136fc27f9ad9652fcb51c7136fc27f95257 OP_CHECKSIG",
+			count:    1,
+			required: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script, err := StringToScript(tt.text)
+			if err != nil {
+				t.Fatalf("Failed to decode script : %s", err)
+			}
+
+			count := script.PubKeyCount()
+			if count != tt.count {
+				t.Fatalf("Wrong pub key count : got %d, want %d", count, tt.count)
+			}
+
+			required, err := script.RequiredSignatures()
+			if err != nil {
+				t.Fatalf("Failed to get required signature count : %s", err)
+			}
+
+			if required != tt.required {
+				t.Fatalf("Wrong required signature count : got %d, want %d", required, tt.required)
 			}
 		})
 	}

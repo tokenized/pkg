@@ -182,6 +182,120 @@ func NewScript(b []byte) Script {
 	return Script(b)
 }
 
+func (s Script) PubKeyCount() uint32 {
+	buf := bytes.NewReader(s)
+	result := uint32(0)
+	for {
+		typ, _, data, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0
+		}
+
+		if typ == ScriptItemTypePushData {
+			l := len(data)
+			if l == Hash20Size || l == PublicKeyCompressedLength {
+				result++
+			}
+
+			continue
+		}
+	}
+
+	return result
+}
+
+// RequiredSignatures is the number of signatures required to unlock the template.
+// Note: Only supports P2PKH and MultiPKH.
+func (s Script) RequiredSignatures() (uint32, error) {
+	if s.MatchesTemplate(PKHTemplate) || s.MatchesTemplate(PKTemplate) {
+		return 1, nil
+	}
+
+	buf := bytes.NewReader(s)
+	var previousOpCode byte
+	var previousPushData []byte
+	for {
+		typ, opCode, data, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, errors.Wrap(err, "parse script")
+		}
+
+		if typ == ScriptItemTypePushData {
+			previousOpCode = opCode
+			previousPushData = data
+			continue
+		}
+
+		switch opCode {
+		case OP_GREATERTHANOREQUAL:
+			// Assume this is a multi-pkh accumulator script.
+			value, err := ScriptNumberValue(previousOpCode, previousPushData)
+			if err != nil {
+				return 0, errors.Wrap(err, "script number")
+			}
+
+			if value < 0 || value > 0xffffffff {
+				return 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d", value)
+			}
+
+			return uint32(value), nil
+		}
+
+		previousOpCode = opCode
+		previousPushData = nil
+	}
+
+	return 0, ErrUnknownScriptTemplate
+}
+
+func (s Script) IsP2PKH() bool {
+	return s.MatchesTemplate(PKHTemplate)
+}
+
+func (s Script) IsP2PK() bool {
+	return s.MatchesTemplate(PKTemplate)
+}
+
+func (s Script) MatchesTemplate(template Template) bool {
+	buf := bytes.NewReader(s)
+	for {
+		typ, opCode, data, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return false
+		}
+
+		if len(template) == 0 {
+			return false
+		}
+
+		expected := template[0]
+		template = template[1:]
+
+		if expected == OP_PUBKEYHASH {
+			if typ != ScriptItemTypePushData || len(data) != Hash20Size {
+				return false
+			}
+		} else if expected == OP_PUBKEY {
+			if typ != ScriptItemTypePushData || len(data) != PublicKeyCompressedLength {
+				return false
+			}
+		} else if opCode != expected {
+			return false
+		}
+	}
+
+	return len(template) == 0
+}
+
 func (s Script) Equal(r Script) bool {
 	return bytes.Equal(s, r)
 }
@@ -756,7 +870,7 @@ func LockingScriptIsUnspendable(script []byte) bool {
 }
 
 // ScriptToString converts a bitcoin script into a text representation.
-func ScriptToString(script []byte) string {
+func ScriptToString(script Script) string {
 	var result []string
 	buf := bytes.NewReader(script)
 
@@ -789,7 +903,7 @@ func ScriptToString(script []byte) string {
 }
 
 // StringToScript converts a text representation of a bitcoin script to a string.
-func StringToScript(text string) ([]byte, error) {
+func StringToScript(text string) (Script, error) {
 	buf := &bytes.Buffer{}
 
 	parts := strings.Fields(text)
@@ -825,7 +939,7 @@ func StringToScript(text string) ([]byte, error) {
 		}
 	}
 
-	return buf.Bytes(), nil
+	return Script(buf.Bytes()), nil
 }
 
 func CleanScriptText(text string) string {

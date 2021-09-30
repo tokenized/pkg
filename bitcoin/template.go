@@ -18,6 +18,7 @@ var (
 	ErrNotEnoughPublicKeys = errors.New("Not Enough Public Keys")
 
 	PKHTemplate = Template{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG}
+	PKTemplate  = Template{OP_PUBKEY, OP_CHECKSIG}
 
 	MultiPKHWrap = Script{OP_IF, OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY,
 		OP_CHECKSIGVERIFY, OP_FROMALTSTACK, OP_1ADD, OP_TOALTSTACK, OP_ENDIF}
@@ -177,7 +178,7 @@ func (t Template) RequiredSignatures() (uint32, error) {
 }
 
 func (t Template) String() string {
-	return ScriptToString(t)
+	return ScriptToString(Script(t))
 }
 
 func (t Template) Bytes() []byte {
