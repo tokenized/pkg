@@ -84,9 +84,10 @@ const (
 var (
 	endian = binary.LittleEndian
 
-	ErrInvalidScript = errors.New("Invalid Script")
-	ErrNotP2PKH      = errors.New("Not P2PKH")
-	ErrNotPushOp     = errors.New("Not Push Op")
+	ErrInvalidScript       = errors.New("Invalid Script")
+	ErrNotP2PKH            = errors.New("Not P2PKH")
+	ErrNotPushOp           = errors.New("Not Push Op")
+	ErrUnknownScriptNumber = errors.New("Unknown Script Number")
 
 	byteToNames = map[byte]string{
 		OP_FALSE:              "OP_FALSE",
@@ -571,6 +572,27 @@ func PushNumberScript(n int64) []byte {
 	return append([]byte{byte(len(result))}, result...)
 }
 
+// ScriptNumberValue returns the number value given the op code or push data returned from
+// ParseScript.
+func ScriptNumberValue(previousOpCode byte, previousPushData []byte) (int64, error) {
+	if len(previousPushData) > 0 {
+		return DecodeScriptLittleEndian(previousPushData), nil
+	}
+
+	if previousOpCode >= OP_1 && previousOpCode <= OP_16 {
+		return int64(previousOpCode - 0x50), nil
+	}
+
+	switch previousOpCode {
+	case OP_FALSE:
+		return 0, nil
+	case OP_1NEGATE:
+		return -1, nil
+	}
+
+	return 0, ErrUnknownScriptNumber
+}
+
 // ParsePushNumberScript reads a number out of script and returns the value, the bytes of script it
 //   used, and an error if one occured.
 func ParsePushNumberScript(b []byte) (int64, int, error) {
@@ -601,23 +623,25 @@ func ParsePushNumberScript(b []byte) (int64, int, error) {
 	b = b[1:]
 
 	// Decode from little endian.
+	return DecodeScriptLittleEndian(b), length, nil
+}
+
+func DecodeScriptLittleEndian(b []byte) int64 {
 	var result int64
 	for i, val := range b {
 		result |= int64(val) << uint8(8*i)
 	}
 
-	// When the most significant byte of the input bytes has the sign bit
-	// set, the result is negative.  So, remove the sign bit from the result
-	// and make it negative.
+	// When the most significant byte of the input bytes has the sign bit set, the result is
+	// negative.  So, remove the sign bit from the result and make it negative.
 	if b[len(b)-1]&0x80 != 0 {
-		// The maximum length of v has already been determined to be 4
-		// above, so uint8 is enough to cover the max possible shift
-		// value of 24.
+		// The maximum length of v has already been determined to be 4 above, so uint8 is enough to
+		// cover the max possible shift value of 24.
 		result &= ^(int64(0x80) << uint8(8*(len(b)-1)))
 		result = -result
 	}
 
-	return result, length, nil
+	return result
 }
 
 func PubKeyFromP2PKHSigScript(script []byte) ([]byte, error) {

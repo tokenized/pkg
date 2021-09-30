@@ -3,10 +3,11 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"testing"
 )
 
-func TestTemplateEncoding(t *testing.T) {
+func Test_TemplateEncoding(t *testing.T) {
 	tests := []struct {
 		name string
 		text string
@@ -57,7 +58,7 @@ func TestTemplateEncoding(t *testing.T) {
 	}
 }
 
-func TestTemplatePKH(t *testing.T) {
+func Test_TemplatePKH(t *testing.T) {
 	key, err := GenerateKey(TestNet)
 	if err != nil {
 		t.Fatalf("Failed to generate key 1 : %s", err)
@@ -90,7 +91,7 @@ func TestTemplatePKH(t *testing.T) {
 	}
 }
 
-func TestTemplateMultiPKH(t *testing.T) {
+func Test_TemplateMultiPKH(t *testing.T) {
 	key1, err := GenerateKey(TestNet)
 	if err != nil {
 		t.Fatalf("Failed to generate key 1 : %s", err)
@@ -133,7 +134,7 @@ func TestTemplateMultiPKH(t *testing.T) {
 	}
 }
 
-func TestTemplateLockingScript(t *testing.T) {
+func Test_TemplateLockingScript(t *testing.T) {
 	tests := []struct {
 		name      string
 		publicKey string
@@ -168,6 +169,89 @@ func TestTemplateLockingScript(t *testing.T) {
 			if !bytes.Equal(b, script.Bytes()) {
 				t.Fatalf("Wrong bytes : \ngot  : %x\nwant : %x", b, script.Bytes())
 			}
+		})
+	}
+}
+
+func Test_PKH_RequiredSignatures(t *testing.T) {
+	result, err := PKHTemplate.RequiredSignatures()
+	if err != nil {
+		t.Fatalf("Failed to get required signatures : %s", err)
+	}
+
+	if result != 1 {
+		t.Fatalf("Wrong required signatures : got %d, want %d", result, 1)
+	}
+
+	total := PKHTemplate.PubKeyCount()
+
+	if total != 1 {
+		t.Fatalf("Wrong total : got %d, want %d", total, 1)
+	}
+}
+
+func Test_MultiPKH_RequiredSignatures(t *testing.T) {
+	tests := []struct {
+		required uint32
+		total    uint32
+	}{
+		{
+			required: 1,
+			total:    3,
+		},
+		{
+			required: 2,
+			total:    3,
+		},
+		{
+			required: 1,
+			total:    2,
+		},
+		{
+			required: 2,
+			total:    2,
+		},
+		{
+			required: 3,
+			total:    4,
+		},
+		{
+			required: 150,
+			total:    160,
+		},
+		{
+			required: 300,
+			total:    350,
+		},
+		{
+			required: 0xff,
+			total:    350,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d of %d", tt.required, tt.total), func(t *testing.T) {
+			template, err := NewMultiPKHTemplate(tt.required, tt.total)
+			if err != nil {
+				t.Fatalf("Failed to create template : %s", err)
+			}
+
+			result, err := template.RequiredSignatures()
+			if err != nil {
+				t.Fatalf("Failed to get required signatures : %s", err)
+			}
+
+			if result != tt.required {
+				t.Fatalf("Wrong required signatures : got %d, want %d", result, tt.required)
+			}
+
+			total := template.PubKeyCount()
+
+			if total != tt.total {
+				t.Fatalf("Wrong total : got %d, want %d", total, tt.total)
+			}
+
+			t.Logf("Required %d of total %d", result, total)
 		})
 	}
 }

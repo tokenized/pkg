@@ -27,7 +27,7 @@ var (
 // locking script without the public keys or other specific values needed to make it complete.
 type Template Script
 
-func NewMultiPKHTemplate(required, total int) (Template, error) {
+func NewMultiPKHTemplate(required, total uint32) (Template, error) {
 	result := &bytes.Buffer{}
 
 	// Push zero to alt stack to initialize the counter.
@@ -40,7 +40,7 @@ func NewMultiPKHTemplate(required, total int) (Template, error) {
 	}
 
 	// Wrap each key in an if statement and a P2PKH locking script
-	for i := 0; i < total; i++ {
+	for i := uint32(0); i < total; i++ {
 		if _, err := result.Write(MultiPKHWrap); err != nil {
 			return nil, errors.Wrap(err, "write")
 		}
@@ -117,6 +117,63 @@ func (t Template) LockingScript(publicKeys []PublicKey) (Script, error) {
 	}
 
 	return NewScript(result.Bytes()), nil
+}
+
+func (t Template) PubKeyCount() uint32 {
+	var result uint32
+	for _, b := range t {
+		if b == OP_PUBKEY || b == OP_PUBKEYHASH {
+			result++
+		}
+	}
+	return result
+}
+
+// RequiredSignatures is the number of signatures required to unlock the template.
+// Note: Only supports P2PKH and MultiPKH.
+func (t Template) RequiredSignatures() (uint32, error) {
+	if bytes.Equal(t, PKHTemplate) {
+		return 1, nil
+	}
+
+	buf := bytes.NewReader(t)
+	var previousOpCode byte
+	var previousPushData []byte
+	for {
+		typ, opCode, data, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, errors.Wrap(err, "parse script")
+		}
+
+		if typ == ScriptItemTypePushData {
+			previousOpCode = opCode
+			previousPushData = data
+			continue
+		}
+
+		switch opCode {
+		case OP_GREATERTHANOREQUAL:
+			// Assume this is a multi-pkh accumulator script.
+			value, err := ScriptNumberValue(previousOpCode, previousPushData)
+			if err != nil {
+				return 0, errors.Wrap(err, "script number")
+			}
+
+			if value < 0 || value > 0xffffffff {
+				return 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d", value)
+			}
+
+			return uint32(value), nil
+		}
+
+		previousOpCode = opCode
+		previousPushData = nil
+	}
+
+	return 0, ErrUnknownScriptTemplate
 }
 
 func (t Template) String() string {
