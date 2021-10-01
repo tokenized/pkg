@@ -74,7 +74,7 @@ type Client interface {
 	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
 	// a signature to the request.
 	GetPaymentDestination(ctx context.Context, senderName, senderHandle, purpose string,
-		amount uint64, senderKey *bitcoin.Key) ([]byte, error)
+		amount uint64, senderKey *bitcoin.Key) (bitcoin.Script, error)
 
 	// GetPaymentRequest requests a payment request that can be used to send bitcoin or an asset.
 	//   senderHandle is required.

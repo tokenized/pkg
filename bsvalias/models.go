@@ -137,7 +137,7 @@ func (r P2PTransactionRequest) CheckSignature(publicKey bitcoin.PublicKey) error
 
 // PaymentDestinationResponse is the raw response from a PaymentDestination endpoint.
 type PaymentDestinationResponse struct {
-	Output []byte `json:"output"`
+	Output bitcoin.Script `json:"output"`
 }
 
 // P2PPaymentDestinationResponse is the raw response from a PaymentDestination endpoint.
@@ -147,8 +147,8 @@ type P2PPaymentDestinationResponse struct {
 }
 
 type P2PPaymentDestinationOutput struct {
-	Script []byte `json:"script"`
-	Value  uint64 `json:"satoshis"`
+	Script bitcoin.Script `json:"script"`
+	Value  uint64         `json:"satoshis"`
 }
 
 type P2PPaymentDestinationOutputs struct {

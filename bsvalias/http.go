@@ -90,7 +90,7 @@ func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, erro
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add a
 // signature to the request.
 func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, senderHandle,
-	purpose string, amount uint64, senderKey *bitcoin.Key) ([]byte, error) {
+	purpose string, amount uint64, senderKey *bitcoin.Key) (bitcoin.Script, error) {
 
 	url, err := c.Site.Capabilities.GetURL(URLNamePaymentDestination)
 	if err != nil {
