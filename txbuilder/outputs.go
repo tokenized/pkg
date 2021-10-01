@@ -32,6 +32,14 @@ func DustLimitForAddress(ra bitcoin.RawAddress, feeRate float32) (uint64, error)
 	return DustLimitForOutput(output, feeRate), nil
 }
 
+// DustLimitForLockingScript calculates the dust limit
+func DustLimitForLockingScript(lockingScript bitcoin.Script, feeRate float32) uint64 {
+	output := &wire.TxOut{
+		LockingScript: lockingScript,
+	}
+	return DustLimitForOutput(output, feeRate)
+}
+
 // OutputFeeAndDustForLockingScript returns the tx fee required to include the locking script as an
 // output in a tx and the dust limit of that output.
 func OutputFeeAndDustForLockingScript(lockingScript bitcoin.Script,
