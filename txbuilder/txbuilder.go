@@ -44,12 +44,12 @@ var (
 )
 
 type TxBuilder struct {
-	MsgTx         *wire.MsgTx
-	Inputs        []*InputSupplement  // Input Data that is not in wire.MsgTx
-	Outputs       []*OutputSupplement // Output Data that is not in wire.MsgTx
-	ChangeAddress bitcoin.RawAddress  // The address to pay extra bitcoins to if a change output isn't specified
-	FeeRate       float32             // The target fee rate in sat/byte
-	SendMax       bool                // When set, AddFunding will add all UTXOs given
+	MsgTx        *wire.MsgTx
+	Inputs       []*InputSupplement  // Input Data that is not in wire.MsgTx
+	Outputs      []*OutputSupplement // Output Data that is not in wire.MsgTx
+	ChangeScript bitcoin.Script      // The script to pay extra bitcoins to if a change output isn't specified
+	FeeRate      float32             // The target fee rate in sat/byte
+	SendMax      bool                // When set, AddFunding will add all UTXOs given
 
 	// The fee rate used by miners to calculate dust. It is currently maintained as a different rate
 	// than min accept and min propagate. Currently 1.0

@@ -141,16 +141,9 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 			break
 		}
 	}
-	if changeDustLimit == 0 && !tx.ChangeAddress.IsEmpty() {
-		var err error
-		changeOutputFee, err = AddressOutputFee(tx.ChangeAddress, tx.DustFeeRate)
-		if err != nil {
-			return errors.Wrap(err, "address output fee")
-		}
-		addressChangeDustLimit, err := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
-		if err == nil {
-			changeDustLimit = addressChangeDustLimit
-		}
+	if changeDustLimit == 0 && len(tx.ChangeScript) > 0 {
+		changeOutputFee, changeDustLimit = OutputFeeAndDustForLockingScript(tx.ChangeScript,
+			tx.DustFeeRate, tx.FeeRate)
 	}
 	if changeDustLimit == 0 {
 		// Use P2PKH dust limit
@@ -192,12 +185,12 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 				if change > changeDustLimit+changeOutputFee {
 					// Add new change output
 					change -= changeOutputFee
-					if tx.ChangeAddress.IsEmpty() {
+					if len(tx.ChangeScript) == 0 {
 						return errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
 							change))
 					}
 
-					if err := tx.AddPaymentOutput(tx.ChangeAddress, change, true); err != nil {
+					if err := tx.AddOutput(tx.ChangeScript, change, true, false); err != nil {
 						return errors.Wrap(err, "adding change")
 					}
 					tx.Outputs[len(tx.Outputs)-1].KeyID = tx.ChangeKeyID
@@ -230,7 +223,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 // If SendMax is set then all UTXOs are added as inputs.
 // If there is already an IsRemainder output, then it will get all of the "change" and it won't be
 // broken up.
-// tx.ChangeAddress is ignored.
+// tx.ChangeScript is ignored.
 // breakValue should be a fairly low value that is the smallest UTXO you want created other than
 // the remainder.
 // It is recommended to provide at least 5 change addresses. More addresses means more privacy, but
@@ -370,6 +363,11 @@ func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 		return 0, errors.Wrap(err, "locking script")
 	}
 
+	return LockingScriptOutputFee(lockingScript, feeRate), nil
+}
+
+// LockingScriptOutputFee returns the tx fee to include an locking script as an output in a tx.
+func LockingScriptOutputFee(lockingScript bitcoin.Script, feeRate float32) uint64 {
 	txout := wire.TxOut{LockingScript: lockingScript}
-	return uint64(txout.SerializeSize()), nil
+	return uint64(float32(txout.SerializeSize()) * feeRate)
 }

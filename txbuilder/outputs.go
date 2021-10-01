@@ -1,8 +1,6 @@
 package txbuilder
 
 import (
-	"bytes"
-
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 
@@ -74,31 +72,16 @@ func (tx *TxBuilder) OutputAddress(index int) (bitcoin.RawAddress, error) {
 }
 
 func (tx *TxBuilder) SetChangeAddress(address bitcoin.RawAddress, keyID string) error {
-	tx.ChangeAddress = address
-	tx.ChangeKeyID = keyID
-
-	// Update outputs
-	changeScript, err := tx.ChangeAddress.LockingScript()
+	changeScript, err := address.LockingScript()
 	if err != nil {
 		return err
 	}
-	for i, output := range tx.MsgTx.TxOut {
-		if bytes.Equal(output.LockingScript, changeScript) {
-			tx.Outputs[i].IsRemainder = true
-			tx.Outputs[i].KeyID = keyID
-		}
-	}
 
-	return nil
+	return tx.SetChangeLockingScript(changeScript, keyID)
 }
 
 func (tx *TxBuilder) SetChangeLockingScript(lockingScript bitcoin.Script, keyID string) error {
-	ra, err := bitcoin.RawAddressFromLockingScript(lockingScript)
-	if err != nil {
-		return errors.Wrap(err, "address")
-	}
-
-	tx.ChangeAddress = ra
+	tx.ChangeScript = lockingScript
 	tx.ChangeKeyID = keyID
 
 	// Update existing outputs
