@@ -166,13 +166,13 @@ func (tx *TxBuilder) Serialize() ([]byte, error) {
 }
 
 func (tx *TxBuilder) String(net bitcoin.Network) string {
-	result := fmt.Sprintf("TxId: %s (%d bytes)\n", tx.MsgTx.TxHash().String(), tx.MsgTx.SerializeSize())
+	result := fmt.Sprintf("TxId: %s (%d bytes)\n", tx.MsgTx.TxHash(), tx.MsgTx.SerializeSize())
 	result += fmt.Sprintf("  Version: %d\n", tx.MsgTx.Version)
 	result += "  Inputs:\n\n"
 	for i, input := range tx.MsgTx.TxIn {
 		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
 			input.PreviousOutPoint.Hash.String())
-		result += fmt.Sprintf("    Script: %x\n", input.UnlockingScript)
+		result += fmt.Sprintf("    UnlockingScript: %s\n", input.UnlockingScript)
 		result += fmt.Sprintf("    Sequence: %x\n", input.Sequence)
 
 		ra, err := bitcoin.RawAddressFromLockingScript(tx.Inputs[i].LockingScript)
@@ -180,6 +180,7 @@ func (tx *TxBuilder) String(net bitcoin.Network) string {
 			result += fmt.Sprintf("    Address: %s\n",
 				bitcoin.NewAddressFromRawAddress(ra, net).String())
 		}
+		result += fmt.Sprintf("    LockingScript: %s\n", tx.Inputs[i].LockingScript)
 		result += fmt.Sprintf("    Value: %d\n", tx.Inputs[i].Value)
 		if len(tx.Inputs[i].KeyID) > 0 {
 			result += fmt.Sprintf("    KeyID : %s\n", tx.Inputs[i].KeyID)
@@ -189,7 +190,7 @@ func (tx *TxBuilder) String(net bitcoin.Network) string {
 	result += "  Outputs:\n\n"
 	for i, output := range tx.MsgTx.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
-		result += fmt.Sprintf("    Script: %x\n", output.LockingScript)
+		result += fmt.Sprintf("    LockingScript: %s\n", output.LockingScript)
 		ra, err := bitcoin.RawAddressFromLockingScript(output.LockingScript)
 		if err == nil {
 			result += fmt.Sprintf("    Address: %s\n",
