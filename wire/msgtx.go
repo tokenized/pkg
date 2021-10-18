@@ -924,3 +924,42 @@ func writeTxOut(w io.Writer, pver uint32, version int32, to *TxOut) error {
 
 	return WriteVarBytes(w, pver, to.LockingScript)
 }
+
+func (tx *MsgTx) Clear() {
+	tx.Version = 1
+	tx.TxIn = nil
+	tx.TxOut = nil
+	tx.LockTime = 0
+}
+
+// Scan converts from a database column.
+func (tx *MsgTx) Scan(data interface{}) error {
+	if data == nil {
+		tx.Clear()
+		return nil
+	}
+
+	b, ok := data.([]byte)
+	if !ok {
+		return errors.New("MsgTx db column not bytes")
+	}
+
+	if len(b) == 0 {
+		tx.Clear()
+		return nil
+	}
+
+	// Copy byte slice because it will be wiped out by the database after this call.
+	c := make([]byte, len(b))
+	copy(c, b)
+
+	// Decode into raw address
+	return tx.Deserialize(bytes.NewReader(c))
+}
+
+// Bytes returns the byte encoded format of the tx.
+func (tx MsgTx) Bytes() []byte {
+	buf := &bytes.Buffer{}
+	tx.Serialize(buf)
+	return buf.Bytes()
+}
