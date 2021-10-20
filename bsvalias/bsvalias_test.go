@@ -43,7 +43,7 @@ func TestP2PTransactionSignature(t *testing.T) {
 		t.Fatalf("Failed to create txid message sig hash : %s", err)
 	}
 
-	if !signature.Verify(sigHash[:], key) {
+	if !signature.Verify(sigHash, key) {
 		t.Errorf("Not message hash")
 	} else {
 		t.Logf("Signature is valid")

@@ -112,7 +112,7 @@ func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, send
 			return nil, errors.Wrap(err, "signature hash")
 		}
 
-		sig, err := senderKey.Sign(sigHash.Bytes())
+		sig, err := senderKey.Sign(sigHash)
 		if err != nil {
 			return nil, errors.Wrap(err, "sign")
 		}
@@ -164,7 +164,7 @@ func (c *HTTPClient) GetPaymentRequest(ctx context.Context, senderName, senderHa
 			return nil, errors.Wrap(err, "signature hash")
 		}
 
-		sig, err := senderKey.Sign(sigHash.Bytes())
+		sig, err := senderKey.Sign(sigHash)
 		if err != nil {
 			return nil, errors.Wrap(err, "sign")
 		}

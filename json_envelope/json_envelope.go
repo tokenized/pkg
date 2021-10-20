@@ -27,9 +27,9 @@ func (je *JSONEnvelope) Verify() error {
 		return ErrJSONNotSigned
 	}
 
-	hash := sha256.Sum256([]byte(je.Payload))
+	hash := bitcoin.Hash32(sha256.Sum256([]byte(je.Payload)))
 
-	if !je.Signature.Verify(hash[:], *je.PublicKey) {
+	if !je.Signature.Verify(hash, *je.PublicKey) {
 		return ErrInvalidJSONSignature
 	}
 

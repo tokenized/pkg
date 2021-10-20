@@ -69,7 +69,7 @@ func TestSig(t *testing.T) {
 		t.Fatalf("Bad hash : %s", err)
 	}
 
-	if !sig.Verify(sigHash[:], pubKey) {
+	if !sig.Verify(*sigHash, pubKey) {
 		t.Fatalf("Invalid signature")
 	}
 }

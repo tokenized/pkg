@@ -51,14 +51,14 @@ func TestSigHash(t *testing.T) {
 			}
 
 			var hashCache SigHashCache
-			gotHash, err := signatureHash(&tx, tt.input_index, script, tt.value,
+			gotHash, err := SignatureHash(&tx, tt.input_index, script, tt.value,
 				SigHashType(tt.hashType), &hashCache)
 			if err != nil {
 				t.Fatalf("Failed to generate signature hash : %s\n", err)
 			}
 
-			if !bytes.Equal(wantHash, gotHash) {
-				t.Fatalf("Invalid Sig Hash\ngot:%x\nwant:%x", gotHash, wantHash)
+			if !bytes.Equal(wantHash, gotHash[:]) {
+				t.Fatalf("Invalid Sig Hash\ngot:%x\nwant:%x", gotHash[:], wantHash)
 			}
 		})
 	}
@@ -89,17 +89,15 @@ func TestSigHashJS(t *testing.T) {
 		},
 	}
 
-	hash, err := signatureHash(msgTx, 0, lockingScript, 10000, SigHashAll+SigHashForkID,
+	hash, err := SignatureHash(msgTx, 0, lockingScript, 10000, SigHashAll+SigHashForkID,
 		&SigHashCache{})
 	if err != nil {
 		t.Fatalf("Failed to create sig hash : %s", err)
 	}
 
-	h, err := bitcoin.NewHash32(hash)
-
 	t.Logf("Tx : %s", msgTx)
 
-	t.Logf("Sig hash : %s\n", h)
+	t.Logf("Sig hash : %s\n", hash)
 }
 
 func TestTxSig(t *testing.T) {
@@ -183,13 +181,10 @@ func TestTxSig(t *testing.T) {
 
 	hashCache := &SigHashCache{}
 
-	sigHashBytes, err := signatureHash(msgTx, 0, utxos[0].LockingScript, utxos[0].Value,
+	sigHash, err := SignatureHash(msgTx, 0, utxos[0].LockingScript, utxos[0].Value,
 		SigHashAll|SigHashForkID, hashCache)
 
-	rSigHashBytes := make([]byte, 32)
-	reverse32(sigHashBytes, rSigHashBytes)
-
-	if !sig1.Verify(rSigHashBytes, pubKey1) {
+	if !sig1.Verify(*sigHash, pubKey1) {
 		t.Fatalf("Failed to verify sig 1")
 	}
 
@@ -203,14 +198,6 @@ func TestTxSig(t *testing.T) {
 	// 	t.Fatalf("Failed to decode pub key : %s", err)
 	// }
 
-}
-
-func reverse32(h, rh []byte) {
-	i := 32 - 1
-	for _, b := range rh[:] {
-		h[i] = b
-		i--
-	}
 }
 
 func TestSigHashBytes(t *testing.T) {

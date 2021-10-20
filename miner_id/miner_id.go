@@ -62,9 +62,9 @@ func (mid *MinerID) VerifyPrevious() error {
 
 	prevCheck := mid.PreviousMinerID.String() + mid.MinerID.String() +
 		mid.ValidityCheckTx.TxID.String()
-	hash := sha256.Sum256([]byte(prevCheck))
+	hash := bitcoin.Hash32(sha256.Sum256([]byte(prevCheck)))
 
-	if !mid.PreviousMinerIDSig.Verify(hash[:], *mid.PreviousMinerID) {
+	if !mid.PreviousMinerIDSig.Verify(hash, *mid.PreviousMinerID) {
 		return errors.Wrap(ErrInvalidMinerIDSignature, "previous miner id")
 	}
 
@@ -450,8 +450,8 @@ func ParseMinerIDFromScript(script []byte) (*MinerID, error) {
 		return nil, errors.Wrap(err, "static document signature")
 	}
 
-	hash := sha256.Sum256(documentBytes)
-	if !documentSig.Verify(hash[:], result.MinerID) {
+	hash := bitcoin.Hash32(sha256.Sum256(documentBytes))
+	if !documentSig.Verify(hash, result.MinerID) {
 		return nil, errors.Wrap(ErrInvalidMinerIDSignature, "miner id")
 	}
 

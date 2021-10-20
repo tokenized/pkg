@@ -183,12 +183,12 @@ func TestTxSigHash(t *testing.T) {
 	tx.SetChangeAddress(changeAddress, "")
 
 	hashCache := &SigHashCache{}
-	sighash, err := signatureHash(msg, 0, msg1.TxOut[0].LockingScript, msg1.TxOut[0].Value,
+	sighash, err := SignatureHash(msg, 0, msg1.TxOut[0].LockingScript, msg1.TxOut[0].Value,
 		SigHashAll+SigHashForkID, hashCache)
 	if err != nil {
 		t.Fatalf("Failed to generate signature hash : %s", err)
 	}
-	sighashHex := hex.EncodeToString(sighash)
+	sighashHex := hex.EncodeToString(sighash[:])
 
 	if sighashHex != "54638b5c5126e187cb3a6e62c28fa595c925d3c1dec50780d5a2116879eaf381" {
 		t.Fatalf("Wrong sig hash : \n  got  %s\n  want %s", sighashHex,

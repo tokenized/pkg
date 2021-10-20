@@ -47,7 +47,7 @@ func (r *PaymentDestinationRequest) Sign(key bitcoin.Key) error {
 		return errors.Wrap(err, "signature hash")
 	}
 
-	sig, err := key.Sign(sigHash.Bytes())
+	sig, err := key.Sign(sigHash)
 	if err != nil {
 		return errors.Wrap(err, "sign")
 	}
@@ -68,7 +68,7 @@ func (r PaymentDestinationRequest) CheckSignature(publicKey bitcoin.PublicKey) e
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.Signature))
 	}
 
-	if !sig.Verify(sigHash.Bytes(), publicKey) {
+	if !sig.Verify(sigHash, publicKey) {
 		return ErrInvalidSignature
 	}
 
@@ -102,7 +102,7 @@ func (r *P2PTransactionRequest) Sign(key bitcoin.Key) error {
 		return errors.Wrap(err, "signature hash")
 	}
 
-	sig, err := key.Sign(sigHash[:])
+	sig, err := key.Sign(sigHash)
 	if err != nil {
 		return errors.Wrap(err, "sign txid")
 	}
@@ -128,7 +128,7 @@ func (r P2PTransactionRequest) CheckSignature(publicKey bitcoin.PublicKey) error
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.MetaData.Signature))
 	}
 
-	if !sig.Verify(sigHash[:], publicKey) {
+	if !sig.Verify(sigHash, publicKey) {
 		return ErrInvalidSignature
 	}
 
@@ -180,7 +180,7 @@ func (r *PaymentRequestRequest) Sign(key bitcoin.Key) error {
 		return errors.Wrap(err, "signature hash")
 	}
 
-	sig, err := key.Sign(sigHash.Bytes())
+	sig, err := key.Sign(sigHash)
 	if err != nil {
 		return errors.Wrap(err, "sign")
 	}
@@ -201,7 +201,7 @@ func (r PaymentRequestRequest) CheckSignature(publicKey bitcoin.PublicKey) error
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.Signature))
 	}
 
-	if !sig.Verify(sigHash.Bytes(), publicKey) {
+	if !sig.Verify(sigHash, publicKey) {
 		return ErrInvalidSignature
 	}
 

@@ -112,7 +112,7 @@ func SignatureHashPreimageBytes(tx *wire.MsgTx, index int, lockScript []byte, va
 	return buf.Bytes(), nil
 }
 
-// signatureHash computes the hash to be signed for a transaction's input using the new, optimized
+// SignatureHash computes the hash to be signed for a transaction's input using the new, optimized
 //   digest calculation algorithm defined in BIP0143:
 //   https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki.
 // This function makes use of pre-calculated hash fragments stored within the passed SigHashCache to
@@ -122,8 +122,8 @@ func SignatureHashPreimageBytes(tx *wire.MsgTx, index int, lockScript []byte, va
 //   offline, or hardware wallets to compute the exact amount being spent, in addition to the final
 //   transaction fee. In the case the wallet if fed an invalid input amount, the real sighash will
 //   differ causing the produced signature to be invalid.
-func signatureHash(tx *wire.MsgTx, index int, lockScript []byte, value uint64,
-	hashType SigHashType, hashCache *SigHashCache) ([]byte, error) {
+func SignatureHash(tx *wire.MsgTx, index int, lockScript []byte, value uint64,
+	hashType SigHashType, hashCache *SigHashCache) (*bitcoin.Hash32, error) {
 
 	s := sha256.New()
 
@@ -132,8 +132,8 @@ func signatureHash(tx *wire.MsgTx, index int, lockScript []byte, value uint64,
 		return nil, errors.Wrap(err, "write sig hash bytes")
 	}
 
-	hash := sha256.Sum256(s.Sum(nil))
-	return hash[:], nil
+	hash := bitcoin.Hash32(sha256.Sum256(s.Sum(nil)))
+	return &hash, nil
 }
 
 func writeSignatureHashPreimageBytes(w io.Writer, tx *wire.MsgTx, index int, lockScript []byte,
@@ -141,7 +141,7 @@ func writeSignatureHashPreimageBytes(w io.Writer, tx *wire.MsgTx, index int, loc
 
 	// As a sanity check, ensure the passed input index for the transaction is valid.
 	if index > len(tx.TxIn)-1 {
-		return fmt.Errorf("signatureHash error: index %d but %d txins", index, len(tx.TxIn))
+		return fmt.Errorf("SignatureHash error: index %d but %d txins", index, len(tx.TxIn))
 	}
 
 	// First write out, then encode the transaction's version number.

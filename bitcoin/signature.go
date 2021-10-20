@@ -23,13 +23,13 @@ type Signature struct {
 }
 
 // Verify returns true if the signature is valid for this public key and hash.
-func (s Signature) Verify(hash []byte, pubkey PublicKey) bool {
+func (s Signature) Verify(hash Hash32, pubkey PublicKey) bool {
 	ecPubKey := &ecdsa.PublicKey{
 		curveS256,
 		&pubkey.X,
 		&pubkey.Y,
 	}
-	return ecdsa.Verify(ecPubKey, hash, &s.R, &s.S)
+	return ecdsa.Verify(ecPubKey, hash[:], &s.R, &s.S)
 }
 
 // SignatureFromStr converts signature text to a signature.
