@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 // SigHashType represents hash type bits at the end of a signature.

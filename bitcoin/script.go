@@ -869,6 +869,15 @@ func LockingScriptIsUnspendable(script []byte) bool {
 	return false
 }
 
+func OpCodeToString(opCode byte) string {
+	name, exists := byteToNames[opCode]
+	if exists {
+		return name
+	}
+
+	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{opCode}))
+}
+
 // ScriptToString converts a bitcoin script into a text representation.
 func ScriptToString(script Script) string {
 	var result []string
