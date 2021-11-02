@@ -166,7 +166,8 @@ func (tx *TxBuilder) Serialize() ([]byte, error) {
 }
 
 func (tx *TxBuilder) String(net bitcoin.Network) string {
-	result := fmt.Sprintf("TxId: %s (%d bytes)\n", tx.MsgTx.TxHash(), tx.MsgTx.SerializeSize())
+	result := fmt.Sprintf("TxId: %s (%d bytes) (%d estimated / %d fee)\n", tx.MsgTx.TxHash(),
+		tx.MsgTx.SerializeSize(), tx.EstimatedSize(), tx.Fee())
 	result += fmt.Sprintf("  Version: %d\n", tx.MsgTx.Version)
 	result += "  Inputs:\n\n"
 	for i, input := range tx.MsgTx.TxIn {
