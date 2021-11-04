@@ -42,6 +42,34 @@ func (tx *TxBuilder) AddInputUTXO(utxo bitcoin.UTXO) error {
 	return nil
 }
 
+func (tx *TxBuilder) UpdateInputUTXO(index int, utxo bitcoin.UTXO) error {
+	if index > len(tx.MsgTx.TxIn) {
+		return errors.New("Input index out of range")
+	}
+
+	// Check that utxo isn't already an input.
+	for i, input := range tx.MsgTx.TxIn {
+		if i == index {
+			continue
+		}
+
+		if input.PreviousOutPoint.Hash.Equal(&utxo.Hash) &&
+			input.PreviousOutPoint.Index == utxo.Index {
+			return errors.Wrap(ErrDuplicateInput, "")
+		}
+	}
+
+	input := tx.Inputs[index]
+	input.LockingScript = utxo.LockingScript
+	input.Value = utxo.Value
+	input.KeyID = utxo.KeyID
+
+	tx.MsgTx.TxIn[index].PreviousOutPoint.Hash = utxo.Hash
+	tx.MsgTx.TxIn[index].PreviousOutPoint.Index = utxo.Index
+
+	return nil
+}
+
 // InsertInput inserts an input into TxBuilder at the specified index.
 func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) error {
 	if index > len(tx.MsgTx.TxIn) {
