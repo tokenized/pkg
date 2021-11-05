@@ -2,6 +2,7 @@ package txbuilder
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
@@ -10,6 +11,11 @@ import (
 )
 
 const (
+	// InputBaseSize is the size of a tx input not including script
+	//   Previous Transaction ID = 32 bytes
+	//   Previous Transaction Output Index = 4 bytes
+	InputBaseSize = 32 + 4
+
 	// MaximumP2PKHInputSize is the maximum serialized size of a P2PKH tx input based on all of the
 	// variable sized data.
 	// P2PKH/P2SH input size 149
@@ -25,7 +31,7 @@ const (
 	//       public key size = 33 bytes
 	//   Sequence number = 4
 	MaximumP2PKHSigScriptSize = 1 + 74 + 34
-	MaximumP2PKHInputSize     = 32 + 4 + MaximumP2PKHSigScriptSize + 4
+	MaximumP2PKHInputSize     = InputBaseSize + MaximumP2PKHSigScriptSize + 4
 
 	// MaximumP2RPHInputSize is the maximum serialized size of a P2RPH tx input based on all of the
 	// variable sized data.
@@ -42,7 +48,7 @@ const (
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
 	MaximumP2RPHSigScriptSize = 1 + 34 + 74
-	MaximumP2RPHInputSize     = 32 + 4 + MaximumP2RPHSigScriptSize + 4
+	MaximumP2RPHInputSize     = InputBaseSize + MaximumP2RPHSigScriptSize + 4
 
 	// MaximumP2PKInputSize is the maximium serialized size of a P2PK tx input based on all of the
 	// variable sized data.
@@ -56,7 +62,7 @@ const (
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
 	MaximumP2PKSigScriptSize = 1 + 74
-	MaximumP2PKInputSize     = 32 + 4 + MaximumP2PKSigScriptSize + 4
+	MaximumP2PKInputSize     = InputBaseSize + MaximumP2PKSigScriptSize + 4
 
 	// OutputBaseSize is the size of a tx output not including script
 	OutputBaseSize = 8
@@ -81,6 +87,9 @@ const (
 	//       OP_CHECKSIG = 1 byte
 	P2PKOutputScriptSize = 36
 	P2PKOutputSize       = OutputBaseSize + P2PKOutputScriptSize
+
+	PublicKeyPushDataSize     = 34 // 1 byte push op code + 33 byte public key
+	MaxSignaturesPushDataSize = 74 // 1 byte push op code + 72 byte sig + 1 byte sig hash type
 
 	// DustInputSize is the fixed size of an input used in the calculation of the dust limit.
 	// This is actually the estimated size of a P2PKH input, but is used for dust calculation of all
@@ -243,20 +252,44 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 }
 
 // lockingScriptUnlockFee returns the size (in bytes) of the input that spends it.
-func lockingScriptUnlockSize(lockingScript []byte) (int, error) {
-	ra, err := bitcoin.RawAddressFromLockingScript(lockingScript)
-	if err != nil {
-		return 0, errors.Wrap(err, "parse locking script")
-	}
-	switch ra.Type() {
-	case bitcoin.ScriptTypePKH:
+func lockingScriptUnlockSize(lockingScript bitcoin.Script) (int, error) {
+	if lockingScript.IsP2PKH() {
 		return MaximumP2PKHInputSize, nil
-	case bitcoin.ScriptTypeRPH:
-		return MaximumP2RPHInputSize, nil
-	case bitcoin.ScriptTypePK:
-		return MaximumP2PKInputSize, nil
-	// TODO Add MultiPKH
-	default:
-		return 0, errors.Wrap(err, "script type")
 	}
+
+	if lockingScript.IsP2PK() {
+		return MaximumP2PKInputSize, nil
+	}
+
+	if required, total, err := lockingScript.MultiPKHCounts(); err == nil {
+		// 1 op_code OP_FALSE or OP_TRUE for each signer (total) plus a public key and signature for
+		// each required signer.
+		scriptSize := total + (required * (PublicKeyPushDataSize + MaxSignaturesPushDataSize))
+		return InputBaseSize + int(VarIntSerializeSize(uint64(scriptSize))) + int(scriptSize), nil
+	}
+
+	return 0, ErrWrongScriptTemplate
+}
+
+// VarIntSerializeSize returns the number of bytes it would take to serialize
+// val as a variable length integer.
+func VarIntSerializeSize(val uint64) int {
+	// The value is small enough to be represented by itself, so it's
+	// just 1 byte.
+	if val < 0xfd {
+		return 1
+	}
+
+	// Discriminant 1 byte plus 2 bytes for the uint16.
+	if val <= math.MaxUint16 {
+		return 3
+	}
+
+	// Discriminant 1 byte plus 4 bytes for the uint32.
+	if val <= math.MaxUint32 {
+		return 5
+	}
+
+	// Discriminant 1 byte plus 8 bytes for the uint64.
+	return 9
 }

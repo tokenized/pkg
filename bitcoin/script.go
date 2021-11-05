@@ -15,6 +15,8 @@ const (
 	ScriptItemTypeOpCode   = ScriptItemType(0x01)
 	ScriptItemTypePushData = ScriptItemType(0x02)
 
+	PublicKeyHashSize = 20
+
 	OP_FALSE = byte(0x00)
 	OP_TRUE  = byte(0x51)
 
@@ -86,8 +88,10 @@ var (
 
 	ErrInvalidScript       = errors.New("Invalid Script")
 	ErrNotP2PKH            = errors.New("Not P2PKH")
+	ErrWrongScriptTemplate = errors.New("Wrong Script Template")
 	ErrNotPushOp           = errors.New("Not Push Op")
 	ErrUnknownScriptNumber = errors.New("Unknown Script Number")
+	ErrWrongOpCode         = errors.New("Wrong Op Code")
 
 	byteToNames = map[byte]string{
 		OP_FALSE:              "OP_FALSE",
@@ -176,6 +180,12 @@ var (
 
 type ScriptItemType uint8
 
+type ScriptItem struct {
+	Type   ScriptItemType
+	OpCode byte
+	Data   []byte
+}
+
 type Script []byte
 
 func NewScript(b []byte) Script {
@@ -186,7 +196,7 @@ func (s Script) PubKeyCount() uint32 {
 	buf := bytes.NewReader(s)
 	result := uint32(0)
 	for {
-		typ, _, data, err := ParseScript(buf)
+		item, err := ParseScript(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -194,8 +204,8 @@ func (s Script) PubKeyCount() uint32 {
 			return 0
 		}
 
-		if typ == ScriptItemTypePushData {
-			l := len(data)
+		if item.Type == ScriptItemTypePushData {
+			l := len(item.Data)
 			if l == Hash20Size || l == PublicKeyCompressedLength {
 				result++
 			}
@@ -214,43 +224,13 @@ func (s Script) RequiredSignatures() (uint32, error) {
 		return 1, nil
 	}
 
-	buf := bytes.NewReader(s)
-	var previousOpCode byte
-	var previousPushData []byte
-	for {
-		typ, opCode, data, err := ParseScript(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return 0, errors.Wrap(err, "parse script")
-		}
-
-		if typ == ScriptItemTypePushData {
-			previousOpCode = opCode
-			previousPushData = data
-			continue
-		}
-
-		switch opCode {
-		case OP_GREATERTHANOREQUAL:
-			// Assume this is a multi-pkh accumulator script.
-			value, err := ScriptNumberValue(previousOpCode, previousPushData)
-			if err != nil {
-				return 0, errors.Wrap(err, "script number")
-			}
-
-			if value < 0 || value > 0xffffffff {
-				return 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d", value)
-			}
-
-			return uint32(value), nil
-		}
-
-		previousOpCode = opCode
-		previousPushData = nil
+	if required, _, err := s.MultiPKHCounts(); err == nil {
+		return required, nil
+	} else {
+		fmt.Printf("Multi PKH Error : %s\n", err)
 	}
 
+	fmt.Printf("Unknown\n")
 	return 0, ErrUnknownScriptTemplate
 }
 
@@ -265,7 +245,7 @@ func (s Script) IsP2PK() bool {
 func (s Script) MatchesTemplate(template Template) bool {
 	buf := bytes.NewReader(s)
 	for {
-		typ, opCode, data, err := ParseScript(buf)
+		item, err := ParseScript(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -281,19 +261,156 @@ func (s Script) MatchesTemplate(template Template) bool {
 		template = template[1:]
 
 		if expected == OP_PUBKEYHASH {
-			if typ != ScriptItemTypePushData || len(data) != Hash20Size {
+			if item.Type != ScriptItemTypePushData || len(item.Data) != Hash20Size {
 				return false
 			}
 		} else if expected == OP_PUBKEY {
-			if typ != ScriptItemTypePushData || len(data) != PublicKeyCompressedLength {
+			if item.Type != ScriptItemTypePushData || len(item.Data) != PublicKeyCompressedLength {
 				return false
 			}
-		} else if opCode != expected {
+		} else if item.OpCode != expected {
 			return false
 		}
 	}
 
 	return len(template) == 0
+}
+
+func CheckOpCode(r *bytes.Reader, opCode byte) error {
+	item, err := ParseScript(r)
+	if err != nil {
+		return errors.Wrap(err, "parse script")
+	}
+
+	if item.Type == ScriptItemTypePushData {
+		return errors.Wrap(ErrWrongOpCode, "is push op")
+	}
+
+	if item.OpCode == opCode {
+		return nil
+	}
+
+	return errors.Wrapf(ErrWrongOpCode, "got %s, want %s", OpCodeToString(item.OpCode),
+		OpCodeToString(opCode))
+}
+
+// MultiPKHCounts returns the number of require signatures and total signers for a multi-pkh locking
+// script. It returns the error ErrWrongScriptTemplate if the locking script doesn't match the
+// template.
+//
+// Returns:
+// Required Signatures Count
+// Total Signers Count
+func (s Script) MultiPKHCounts() (uint32, uint32, error) {
+	fmt.Printf("Checking Multi-PKH Counts : %s\n", s)
+
+	r := bytes.NewReader(s)
+
+	// Initialize alt stack
+	if err := CheckOpCode(r, OP_0); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	if err := CheckOpCode(r, OP_TOALTSTACK); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	// For each signer
+	total := uint32(0)
+	var requiredSigners int64
+	for {
+		item, err := ParseScript(r)
+		if err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if item.Type != ScriptItemTypeOpCode || item.OpCode != OP_IF {
+			requiredSigners, err = ScriptNumberValue(item)
+			if err != nil {
+				return 0, 0, errors.Wrap(ErrWrongScriptTemplate,
+					errors.Wrap(err, "required signers script number").Error())
+			}
+
+			break // this must be the required signers count
+		}
+
+		if item.OpCode != OP_IF {
+			return 0, 0, errors.Wrapf(ErrWrongScriptTemplate, "not OP_IF: %s",
+				OpCodeToString(item.OpCode))
+		}
+
+		if err := CheckOpCode(r, OP_DUP); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_HASH160); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		pubKeyItem, err := ParseScript(r)
+		if err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate,
+				errors.Wrap(err, "public key hash").Error())
+		}
+
+		if pubKeyItem.Type != ScriptItemTypePushData {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, "public key hash not push data")
+		}
+
+		if len(pubKeyItem.Data) != PublicKeyHashSize {
+			return 0, 0, errors.Wrapf(ErrWrongScriptTemplate,
+				"wrong public key hash size: got %d, want %d", len(pubKeyItem.Data),
+				PublicKeyHashSize)
+		}
+
+		if err := CheckOpCode(r, OP_EQUALVERIFY); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_CHECKSIGVERIFY); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		// Increment alt stack for a valid signature
+		if err := CheckOpCode(r, OP_FROMALTSTACK); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_1ADD); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_TOALTSTACK); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_ENDIF); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		total++
+	}
+
+	// Check alt stack
+	// Already got {required signers count} in loop to break from the loop
+	if requiredSigners < 1 || requiredSigners > 0xffffffff {
+		return 0, 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d",
+			requiredSigners)
+	}
+
+	if err := CheckOpCode(r, OP_FROMALTSTACK); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	if err := CheckOpCode(r, OP_LESSTHANOREQUAL); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	if _, err := ParseScript(r); errors.Cause(err) != io.EOF {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, "not end of script")
+	}
+
+	return uint32(requiredSigners), total, nil
 }
 
 func (s Script) Equal(r Script) bool {
@@ -438,52 +555,62 @@ func WritePushDataScript(buf *bytes.Buffer, data []byte) error {
 	return err
 }
 
-// ParseScript will parse the next item of a bitcoin script for the next item which is either an op
-// code or a push data.
+// ParseScript will parse the next item of a bitcoin script.
 // A bytes.Reader object is needed to check the size against the remaining length before allocating
 // the memory to store the push.
-//
-// Returns:
-//   Type of item (ScriptItemTypeOpCode or ScriptItemTypePushData)
-//   Op code if applicable
-//   Push data if applicable
-func ParseScript(buf *bytes.Reader) (ScriptItemType, byte, []byte, error) {
+func ParseScript(buf *bytes.Reader) (*ScriptItem, error) {
 	var opCode byte
 	if err := binary.Read(buf, endian, &opCode); err != nil {
-		return ScriptItemTypeOpCode, 0, nil, err
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: 0,
+			Data:   nil,
+		}, err
 	}
 
 	isPushOp := false
 	dataSize := 0
 	if opCode == OP_FALSE {
-		return ScriptItemTypeOpCode, opCode, nil, nil
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
 	} else if opCode <= OP_MAX_SINGLE_BYTE_PUSH_DATA {
 		isPushOp = true
 		dataSize = int(opCode)
 	} else if opCode >= OP_1 && opCode <= OP_16 {
-		return ScriptItemTypeOpCode, opCode, nil, nil
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
 	} else if opCode == OP_1NEGATE {
-		return ScriptItemTypeOpCode, opCode, nil, nil
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
 	} else {
 		switch opCode {
 		case OP_PUSH_DATA_1:
 			var size uint8
 			if err := binary.Read(buf, endian, &size); err != nil {
-				return ScriptItemTypePushData, 0, nil, err
+				return nil, err
 			}
 			isPushOp = true
 			dataSize = int(size)
 		case OP_PUSH_DATA_2:
 			var size uint16
 			if err := binary.Read(buf, endian, &size); err != nil {
-				return ScriptItemTypePushData, 0, nil, err
+				return nil, err
 			}
 			isPushOp = true
 			dataSize = int(size)
 		case OP_PUSH_DATA_4:
 			var size uint32
 			if err := binary.Read(buf, endian, &size); err != nil {
-				return ScriptItemTypePushData, 0, nil, err
+				return nil, err
 			}
 			isPushOp = true
 			dataSize = int(size)
@@ -491,23 +618,35 @@ func ParseScript(buf *bytes.Reader) (ScriptItemType, byte, []byte, error) {
 	}
 
 	if !isPushOp {
-		return ScriptItemTypeOpCode, opCode, nil, nil
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
 	}
 	if dataSize == 0 {
-		return ScriptItemTypePushData, opCode, nil, nil
+		return &ScriptItem{
+			Type:   ScriptItemTypePushData,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
 	}
 
 	if dataSize > buf.Len() { // Check this to prevent trying to allocate a large amount.
-		return ScriptItemTypePushData, 0, nil, errors.Wrap(ErrInvalidScript,
+		return nil, errors.Wrap(ErrInvalidScript,
 			fmt.Sprintf("Push data size past end of script : %d/%d", dataSize, buf.Len()))
 	}
 
 	data := make([]byte, dataSize)
 	if _, err := buf.Read(data); err != nil {
-		return ScriptItemTypePushData, 0, nil, err
+		return nil, err
 	}
 
-	return ScriptItemTypePushData, opCode, data, nil
+	return &ScriptItem{
+		Type:   ScriptItemTypePushData,
+		OpCode: opCode,
+		Data:   data,
+	}, nil
 }
 
 // ParsePushDataScriptSize will parse a push data script and return its size.
@@ -688,23 +827,24 @@ func PushNumberScript(n int64) []byte {
 
 // ScriptNumberValue returns the number value given the op code or push data returned from
 // ParseScript.
-func ScriptNumberValue(previousOpCode byte, previousPushData []byte) (int64, error) {
-	if len(previousPushData) > 0 {
-		return DecodeScriptLittleEndian(previousPushData), nil
+func ScriptNumberValue(item *ScriptItem) (int64, error) {
+	if item.Type == ScriptItemTypePushData {
+		return DecodeScriptLittleEndian(item.Data), nil
 	}
 
-	if previousOpCode >= OP_1 && previousOpCode <= OP_16 {
-		return int64(previousOpCode - 0x50), nil
+	if item.OpCode >= OP_1 && item.OpCode <= OP_16 {
+		return int64(item.OpCode - 0x50), nil
 	}
 
-	switch previousOpCode {
+	switch item.OpCode {
 	case OP_FALSE:
 		return 0, nil
 	case OP_1NEGATE:
 		return -1, nil
 	}
 
-	return 0, ErrUnknownScriptNumber
+	return 0, errors.Wrapf(ErrUnknownScriptNumber, "op code : %s, data : %x",
+		OpCodeToString(item.OpCode), item.Data)
 }
 
 // ParsePushNumberScript reads a number out of script and returns the value, the bytes of script it
@@ -884,7 +1024,7 @@ func ScriptToString(script Script) string {
 	buf := bytes.NewReader(script)
 
 	for {
-		typ, opCode, data, err := ParseScript(buf)
+		item, err := ParseScript(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -892,20 +1032,20 @@ func ScriptToString(script Script) string {
 			continue
 		}
 
-		if typ == ScriptItemTypePushData {
-			result = append(result, fmt.Sprintf("0x%s", hex.EncodeToString(data)))
+		if item.Type == ScriptItemTypePushData {
+			result = append(result, fmt.Sprintf("0x%s", hex.EncodeToString(item.Data)))
 			continue
 		}
 
 		// Op Code
-		name, exists := byteToNames[opCode]
+		name, exists := byteToNames[item.OpCode]
 		if exists {
 			result = append(result, name)
 			continue
 		}
 
 		// Undefined op code
-		result = append(result, fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{opCode})))
+		result = append(result, fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode})))
 	}
 
 	return strings.Join(result, " ")

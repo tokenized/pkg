@@ -179,7 +179,7 @@ func RawAddressFromLockingScript(lockingScript Script) (RawAddress, error) {
 		err := result.SetSH(sh)
 		return result, err
 
-	case OP_FALSE: // MultiPKH
+	case OP_0: // MultiPKH
 		// 35 = 1 min number push + 4 op codes outside of pkh if statements + 30 per pkh
 		if len(script) < 35 {
 			return RawAddress{}, ErrUnknownScriptTemplate
@@ -253,15 +253,6 @@ func RawAddressFromLockingScript(lockingScript Script) (RawAddress, error) {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 
-		if script[0] != OP_FROMALTSTACK {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-		script = script[1:]
-
-		if len(script) < 2 {
-			return RawAddress{}, ErrUnknownScriptTemplate
-		}
-
 		// Parse required signature count
 		required, length, err := ParsePushNumberScript(script)
 		if err != nil {
@@ -269,11 +260,16 @@ func RawAddressFromLockingScript(lockingScript Script) (RawAddress, error) {
 		}
 		script = script[length:]
 
-		if len(script) != 1 {
+		if len(script) != 2 {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 
-		if script[0] != OP_GREATERTHANOREQUAL {
+		if script[0] != OP_FROMALTSTACK {
+			return RawAddress{}, ErrUnknownScriptTemplate
+		}
+		script = script[1:]
+
+		if script[0] != OP_LESSTHANOREQUAL {
 			return RawAddress{}, ErrUnknownScriptTemplate
 		}
 		script = script[1:]
@@ -395,9 +391,9 @@ func (ra RawAddress) LockingScript() (Script, error) {
 		}
 
 		// Check required signature count
-		result = append(result, OP_FROMALTSTACK)
 		result = append(result, PushNumberScript(int64(required))...)
-		result = append(result, OP_GREATERTHANOREQUAL)
+		result = append(result, OP_FROMALTSTACK)
+		result = append(result, OP_LESSTHANOREQUAL)
 		return result, nil
 
 	case ScriptTypeNonStandard:

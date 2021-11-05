@@ -47,15 +47,50 @@ func NewMultiPKHTemplate(required, total uint32) (Template, error) {
 		}
 	}
 
-	if err := result.WriteByte(OP_FROMALTSTACK); err != nil {
-		return nil, errors.Wrap(err, "write byte")
-	}
+	// From https://github.com/bitcoin-sv/bitcoin-sv/blob/master/src/script/interpreter.cpp#L1144
+	//
+	// const auto& arg_2 = stack.stacktop(-2);
+	// const auto& arg_1 = stack.stacktop(-1);
+
+	// CScriptNum bn1(arg_2.GetElement(), fRequireMinimal,
+	//                maxScriptNumLength,
+	//                utxo_after_genesis);
+	// CScriptNum bn2(arg_1.GetElement(), fRequireMinimal,
+	//                maxScriptNumLength,
+	//                utxo_after_genesis);
+	//
+	// ...
+	//
+	// case OP_LESSTHANOREQUAL:
+	//     bn = (bn1 <= bn2);
+	//     break;
+	// case OP_GREATERTHANOREQUAL:
+	//     bn = (bn1 >= bn2);
+	//     break;
+
+	// To make it confusing they switch values so arg_2 goes into bn1 and arg_1 goes into bn2.
+	// bn2 is the top stack item
+	// bn1 is the next stack item (under top)
+	//
+	// Therefore "{Required Signature Count} OP_FROMALTSTACK OP_LESSTHANOREQUAL" equates to:
+	//   {Required Signature Count} <= OP_FROMALTSTACK
+	//
+	// OP_FROMALTSTACK gets the the accumulated count of valid signatures from the alt stack so we
+	// want it to be greater than or equal to the required signature count. In other words we want
+	// the required signature count to be less than or equal to OP_FROMALTSTACK.
+
+	// "OP_FROMALTSTACK {Required Signature Count} OP_GREATERTHANOREQUAL" would also work, but
+	// doesn't seem to be most common and it is preferable to match with other implementations.
 
 	if _, err := result.Write(PushNumberScript(int64(required))); err != nil {
 		return nil, errors.Wrap(err, "write")
 	}
 
-	if err := result.WriteByte(OP_GREATERTHANOREQUAL); err != nil {
+	if err := result.WriteByte(OP_FROMALTSTACK); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_LESSTHANOREQUAL); err != nil {
 		return nil, errors.Wrap(err, "write byte")
 	}
 
@@ -69,7 +104,7 @@ func (t Template) LockingScript(publicKeys []PublicKey) (Script, error) {
 	pubKeyIndex := 0
 
 	for {
-		typ, opCode, data, err := ParseScript(buf)
+		item, err := ParseScript(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -77,14 +112,14 @@ func (t Template) LockingScript(publicKeys []PublicKey) (Script, error) {
 			return nil, errors.Wrap(err, "parse script")
 		}
 
-		if typ == ScriptItemTypePushData {
-			if err := WritePushDataScript(result, data); err != nil {
+		if item.Type == ScriptItemTypePushData {
+			if err := WritePushDataScript(result, item.Data); err != nil {
 				return nil, errors.Wrap(err, "write push data")
 			}
 			continue
 		}
 
-		switch opCode {
+		switch item.OpCode {
 		case OP_PUBKEY:
 			if pubKeyIndex >= len(publicKeys) {
 				return nil, ErrNotEnoughPublicKeys
@@ -112,7 +147,7 @@ func (t Template) LockingScript(publicKeys []PublicKey) (Script, error) {
 		}
 
 		// Op Code
-		if err := result.WriteByte(opCode); err != nil {
+		if err := result.WriteByte(item.OpCode); err != nil {
 			return nil, errors.Wrap(err, "write op code")
 		}
 	}
@@ -131,50 +166,53 @@ func (t Template) PubKeyCount() uint32 {
 }
 
 // RequiredSignatures is the number of signatures required to unlock the template.
-// Note: Only supports P2PKH and MultiPKH.
+// Note: Only supports PKH, PK, and MultiPKH.
 func (t Template) RequiredSignatures() (uint32, error) {
-	if bytes.Equal(t, PKHTemplate) {
+	if bytes.Equal(t, PKHTemplate) || bytes.Equal(t, PKTemplate) {
 		return 1, nil
 	}
 
+	// Assume this is a multi-pkh accumulator script.
 	buf := bytes.NewReader(t)
-	var previousOpCode byte
-	var previousPushData []byte
+	var previousItems []*ScriptItem
 	for {
-		typ, opCode, data, err := ParseScript(buf)
+		item, err := ParseScript(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return 0, errors.Wrap(err, "parse script")
+			return 0, errors.Wrap(err, "parse")
 		}
 
-		if typ == ScriptItemTypePushData {
-			previousOpCode = opCode
-			previousPushData = data
-			continue
+		if item.OpCode == OP_LESSTHANOREQUAL {
+			break
 		}
 
-		switch opCode {
-		case OP_GREATERTHANOREQUAL:
-			// Assume this is a multi-pkh accumulator script.
-			value, err := ScriptNumberValue(previousOpCode, previousPushData)
-			if err != nil {
-				return 0, errors.Wrap(err, "script number")
-			}
-
-			if value < 0 || value > 0xffffffff {
-				return 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d", value)
-			}
-
-			return uint32(value), nil
+		// Save last two items
+		previousItems = append(previousItems, item)
+		if len(previousItems) > 2 {
+			previousItems = previousItems[1:]
 		}
-
-		previousOpCode = opCode
-		previousPushData = nil
 	}
 
-	return 0, ErrUnknownScriptTemplate
+	if len(previousItems) != 2 {
+		return 0, errors.Wrap(ErrUnknownScriptTemplate, "not enough items")
+	}
+
+	if previousItems[1].Type != ScriptItemTypeOpCode || previousItems[1].OpCode != OP_FROMALTSTACK {
+		return 0, errors.Wrap(ErrUnknownScriptTemplate, "not OP_FROMALTSTACK")
+	}
+
+	requiredSigners, err := ScriptNumberValue(previousItems[0])
+	if err != nil {
+		return 0, errors.Wrap(err, "script number")
+	}
+
+	if requiredSigners < 1 || requiredSigners > 0xffffffff {
+		return 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d", requiredSigners)
+	}
+
+	return uint32(requiredSigners), nil
 }
 
 func (t Template) String() string {
