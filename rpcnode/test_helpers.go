@@ -97,6 +97,14 @@ func (r *MockRpcNode) SaveTX(ctx context.Context, tx *wire.MsgTx) error {
 	return nil
 }
 
+func (r *MockRpcNode) SaveTx(ctx context.Context, tx *wire.MsgTx) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.txs[*tx.TxHash()] = tx.Copy()
+	return nil
+}
+
 func (r *MockRpcNode) GetTX(ctx context.Context, txid *bitcoin.Hash32) (*wire.MsgTx, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()

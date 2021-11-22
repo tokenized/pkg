@@ -219,7 +219,6 @@ func (k ExtendedKey) String() string {
 func (k ExtendedKey) String58() string {
 	// return BIP0276Encode58(k.Network, ExtendedKeyURLPrefix, k.Bytes())
 	bip32 := k.ToBIP32()
-	fmt.Printf("bip32 : %+v\n", bip32)
 	return bip32.String()
 }
 

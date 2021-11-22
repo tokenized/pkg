@@ -265,7 +265,7 @@ func lockingScriptUnlockSize(lockingScript bitcoin.Script) (int, error) {
 		// 1 op_code OP_FALSE or OP_TRUE for each signer (total) plus a public key and signature for
 		// each required signer.
 		scriptSize := total + (required * (PublicKeyPushDataSize + MaxSignaturesPushDataSize))
-		return InputBaseSize + int(VarIntSerializeSize(uint64(scriptSize))) + int(scriptSize), nil
+		return InputBaseSize + VarIntSerializeSize(uint64(scriptSize)) + int(scriptSize), nil
 	}
 
 	return 0, ErrWrongScriptTemplate
