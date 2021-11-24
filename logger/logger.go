@@ -147,7 +147,7 @@ func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
 }
 
 // ContextWithLogFields returns a context with a field added to the logger.
-func ContextWithLogFields(ctx context.Context, fields []Field) context.Context {
+func ContextWithLogFields(ctx context.Context, fields ...Field) context.Context {
 	var config *Config
 
 	configValue := ctx.Value(key)

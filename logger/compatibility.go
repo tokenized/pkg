@@ -68,5 +68,5 @@ func (l *LoggerObject) Panicln(v ...interface{}) {
 }
 
 func (l *LoggerObject) AddFields(fields []Field) {
-	l.ctx = ContextWithLogFields(l.ctx, fields)
+	l.ctx = ContextWithLogFields(l.ctx, fields...)
 }

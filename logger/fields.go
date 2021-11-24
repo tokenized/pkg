@@ -395,3 +395,130 @@ func Float64s(name string, values []float64) *FloatListField {
 		values: values,
 	}
 }
+
+type StringersField struct {
+	name   string
+	values []fmt.Stringer
+}
+
+func (f StringersField) Name() string {
+	return f.name
+}
+
+func (f StringersField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+		result += strconv.Quote(v.String())
+	}
+	result += "]"
+
+	return result
+}
+
+func Stringers(name string, values []fmt.Stringer) *StringersField {
+	return &StringersField{
+		name:   name,
+		values: values,
+	}
+}
+
+type StringsField struct {
+	name   string
+	values []string
+}
+
+func (f StringsField) Name() string {
+	return f.name
+}
+
+func (f StringsField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+		result += strconv.Quote(v)
+	}
+	result += "]"
+
+	return result
+}
+
+func Strings(name string, values []string) *StringsField {
+	return &StringsField{
+		name:   name,
+		values: values,
+	}
+}
+
+type JSONMarshallersField struct {
+	name   string
+	values []json.Marshaler
+}
+
+func (f JSONMarshallersField) Name() string {
+	return f.name
+}
+
+func (f JSONMarshallersField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+
+		b, err := v.MarshalJSON()
+		if err != nil {
+			return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
+		}
+
+		result += string(b)
+	}
+	result += "]"
+
+	return result
+}
+
+func Marshalers(name string, values []json.Marshaler) *JSONMarshallersField {
+	return &JSONMarshallersField{
+		name:   name,
+		values: values,
+	}
+}
+
+type JSONsField struct {
+	name   string
+	values []interface{}
+}
+
+func (f JSONsField) Name() string {
+	return f.name
+}
+
+func (f JSONsField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
+		}
+		result += string(b)
+	}
+	result += "]"
+
+	return result
+}
+
+func JSONs(name string, values []interface{}) *JSONsField {
+	return &JSONsField{
+		name:   name,
+		values: values,
+	}
+}
