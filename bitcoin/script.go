@@ -227,10 +227,9 @@ func (s Script) RequiredSignatures() (uint32, error) {
 	if required, _, err := s.MultiPKHCounts(); err == nil {
 		return required, nil
 	} else {
-		fmt.Printf("Multi PKH Error : %s\n", err)
+		return 0, errors.Wrap(err, "multi-pkh counts")
 	}
 
-	fmt.Printf("Unknown\n")
 	return 0, ErrUnknownScriptTemplate
 }
 
@@ -302,8 +301,6 @@ func CheckOpCode(r *bytes.Reader, opCode byte) error {
 // Required Signatures Count
 // Total Signers Count
 func (s Script) MultiPKHCounts() (uint32, uint32, error) {
-	fmt.Printf("Checking Multi-PKH Counts : %s\n", s)
-
 	r := bytes.NewReader(s)
 
 	// Initialize alt stack
