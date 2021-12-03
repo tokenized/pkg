@@ -188,6 +188,21 @@ type ScriptItem struct {
 
 type Script []byte
 
+func (item ScriptItem) String() string {
+	if item.Type == ScriptItemTypePushData {
+		return fmt.Sprintf("0x%s", hex.EncodeToString(item.Data))
+	}
+
+	// Op Code
+	name, exists := byteToNames[item.OpCode]
+	if exists {
+		return name
+	}
+
+	// Undefined op code
+	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode}))
+}
+
 func NewScript(b []byte) Script {
 	return Script(b)
 }
@@ -1029,20 +1044,7 @@ func ScriptToString(script Script) string {
 			continue
 		}
 
-		if item.Type == ScriptItemTypePushData {
-			result = append(result, fmt.Sprintf("0x%s", hex.EncodeToString(item.Data)))
-			continue
-		}
-
-		// Op Code
-		name, exists := byteToNames[item.OpCode]
-		if exists {
-			result = append(result, name)
-			continue
-		}
-
-		// Undefined op code
-		result = append(result, fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode})))
+		result = append(result, item.String())
 	}
 
 	return strings.Join(result, " ")
