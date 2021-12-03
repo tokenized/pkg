@@ -102,6 +102,8 @@ const (
 	BaseTxSize = 8
 )
 
+// UnlockingScriptSize calculates the length of the unlocking script needed to unlock the specified
+// locking script.
 func UnlockingScriptSize(lockingScript bitcoin.Script) (int, error) {
 	scriptSize := 0
 
@@ -166,7 +168,7 @@ func (tx *TxBuilder) EstimatedSize() int {
 		wire.VarIntSerializeSize(uint64(len(tx.MsgTx.TxOut)))
 
 	for _, input := range tx.Inputs {
-		size, err := lockingScriptUnlockSize(input.LockingScript)
+		size, err := InputSize(input.LockingScript)
 		if err != nil {
 			result += MaximumP2PKHInputSize // Fall back to P2PKH
 			continue
@@ -294,26 +296,6 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	}
 
 	return done, nil
-}
-
-// lockingScriptUnlockFee returns the size (in bytes) of the input that spends it.
-func lockingScriptUnlockSize(lockingScript bitcoin.Script) (int, error) {
-	if lockingScript.IsP2PKH() {
-		return MaximumP2PKHInputSize, nil
-	}
-
-	if lockingScript.IsP2PK() {
-		return MaximumP2PKInputSize, nil
-	}
-
-	if required, total, err := lockingScript.MultiPKHCounts(); err == nil {
-		// 1 op_code OP_FALSE or OP_TRUE for each signer (total) plus a public key and signature for
-		// each required signer.
-		scriptSize := total + (required * (PublicKeyPushDataSize + MaxSignaturesPushDataSize))
-		return InputBaseSize + VarIntSerializeSize(uint64(scriptSize)) + int(scriptSize), nil
-	}
-
-	return 0, ErrWrongScriptTemplate
 }
 
 // VarIntSerializeSize returns the number of bytes it would take to serialize

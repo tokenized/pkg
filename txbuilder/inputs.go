@@ -377,7 +377,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 // UTXOFee calculates the tx fee for the input to spend the UTXO.
 func UTXOFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
-	size, err := lockingScriptUnlockSize(utxo.LockingScript)
+	size, err := InputSize(utxo.LockingScript)
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
 	}
