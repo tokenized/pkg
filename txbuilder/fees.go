@@ -102,6 +102,51 @@ const (
 	BaseTxSize = 8
 )
 
+func UnlockingScriptSize(lockingScript bitcoin.Script) (int, error) {
+	scriptSize := 0
+
+	if lockingScript.IsP2PK() {
+		// Only a signature in a P2PK unlocking script
+		scriptSize = MaxSignaturesPushDataSize
+	} else if lockingScript.IsP2PKH() {
+		// Signature and a public key in a P2PKH unlocking script
+		scriptSize = MaxSignaturesPushDataSize + PublicKeyPushDataSize
+	} else {
+		required, total, err := lockingScript.MultiPKHCounts()
+		if err != nil {
+			return 0, bitcoin.ErrWrongScriptTemplate
+		}
+
+		scriptSize = int(total - required) // OP_FALSE for all signatures not included
+
+		// Signature, public key and OP_TRUE for each required signature
+		scriptSize += int(required) * (MaxSignaturesPushDataSize + PublicKeyPushDataSize + 1)
+	}
+
+	return scriptSize, nil
+}
+
+// InputSize returns the serialize size in bytes of an input spending the specified locking script.
+// Note: The script is not the script that would be contained in the input, but the script that
+// is contained in the output being spent by this input.
+func InputSize(lockingScript bitcoin.Script) (int, error) {
+	scriptSize, err := UnlockingScriptSize(lockingScript)
+	if err != nil {
+		return 0, err
+	}
+
+	return InputBaseSize + 4 + // outpoint + sequence
+		VarIntSerializeSize(uint64(scriptSize)) + scriptSize, nil // unlocking script
+}
+
+// OutputSize returns the serialize size in bytes of an output containing the specified locking
+// script.
+func OutputSize(lockingScript bitcoin.Script) int {
+	scriptSize := len(lockingScript)
+	return OutputBaseSize + // value
+		VarIntSerializeSize(uint64(scriptSize)) + scriptSize // locking script
+}
+
 // The fee should be estimated before signing, then after signing the fee should be checked.
 // If the fee is too low after signing, then the fee should be adjusted and the tx re-signed.
 
