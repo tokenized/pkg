@@ -13,7 +13,7 @@ const (
 	// MaxFilterAddDataSize is the maximum byte size of a data
 	// element to add to the Bloom filter.  It is equal to the
 	// maximum element size of a script.
-	MaxFilterAddDataSize = 520
+	MaxFilterAddDataSize = uint64(520)
 )
 
 // MsgFilterAdd implements the Message interface and represents a bitcoin
@@ -49,7 +49,7 @@ func (msg *MsgFilterAdd) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError("MsgFilterAdd.BtcEncode", str)
 	}
 
-	size := len(msg.Data)
+	size := uint64(len(msg.Data))
 	if size > MaxFilterAddDataSize {
 		str := fmt.Sprintf("filteradd size too large for message "+
 			"[size %v, max %v]", size, MaxFilterAddDataSize)
@@ -67,8 +67,8 @@ func (msg *MsgFilterAdd) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgFilterAdd) MaxPayloadLength(pver uint32) uint32 {
-	return uint32(VarIntSerializeSize(MaxFilterAddDataSize)) +
+func (msg *MsgFilterAdd) MaxPayloadLength(pver uint32) uint64 {
+	return uint64(VarIntSerializeSize(MaxFilterAddDataSize)) +
 		MaxFilterAddDataSize
 }
 

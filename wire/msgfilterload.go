@@ -35,7 +35,7 @@ const (
 	MaxFilterLoadHashFuncs = 50
 
 	// MaxFilterLoadFilterSize is the maximum size in bytes a filter may be.
-	MaxFilterLoadFilterSize = 36000
+	MaxFilterLoadFilterSize = uint64(36000)
 )
 
 // MsgFilterLoad implements the Message interface and represents a bitcoin
@@ -88,7 +88,7 @@ func (msg *MsgFilterLoad) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError("MsgFilterLoad.BtcEncode", str)
 	}
 
-	size := len(msg.Filter)
+	size := uint64(len(msg.Filter))
 	if size > MaxFilterLoadFilterSize {
 		str := fmt.Sprintf("filterload filter size too large for message "+
 			"[size %v, max %v]", size, MaxFilterLoadFilterSize)
@@ -117,10 +117,10 @@ func (msg *MsgFilterLoad) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgFilterLoad) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgFilterLoad) MaxPayloadLength(pver uint32) uint64 {
 	// Num filter bytes (varInt) + filter + 4 bytes hash funcs +
 	// 4 bytes tweak + 1 byte flags.
-	return uint32(VarIntSerializeSize(MaxFilterLoadFilterSize)) +
+	return uint64(VarIntSerializeSize(MaxFilterLoadFilterSize)) +
 		MaxFilterLoadFilterSize + 9
 }
 

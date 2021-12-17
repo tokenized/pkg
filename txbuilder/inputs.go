@@ -384,6 +384,15 @@ func UTXOFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
 	return uint64(float32(size) * feeRate), nil
 }
 
+// LockingScriptInputFee returns the tx fee to include an locking script as an output in a tx.
+func LockingScriptInputFee(lockingScript bitcoin.Script, feeRate float32) (uint64, error) {
+	size, err := InputSize(lockingScript)
+	if err != nil {
+		return 0, errors.Wrap(err, "unlock size")
+	}
+	return uint64(float32(size) * feeRate), nil
+}
+
 // AddressOutputFee returns the tx fee to include an address as an output in a tx.
 func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 	lockingScript, err := ra.LockingScript()

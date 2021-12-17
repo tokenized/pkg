@@ -772,7 +772,7 @@ func (msg *MsgTx) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgTx) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgTx) MaxPayloadLength(pver uint32) uint64 {
 	return MaxBlockPayload
 }
 
@@ -844,7 +844,7 @@ func readOutPoint(r io.Reader, pver uint32, version int32, op *OutPoint) error {
 // memory exhuastion attacks and forced panics thorugh malformed messages.  The
 // fieldName parameter is only used for the error message so it provides more
 // context in the error.
-func readScript(r io.Reader, pver uint32, maxAllowed uint32, fieldName string) ([]byte, error) {
+func readScript(r io.Reader, pver uint32, maxAllowed uint64, fieldName string) ([]byte, error) {
 	count, err := ReadVarInt(r, pver)
 	if err != nil {
 		return nil, err
@@ -853,7 +853,7 @@ func readScript(r io.Reader, pver uint32, maxAllowed uint32, fieldName string) (
 	// Prevent byte array larger than the max message size.  It would
 	// be possible to cause memory exhaustion and panics without a sane
 	// upper bound on this count.
-	if count > uint64(maxAllowed) {
+	if count > maxAllowed {
 		str := fmt.Sprintf("%s is larger than the max allowed size "+
 			"[count %d, max %d]", fieldName, count, maxAllowed)
 		return nil, messageError("readScript", str)
