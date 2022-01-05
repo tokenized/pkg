@@ -207,7 +207,7 @@ func Listen(ctx context.Context, baseURL, channelID, token string,
 		close(stopPing) // hit select to stop ping thread.
 	}()
 
-	// Send pings periodicatlly in separate thread.
+	// Send pings periodically in separate thread.
 	done := make(chan interface{})
 	go func() {
 		stop := false

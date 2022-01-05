@@ -18,8 +18,15 @@ import (
 )
 
 var (
+	ErrFailure        = errors.New("Failure")
+	ErrDoubleSpend    = errors.New("Double Spend")
 	ErrHTTPNotFound   = errors.New("HTTP Not Found")
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
+)
+
+const (
+	CallBackReasonDoubleSpend = "doubleSpendAttempt"
+	CallBackReasonMerkleProof = "merkleProof"
 )
 
 type HTTPError struct {
@@ -105,6 +112,18 @@ type SubmitTxResponse struct {
 	Conflicts              []string          `json:"conflictedWith"`
 }
 
+func (str SubmitTxResponse) Success() error {
+	if str.Result != "success" {
+		return errors.Wrap(ErrFailure, str.Result)
+	}
+
+	if len(str.Conflicts) > 0 {
+		return errors.Wrapf(ErrDoubleSpend, "%v", str.Conflicts)
+	}
+
+	return nil
+}
+
 type SubmitTxCallbackResponse struct {
 	Version     string            `json:"apiVersion"`
 	Reason      string            `json:"callbackReason"`
@@ -127,7 +146,7 @@ type SubmitTxCallbackResponse struct {
 //    "callbackReason":"merkleProof"
 // }
 
-// payload:
+// callbackPayload:
 // {
 // 	"index":1,
 // 	"txOrId":"e7b3eefab33072e62283255f193ef5d22f26bbcfc0a80688fe2cc5178a32dda6",
