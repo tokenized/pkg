@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -520,5 +521,25 @@ func JSONs(name string, values []interface{}) *JSONsField {
 	return &JSONsField{
 		name:   name,
 		values: values,
+	}
+}
+
+type HexField struct {
+	name  string
+	value []byte
+}
+
+func (f HexField) Name() string {
+	return f.name
+}
+
+func (f HexField) ValueJSON() string {
+	return strconv.Quote(hex.EncodeToString(f.value))
+}
+
+func Hex(name string, value []byte) *HexField {
+	return &HexField{
+		name:  name,
+		value: value,
 	}
 }

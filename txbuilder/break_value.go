@@ -20,12 +20,12 @@ var (
 // also more UTXOs and more tx fees.
 // breakValue should be a fairly low value that is the smallest UTXO you want created other than
 // the remainder.
-func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
+func BreakValue(value, breakValue uint64, addresses []AddressKeyID,
 	dustFeeRate, feeRate float32, lastIsRemainder bool, subtractFee bool) ([]*Output, error) {
 	// Choose random multiples of breakValue until the value is taken up.
 
 	// Find the average value to break the value into the provided addresses
-	average := 2 * (value / uint64(len(changeAddresses)-1))
+	average := 2 * (value / uint64(len(addresses)-1))
 
 	// Find the power to use for choosing random values
 	factor := average / breakValue
@@ -43,10 +43,10 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 	// Calculate some random values
 	remaining := value
 	rand.Seed(time.Now().UnixNano())
-	result := make([]*Output, 0, len(changeAddresses))
+	result := make([]*Output, 0, len(addresses))
 	nextIndex := 0
-	for _, changeAddress := range changeAddresses[:len(changeAddresses)-1] {
-		lockingScript, err := changeAddress.Address.LockingScript()
+	for _, address := range addresses[:len(addresses)-1] {
+		lockingScript, err := address.Address.LockingScript()
 		if err != nil {
 			return nil, errors.Wrap(err, "locking script")
 		}
@@ -97,14 +97,14 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 				LockingScript: lockingScript,
 			},
 			Supplement: OutputSupplement{
-				KeyID: changeAddress.KeyID,
+				KeyID: address.KeyID,
 			},
 		})
 		nextIndex++
 	}
 
 	// Add any remainder to last output
-	lockingScript, err := changeAddresses[nextIndex].Address.LockingScript()
+	lockingScript, err := addresses[nextIndex].Address.LockingScript()
 	if err != nil {
 		return nil, errors.Wrap(err, "locking script")
 	}
@@ -123,10 +123,10 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 				},
 				Supplement: OutputSupplement{
 					IsRemainder: lastIsRemainder,
-					KeyID:       changeAddresses[nextIndex].KeyID,
+					KeyID:       addresses[nextIndex].KeyID,
 				},
 			})
-		} else if len(result) > 1 {
+		} else if len(result) > 0 {
 			// Add to last output
 			result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
 			result[len(result)-1].TxOut.Value += remaining
@@ -142,10 +142,10 @@ func BreakValue(value, breakValue uint64, changeAddresses []AddressKeyID,
 				},
 				Supplement: OutputSupplement{
 					IsRemainder: lastIsRemainder,
-					KeyID:       changeAddresses[nextIndex].KeyID,
+					KeyID:       addresses[nextIndex].KeyID,
 				},
 			})
-		} else if len(result) > 1 {
+		} else if len(result) > 0 {
 			// Add to last output
 			result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
 			result[len(result)-1].TxOut.Value += remaining
