@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -111,6 +112,14 @@ func TestFields(t *testing.T) {
 	}
 	jsonField := JSON("json_struct", &json)
 	InfoWithFields(ctx, []Field{jsonField}, "JSON")
+}
+
+func TestWaitWarning(t *testing.T) {
+	ctx := ContextWithLogger(context.Background(), false, false, "")
+
+	waitWarning := NewWaitingWarning(ctx, "Print this 4 times", 0.5)
+	time.Sleep(2 * time.Second)
+	waitWarning.Cancel()
 }
 
 func BenchmarkContextWithLogTrace(b *testing.B) {

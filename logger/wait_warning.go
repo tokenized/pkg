@@ -22,7 +22,7 @@ type WaitingWarning struct {
 func NewWaitingWarning(ctx context.Context, name string, frequency float64) *WaitingWarning {
 	result := &WaitingWarning{
 		active:    true,
-		start:     time.Now(),
+		start:     time.Now().UTC(),
 		name:      name,
 		frequency: frequency,
 	}
@@ -55,10 +55,12 @@ func (w *WaitingWarning) check(ctx context.Context) bool {
 	}
 
 	now := time.Now()
+	us := time.Since(w.start).Nanoseconds()
 	s := now.Sub(w.last).Seconds()
 	if s > w.frequency {
 		WarnWithFields(ctx, []Field{
-			Stringer("start", w.start),
+			Timestamp("start", w.start.UnixNano()),
+			MillisecondsFromNano("elapsed_ms", us),
 		}, "Waiting for: %s", w.name)
 		w.last = now
 	}

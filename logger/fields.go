@@ -543,3 +543,50 @@ func Hex(name string, value []byte) *HexField {
 		value: value,
 	}
 }
+
+type MillisecondsField struct {
+	name  string
+	value float64
+}
+
+func (f MillisecondsField) Name() string {
+	return f.name
+}
+
+func (f MillisecondsField) ValueJSON() string {
+	return fmt.Sprintf("%06f", f.value)
+}
+
+func MillisecondsFromNano(name string, value int64) *MillisecondsField {
+	return &MillisecondsField{
+		name:  name,
+		value: float64(value) / 1e6,
+	}
+}
+
+func Milliseconds(name string, value float64) *MillisecondsField {
+	return &MillisecondsField{
+		name:  name,
+		value: value,
+	}
+}
+
+type TimestampField struct {
+	name  string
+	value float64 // seconds since epoch
+}
+
+func (f TimestampField) Name() string {
+	return f.name
+}
+
+func (f TimestampField) ValueJSON() string {
+	return fmt.Sprintf("%06f", f.value)
+}
+
+func Timestamp(name string, nanosecondsSinceEpoch int64) *TimestampField {
+	return &TimestampField{
+		name:  name,
+		value: float64(nanosecondsSinceEpoch) / 1e9,
+	}
+}
