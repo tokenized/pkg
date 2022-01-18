@@ -228,7 +228,7 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 	if config.format&IncludeTime != 0 {
 		hour, min, sec := now.Clock()
 		fmt.Fprintf(&datetime, "%02d:%02d:%02d", hour, min, sec)
-		if config.format&IncludeMicro == 0 {
+		if config.format&IncludeMicro != 0 {
 			fmt.Fprintf(&datetime, " %06d", now.Nanosecond()/1e3)
 		}
 	}
@@ -333,8 +333,8 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 	if config.format&IncludeTime != 0 {
 		hour, min, sec := now.Clock()
 		fmt.Fprintf(&datetime, "%02d:%02d:%02d", hour, min, sec)
-		if config.format&IncludeMicro == 0 {
-			fmt.Fprintf(&datetime, " %06d", now.Nanosecond()/1e3)
+		if config.format&IncludeMicro != 0 {
+			fmt.Fprintf(&datetime, ".%06d", now.Nanosecond()/1e3)
 		}
 	}
 
