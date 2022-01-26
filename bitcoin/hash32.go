@@ -122,15 +122,20 @@ func (h Hash32) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON converts from json.
 func (h *Hash32) UnmarshalJSON(data []byte) error {
-	if len(data) != (2*Hash32Size)+2 {
-		return fmt.Errorf("Wrong size hex for Hash32 : %d", len(data)-2)
+	b, err := ConvertJSONHexToBytes(data)
+	if err != nil {
+		return errors.Wrap(err, "hex")
 	}
 
-	b := make([]byte, Hash32Size)
-	_, err := hex.Decode(b, data[1:len(data)-1])
-	if err != nil {
-		return err
+	if len(b) == 0 {
+		h = nil
+		return nil
 	}
+
+	if len(b) != Hash32Size {
+		return fmt.Errorf("Wrong size hex for Hash32 : %d", len(b)*2)
+	}
+
 	reverse32(h[:], b)
 	return nil
 }

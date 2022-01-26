@@ -119,15 +119,20 @@ func (h Hash20) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON converts from json.
 func (h *Hash20) UnmarshalJSON(data []byte) error {
-	if len(data) != (2*Hash20Size)+2 {
-		return fmt.Errorf("Wrong size hex for Hash20 : %d", len(data)-2)
+	b, err := ConvertJSONHexToBytes(data)
+	if err != nil {
+		return errors.Wrap(err, "hex")
 	}
 
-	b := make([]byte, Hash20Size)
-	_, err := hex.Decode(b, data[1:len(data)-1])
-	if err != nil {
-		return err
+	if len(b) == 0 {
+		h = nil
+		return nil
 	}
+
+	if len(b) != Hash20Size {
+		return fmt.Errorf("Wrong size hex for Hash20 : %d", len(b)*2)
+	}
+
 	reverse20(h[:], b)
 	return nil
 }
