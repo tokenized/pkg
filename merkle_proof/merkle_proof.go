@@ -16,9 +16,11 @@ import (
 )
 
 var (
-	ErrBadIndex      = errors.New("Bad Merkle Proof Index")
-	ErrMissingTxID   = errors.New("Missing Transaction ID")
-	ErrMissingTarget = errors.New("Missing Target (block hash, header, merkle root)")
+	ErrWrongMerkleRoot = errors.New("Wrong merkle root")
+	ErrNotVerifiable   = errors.New("Not verifiable")
+	ErrBadIndex        = errors.New("Bad Merkle Proof Index")
+	ErrMissingTxID     = errors.New("Missing Transaction ID")
+	ErrMissingTarget   = errors.New("Missing Target (block hash, header, merkle root)")
 
 	Endian = binary.LittleEndian
 )
@@ -125,6 +127,34 @@ func (p MerkleProof) CalculateRoot() (bitcoin.Hash32, error) {
 	}
 
 	return hash, nil
+}
+
+func (mp MerkleProof) Verify() error {
+	root, err := mp.CalculateRoot()
+	if err != nil {
+		return errors.Wrap(err, "calculate root")
+	}
+
+	verified := false
+	if mp.BlockHeader != nil {
+		if !mp.BlockHeader.MerkleRoot.Equal(&root) {
+			return errors.Wrap(ErrWrongMerkleRoot, "block header")
+		}
+		verified = true
+	}
+
+	if mp.MerkleRoot != nil {
+		if !mp.MerkleRoot.Equal(&root) {
+			return errors.Wrap(ErrWrongMerkleRoot, "merkle root")
+		}
+		verified = true
+	}
+
+	if !verified {
+		return ErrNotVerifiable
+	}
+
+	return nil
 }
 
 func (mp MerkleProof) Serialize(w io.Writer) error {

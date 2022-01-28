@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/tokenized/pkg/bitcoin"
 
@@ -171,6 +172,26 @@ func NewOutPoint(hash *bitcoin.Hash32, index uint32) *OutPoint {
 		Hash:  *hash,
 		Index: index,
 	}
+}
+
+// OutPointFromStr parses a string into an outpoint. The format is "<txid:index>".
+func OutPointFromStr(s string) (*OutPoint, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return nil, errors.New("Invalid format: wrong colon count")
+	}
+
+	hash, err := bitcoin.NewHash32FromStr(parts[0])
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid hash")
+	}
+
+	index, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid index")
+	}
+
+	return NewOutPoint(hash, uint32(index)), nil
 }
 
 // String returns the OutPoint in the human-readable form "hash:index".

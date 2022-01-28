@@ -55,7 +55,6 @@ func CreateAccount(ctx context.Context, baseURL, token string) (*uuid.UUID, *uui
 }
 
 func CreateChannel(ctx context.Context, baseURL, accountID, token string) (*Channel, error) {
-
 	url := fmt.Sprintf("%s/api/v1/account/%s/channel", baseURL, accountID)
 
 	var response Channel

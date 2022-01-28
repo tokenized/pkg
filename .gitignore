@@ -4,3 +4,4 @@
 *.prof
 *.log
 tmp
+*.env

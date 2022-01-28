@@ -25,8 +25,9 @@ var (
 )
 
 const (
-	CallBackReasonDoubleSpend = "doubleSpendAttempt"
 	CallBackReasonMerkleProof = "merkleProof"
+	CallBackReasonDoubleSpendAttempt = "doubleSpendAttempt"
+	CallBackReasonDoubleSpend = "doubleSpend"
 )
 
 type HTTPError struct {
@@ -109,56 +110,52 @@ type SubmitTxResponse struct {
 	CurrentBlockHash       bitcoin.Hash32    `json:"currentHighestBlockHash"`
 	CurrentBlockHeight     uint32            `json:"currentHighestBlockHeight"`
 	SecondaryMempoolExpiry uint32            `json:"txSecondMempoolExpiry"`
-	Conflicts              []string          `json:"conflictedWith"`
+	Conflicts              []Conflict          `json:"conflictedWith"`
+}
+
+type Conflict struct {
+	TxID bitcoin.Hash32 `json:"txid"`
+	Size uint64 `json:"size"`
+	Tx *wire.MsgTx `json:"hex"`
 }
 
 func (str SubmitTxResponse) Success() error {
-	if str.Result != "success" {
-		return errors.Wrap(ErrFailure, str.Result)
+	if len(str.Conflicts) != 0 {
+		txids := make([]bitcoin.Hash32, len(str.Conflicts))
+		for i, conflict := range str.Conflicts {
+			txids[i] = conflict.TxID
+		}
+		return errors.Wrapf(ErrDoubleSpend, "%+v", txids)
 	}
 
-	if len(str.Conflicts) > 0 {
-		return errors.Wrapf(ErrDoubleSpend, "%v", str.Conflicts)
+	if str.Result != "success" {
+		return errors.Wrap(ErrFailure, str.Result)
 	}
 
 	return nil
 }
 
+// SubmitTxCallbackResponse is the message posted to the SPV channel specified in the
+// SubmitTxRequest.CallBackURL.
+// When Reason is "merkleProof" Payload is a merkle proof. If SubmitTxRequest.MerkleProofFormat was
+// "TSC", then it follows the Technical Standards Committee's format which is also implemented in
+// the package merkle_proof next to this one.
+// When Reason is "doubleSpend" or "doubleSpendAttempt" then Payload is CallBackDoubleSpend.
 type SubmitTxCallbackResponse struct {
 	Version     string            `json:"apiVersion"`
 	Reason      string            `json:"callbackReason"`
-	TxID        bitcoin.Hash32    `json:"callbackTxId"`
+	TxID        *bitcoin.Hash32   `json:"callbackTxId"`
 	MinerID     bitcoin.PublicKey `json:"minerId"`
 	Timestamp   time.Time         `json:"timestamp"`
 	BlockHash   bitcoin.Hash32    `json:"blockHash"`
 	BlockHeight uint32            `json:"blockHeight"`
-	Payload     string            `json:"callbackPayload"`
+	Payload     json.RawMessage   `json:"callbackPayload"`
 }
 
-// {
-//    "callbackPayload":"{\"index\":1,\"txOrId\":\"e7b3eefab33072e62283255f193ef5d22f26bbcfc0a80688fe2cc5178a32dda6\",\"targetType\":\"header\",\"target\":\"00000020a552fb757cf80b7341063e108884504212da2f1e1ce2ad9ffc3c6163955a27274b53d185c6b216d9f4f8831af1249d7b4b8c8ab16096cb49dda5e5fbd59517c775ba8b60ffff7f2000000000\",\"nodes\":[\"30361d1b60b8ca43d5cec3efc0a0c166d777ada0543ace64c4034fa25d253909\",\"e7aa15058daf38236965670467ade59f96cfc6ec6b7b8bb05c9a7ed6926b884d\",\"dad635ff856c81bdba518f82d224c048efd9aae2a045ad9abc74f2b18cde4322\",\"6f806a80720b0603d2ad3b6dfecc3801f42a2ea402789d8e2a77a6826b50303a\"]}",
-//    "apiVersion":"1.3.0",
-//    "timestamp":"2021-04-30T08:06:13.4129624Z",
-//    "minerId":"030d1fe5c1b560efe196ba40540ce9017c20daa9504c4c4cec6184fc702d9f274e",
-//    "blockHash":"2ad8af91739e9dc41ea155a9ab4b14ab88fe2a0934f14420139867babf5953c4",
-//    "blockHeight":105,
-//    "callbackTxId":"e7b3eefab33072e62283255f193ef5d22f26bbcfc0a80688fe2cc5178a32dda6",
-//    "callbackReason":"merkleProof"
-// }
-
-// callbackPayload:
-// {
-// 	"index":1,
-// 	"txOrId":"e7b3eefab33072e62283255f193ef5d22f26bbcfc0a80688fe2cc5178a32dda6",
-// 	"targetType":"header",
-// 	"target":"00000020a552fb757cf80b7341063e108884504212da2f1e1ce2ad9ffc3c6163955a27274b53d185c6b216d9f4f8831af1249d7b4b8c8ab16096cb49dda5e5fbd59517c775ba8b60ffff7f2000000000",
-// 	"nodes":[
-// 		"30361d1b60b8ca43d5cec3efc0a0c166d777ada0543ace64c4034fa25d253909",
-// 		"e7aa15058daf38236965670467ade59f96cfc6ec6b7b8bb05c9a7ed6926b884d",
-// 		"dad635ff856c81bdba518f82d224c048efd9aae2a045ad9abc74f2b18cde4322",
-// 		"6f806a80720b0603d2ad3b6dfecc3801f42a2ea402789d8e2a77a6826b50303a"
-// 	]
-// }
+type CallBackDoubleSpend struct {
+	TxID bitcoin.Hash32 `json:"doubleSpendTxId"`
+	Tx *wire.MsgTx `json:"payload"`
+}
 
 func SubmitTx(ctx context.Context, baseURL string,
 	request SubmitTxRequest) (*SubmitTxResponse, error) {

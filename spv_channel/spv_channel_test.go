@@ -112,6 +112,7 @@ func TestListen(t *testing.T) {
 
 	incoming := make(chan SPVMessage)
 	interrupt := make(chan interface{})
+	complete := make(chan interface{})
 
 	// Receive messages on incoming
 	go func() {
@@ -148,6 +149,13 @@ func TestListen(t *testing.T) {
 	if err := Listen(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", incoming, interrupt); err != nil {
 		t.Fatalf("Failed to notify messages : %s", err)
+	}
+	close(incoming)
+
+	select {
+	case <-complete:
+	case <-time.After(time.Second):
+		t.Fatalf("Shut down timed out")
 	}
 
 	t.Logf("Finished Listen")
