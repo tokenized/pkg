@@ -3,7 +3,6 @@ package wire
 import (
 	"encoding/binary"
 	"io"
-	"math"
 
 	"github.com/pkg/errors"
 )
@@ -83,7 +82,7 @@ func (msg *MsgProtoconf) MaxPayloadLength(pver uint32) uint64 {
 func NewMsgProtoconf() *MsgProtoconf {
 	return &MsgProtoconf{
 		NumberOfFields:          uint64(ProtoconfNumberOfFields),
-		MaxReceivePayloadLength: math.MaxUint32,
+		MaxReceivePayloadLength: 1048576,
 		StreamPolicies:          "Default",
 	}
 }
