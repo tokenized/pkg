@@ -387,8 +387,6 @@ func (mp MerkleProof) MarshalJSON() ([]byte, error) {
 	} else if mp.TxID != nil {
 		convert.TxOrID = mp.TxID.String()
 		hash = *mp.TxID
-	} else {
-		return nil, ErrMissingTxID
 	}
 
 	if mp.BlockHeader != nil {
@@ -405,10 +403,7 @@ func (mp MerkleProof) MarshalJSON() ([]byte, error) {
 	} else if mp.BlockHash != nil {
 		convert.TargetType = ""
 		convert.Target = mp.BlockHash.String()
-	} else {
-		return nil, ErrMissingTarget
 	}
-
 	// Calculate nodes
 	layer := 1
 	index := mp.Index
@@ -454,7 +449,7 @@ func (mp MerkleProof) MarshalJSON() ([]byte, error) {
 		layer++
 	}
 
-	return json.Marshal(&convert)
+	return json.Marshal(convert)
 }
 
 func (mp *MerkleProof) UnmarshalJSON(data []byte) error {

@@ -25,9 +25,9 @@ var (
 )
 
 const (
-	CallBackReasonMerkleProof = "merkleProof"
+	CallBackReasonMerkleProof        = "merkleProof"
 	CallBackReasonDoubleSpendAttempt = "doubleSpendAttempt"
-	CallBackReasonDoubleSpend = "doubleSpend"
+	CallBackReasonDoubleSpend        = "doubleSpend"
 )
 
 type HTTPError struct {
@@ -100,6 +100,9 @@ type SubmitTxRequest struct {
 	CallBackEncryption *string     `json:"callBackEncryption,omitempty"`
 }
 
+// When tx broadcast by someone else:
+//   "returnResult": "failure",
+//   "resultDescription": "Transaction already in the mempool",
 type SubmitTxResponse struct {
 	Version                string            `json:"apiVersion"`
 	Timestamp              time.Time         `json:"timestamp"`
@@ -110,13 +113,13 @@ type SubmitTxResponse struct {
 	CurrentBlockHash       bitcoin.Hash32    `json:"currentHighestBlockHash"`
 	CurrentBlockHeight     uint32            `json:"currentHighestBlockHeight"`
 	SecondaryMempoolExpiry uint32            `json:"txSecondMempoolExpiry"`
-	Conflicts              []Conflict          `json:"conflictedWith"`
+	Conflicts              []Conflict        `json:"conflictedWith"`
 }
 
 type Conflict struct {
 	TxID bitcoin.Hash32 `json:"txid"`
-	Size uint64 `json:"size"`
-	Tx *wire.MsgTx `json:"hex"`
+	Size uint64         `json:"size"`
+	Tx   *wire.MsgTx    `json:"hex"`
 }
 
 func (str SubmitTxResponse) Success() error {
@@ -154,7 +157,7 @@ type SubmitTxCallbackResponse struct {
 
 type CallBackDoubleSpend struct {
 	TxID bitcoin.Hash32 `json:"doubleSpendTxId"`
-	Tx *wire.MsgTx `json:"payload"`
+	Tx   *wire.MsgTx    `json:"payload"`
 }
 
 func SubmitTx(ctx context.Context, baseURL string,
