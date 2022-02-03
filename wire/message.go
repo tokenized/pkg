@@ -54,6 +54,7 @@ const (
 	CmdReject      = "reject"
 	CmdSendHeaders = "sendheaders"
 	CmdFeeFilter   = "feefilter"
+	CmdProtoconf   = "protoconf"
 	CmdExtended    = "extmsg" // added in protocol version 70016
 )
 
