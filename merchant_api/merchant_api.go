@@ -28,6 +28,9 @@ const (
 	CallBackReasonMerkleProof        = "merkleProof"
 	CallBackReasonDoubleSpendAttempt = "doubleSpendAttempt"
 	CallBackReasonDoubleSpend        = "doubleSpend"
+
+	FeeQuoteTypeStandard = "standard"
+	FeeQuoteTypeData     = "data" // only bytes in scripts that start with OP_RETURN or OP_FALSE, OP_RETURN
 )
 
 type HTTPError struct {
@@ -50,7 +53,9 @@ type FeeQuoteResponse struct {
 	MinerID            bitcoin.PublicKey `json:"minerId"`
 	CurrentBlockHash   bitcoin.Hash32    `json:"currentHighestBlockHash"`
 	CurrentBlockHeight uint32            `json:"currentHighestBlockHeight"`
-	Fees               []FeeQuote        `json:"fees"`
+	Fees               []*FeeQuote       `json:"fees"`
+	CallBacks          []*FeeCallBack    `json:"callbacks"`
+	Policies           *FeePolicies      `json:"policies"`
 }
 
 type FeeQuote struct {
@@ -62,6 +67,27 @@ type FeeQuote struct {
 type Fee struct {
 	Satoshis uint64 `json:"satoshis"`
 	Bytes    uint64 `json:"bytes"`
+}
+
+type FeeCallBack struct {
+	IPAddress string `json:"ipAddress"`
+}
+
+type FeePolicies struct {
+	SkipScriptFlags               []string `json:"skipscriptflags"`
+	MaxTxSize                     int      `json:"maxtxsizepolicy"`
+	DataCarrierSize               int      `json:"datacarriersize"`
+	MaxScriptSize                 int      `json:"maxscriptsizepolicy"`
+	MaxScriptNumberLength         int      `json:"maxscriptnumlengthpolicy"`
+	MaxStackMemoryUsage           int      `json:"maxstackmemoryusagepolicy"`
+	AncestorCountLimit            int      `json:"limitancestorcount"`
+	CPFPGroupMembersCountLimit    int      `json:"limitcpfpgroupmemberscount"`
+	AcceptNonStdOutputs           bool     `json:"acceptnonstdoutputs"`
+	DataCarrier                   bool     `json:"datacarrier"`
+	DustRelayFee                  int      `json:"dustrelayfee"`
+	MaxStdTxValidationDuration    int      `json:"maxstdtxvalidationduration"`
+	MaxNonStdTxValidationDuration int      `json:"maxnonstdtxvalidationduration"`
+	DustLimitFactor               int      `json:"dustlimitfactor"`
 }
 
 func GetFeeQuote(ctx context.Context, baseURL string) (*FeeQuoteResponse, error) {
@@ -203,6 +229,14 @@ type GetTxStatusResponse struct {
 	BlockHeight            *uint32           `json:"blockHeight"`
 	Confirmations          *uint32           `json:"confirmations"`
 	SecondaryMempoolExpiry uint32            `json:"txSecondMempoolExpiry"`
+}
+
+func (str GetTxStatusResponse) Success() error {
+	if str.Result != "success" {
+		return errors.Wrap(ErrFailure, str.Result)
+	}
+
+	return nil
 }
 
 func GetTxStatus(ctx context.Context, baseURL string,
