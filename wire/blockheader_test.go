@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -57,7 +56,7 @@ func TestBlockHeaderWire(t *testing.T) {
 		Version:    1,
 		PrevBlock:  mainNetGenesisHash,
 		MerkleRoot: mainNetGenesisMerkleRoot,
-		Timestamp:  time.Unix(0x495fab29, 0), // 2009-01-03 12:15:05 -0600 CST
+		Timestamp:  0x495fab29, // 2009-01-03 12:15:05 -0600 CST
 		Bits:       bits,
 		Nonce:      nonce,
 	}
@@ -190,7 +189,7 @@ func TestBlockHeaderSerialize(t *testing.T) {
 		Version:    1,
 		PrevBlock:  mainNetGenesisHash,
 		MerkleRoot: mainNetGenesisMerkleRoot,
-		Timestamp:  time.Unix(0x495fab29, 0), // 2009-01-03 12:15:05 -0600 CST
+		Timestamp:  0x495fab29, // 2009-01-03 12:15:05 -0600 CST
 		Bits:       bits,
 		Nonce:      nonce,
 	}

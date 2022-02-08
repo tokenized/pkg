@@ -9,7 +9,6 @@ import (
 	"io"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/tokenized/pkg/bitcoin"
@@ -290,9 +289,9 @@ var merkleBlockOne = MsgMerkleBlock{
 			0x7b, 0xa1, 0xa3, 0xc3, 0x54, 0x0b, 0xf7, 0xb1,
 			0xcd, 0xb6, 0x06, 0xe8, 0x57, 0x23, 0x3e, 0x0e,
 		}),
-		Timestamp: time.Unix(0x4966bc61, 0), // 2009-01-08 20:54:25 -0600 CST
-		Bits:      0x1d00ffff,               // 486604799
-		Nonce:     0x9962e301,               // 2573394689
+		Timestamp: 0x4966bc61, // 2009-01-08 20:54:25 -0600 CST
+		Bits:      0x1d00ffff, // 486604799
+		Nonce:     0x9962e301, // 2573394689
 	},
 	Transactions: 1,
 	Hashes: []*bitcoin.Hash32{
