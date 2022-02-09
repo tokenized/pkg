@@ -57,6 +57,14 @@ func (h *BlockHeader) BlockHash() *bitcoin.Hash32 {
 	return result
 }
 
+func (h BlockHeader) WorkIsValid() bool {
+	value := h.BlockHash().Value()
+	target := bitcoin.ConvertToDifficulty(h.Bits)
+
+	// Hash value must be less than target to be valid
+	return value.Cmp(target) <= 0
+}
+
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 // See Deserialize for decoding block headers stored to disk, such as in a

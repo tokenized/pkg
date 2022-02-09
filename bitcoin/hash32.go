@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/pkg/errors"
 )
@@ -55,6 +56,19 @@ func AddHashes(l, r Hash32) Hash32 {
 // Bytes returns the data for the hash.
 func (h Hash32) Bytes() []byte {
 	return h[:]
+}
+
+// Bytes returns the bytes in reverse order (big endian).
+func (h Hash32) ReverseBytes() []byte {
+	b := make([]byte, Hash32Size)
+	reverse32(b, h[:])
+	return b
+}
+
+func (h Hash32) Value() *big.Int {
+	value := &big.Int{}
+	value.SetBytes(h.ReverseBytes())
+	return value
 }
 
 // SetBytes sets the value of the hash.

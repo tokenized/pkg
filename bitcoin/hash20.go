@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/pkg/errors"
 )
@@ -52,6 +53,19 @@ func NewHash20FromData(b []byte) (*Hash20, error) {
 // Bytes returns the data for the hash.
 func (h Hash20) Bytes() []byte {
 	return h[:]
+}
+
+// Bytes returns the bytes in reverse order (big endian).
+func (h Hash20) ReverseBytes() []byte {
+	b := make([]byte, Hash20Size)
+	reverse20(b, h[:])
+	return b
+}
+
+func (h Hash20) Value() *big.Int {
+	value := &big.Int{}
+	value.SetBytes(h.ReverseBytes())
+	return value
 }
 
 // SetBytes sets the value of the hash.
