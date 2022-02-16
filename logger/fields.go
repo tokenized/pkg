@@ -8,6 +8,10 @@ import (
 	"github.com/tokenized/pkg/json"
 )
 
+const (
+	JSONNull = "null"
+)
+
 type Field interface {
 	Name() string
 	ValueJSON() string
@@ -43,6 +47,10 @@ func (f JSONMarshallerField) Name() string {
 }
 
 func (f JSONMarshallerField) ValueJSON() string {
+	if f.value == nil {
+		return JSONNull
+	}
+
 	b, err := f.value.MarshalJSON()
 	if err != nil {
 		return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
@@ -67,6 +75,10 @@ func (f JSONField) Name() string {
 }
 
 func (f JSONField) ValueJSON() string {
+	if f.value == nil {
+		return JSONNull
+	}
+
 	b, err := json.Marshal(f.value)
 	if err != nil {
 		return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
@@ -91,6 +103,10 @@ func (f StringerField) Name() string {
 }
 
 func (f StringerField) ValueJSON() string {
+	if f.value == nil {
+		return JSONNull
+	}
+
 	return strconv.Quote(f.value.String())
 }
 
@@ -412,6 +428,12 @@ func (f StringersField) ValueJSON() string {
 		if i != 0 {
 			result += ","
 		}
+
+		if v == nil {
+			result += JSONNull
+			continue
+		}
+
 		result += strconv.Quote(v.String())
 	}
 	result += "]"
@@ -471,6 +493,11 @@ func (f JSONMarshallersField) ValueJSON() string {
 			result += ","
 		}
 
+		if v == nil {
+			result += JSONNull
+			continue
+		}
+
 		b, err := v.MarshalJSON()
 		if err != nil {
 			return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
@@ -504,6 +531,11 @@ func (f JSONsField) ValueJSON() string {
 	for i, v := range f.values {
 		if i != 0 {
 			result += ","
+		}
+
+		if v == nil {
+			result += JSONNull
+			continue
 		}
 
 		b, err := json.Marshal(v)

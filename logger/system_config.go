@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -174,18 +172,18 @@ func (config *systemConfig) writeField(format string, values ...interface{}) {
 	fmt.Fprintf(config.output, format, values...)
 }
 
-func (config *systemConfig) writeEntry(level Level, depth int, fields []Field, format string,
-	values ...interface{}) error {
+func (config *systemConfig) writeEntry(level Level, caller string, fields []Field,
+	format string, values ...interface{}) error {
 
 	if config.isText {
-		return config.writeTextEntry(level, depth+1, fields, format, values...)
+		return config.writeTextEntry(level, caller, fields, format, values...)
 	}
 
-	return config.writeJSONEntry(level, depth+1, fields, format, values...)
+	return config.writeJSONEntry(level, caller, fields, format, values...)
 }
 
-func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Field, format string,
-	values ...interface{}) error {
+func (config *systemConfig) writeJSONEntry(level Level, caller string, fields []Field,
+	format string, values ...interface{}) error {
 
 	if config.output == nil {
 		return nil
@@ -247,21 +245,7 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 
 	// Append Caller
 	if config.format&IncludeCaller != 0 {
-		_, filepath, line, ok := runtime.Caller(depth + 1)
-		if ok {
-			fileParts := strings.Split(filepath, string(os.PathSeparator))
-			l := len(fileParts)
-			if l >= 2 {
-				filepath = fileParts[l-2] + string(os.PathSeparator) + fileParts[l-1]
-			} else if l != 0 {
-				filepath = fileParts[0]
-			}
-		} else {
-			filepath = "???"
-			line = 0
-		}
-
-		config.writeField("\"caller\":\"%s:%d\"", filepath, line)
+		config.writeField("\"caller\":%s", strconv.Quote(caller))
 	}
 
 	// Append actual log entry
@@ -288,9 +272,8 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 
 	return nil
 }
-
-func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Field, format string,
-	values ...interface{}) error {
+func (config *systemConfig) writeTextEntry(level Level, caller string, fields []Field,
+	format string, values ...interface{}) error {
 
 	if config.output == nil {
 		return nil
@@ -344,21 +327,7 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 
 	// Append Caller
 	if config.format&IncludeCaller != 0 {
-		_, filepath, line, ok := runtime.Caller(depth + 1)
-		if ok {
-			fileParts := strings.Split(filepath, string(os.PathSeparator))
-			l := len(fileParts)
-			if l >= 2 {
-				filepath = fileParts[l-2] + string(os.PathSeparator) + fileParts[l-1]
-			} else if l != 0 {
-				filepath = fileParts[0]
-			}
-		} else {
-			filepath = "???"
-			line = 0
-		}
-
-		config.writeField("%s:%d", filepath, line)
+		config.writeField(caller)
 	}
 
 	// Append actual log entry

@@ -12,6 +12,7 @@ type WaitingWarning struct {
 	last      time.Time
 	frequency float64 // seconds
 	name      string
+	caller    string
 
 	lock sync.Mutex
 }
@@ -24,6 +25,7 @@ func NewWaitingWarning(ctx context.Context, name string, frequency float64) *Wai
 		active:    true,
 		start:     time.Now().UTC(),
 		name:      name,
+		caller:    GetCaller(1), // get caller now so the log entries show the warning creation
 		frequency: frequency,
 	}
 
@@ -58,7 +60,7 @@ func (w *WaitingWarning) check(ctx context.Context) bool {
 	us := time.Since(w.start).Nanoseconds()
 	s := now.Sub(w.last).Seconds()
 	if s > w.frequency {
-		WarnWithFields(ctx, []Field{
+		LogDepthWithFields(ctx, LevelWarn, w.caller, []Field{
 			Timestamp("start", w.start.UnixNano()),
 			MillisecondsFromNano("elapsed_ms", us),
 		}, "Waiting for: %s", w.name)
