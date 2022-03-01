@@ -114,6 +114,13 @@ func TestFields(t *testing.T) {
 	InfoWithFields(ctx, []Field{jsonField}, "JSON")
 }
 
+func Test_DuplicateFields(t *testing.T) {
+	ctx := ContextWithLogger(context.Background(), false, false, "")
+	ctx = ContextWithLogFields(ctx, String("duplicate", "original"))
+
+	InfoWithFields(ctx, []Field{String("duplicate", "should not show")}, "Message")
+}
+
 func TestWaitWarning(t *testing.T) {
 	ctx := ContextWithLogger(context.Background(), false, false, "")
 

@@ -252,12 +252,18 @@ func (config *systemConfig) writeJSONEntry(level Level, caller string, fields []
 	config.writeField("\"msg\":%s", strconv.Quote(fmt.Sprintf(format, values...)))
 
 	config.lock.Lock()
-	for _, field := range config.fields {
+	for i, field := range config.fields {
+		if fieldExists(field.Name(), config.fields[:i]) {
+			continue // skip duplicate field name
+		}
 		config.writeField("\"%s\":%s", field.Name(), field.ValueJSON())
 	}
 	config.lock.Unlock()
 
-	for _, field := range fields {
+	for i, field := range fields {
+		if fieldExists(field.Name(), config.fields) || fieldExists(field.Name(), fields[:i]) {
+			continue // skip duplicate field name
+		}
 		config.writeField("\"%s\":%s", field.Name(), field.ValueJSON())
 	}
 
@@ -272,6 +278,7 @@ func (config *systemConfig) writeJSONEntry(level Level, caller string, fields []
 
 	return nil
 }
+
 func (config *systemConfig) writeTextEntry(level Level, caller string, fields []Field,
 	format string, values ...interface{}) error {
 
@@ -334,12 +341,18 @@ func (config *systemConfig) writeTextEntry(level Level, caller string, fields []
 	config.writeField("%s", fmt.Sprintf(format, values...))
 
 	config.lock.Lock()
-	for _, field := range config.fields {
+	for i, field := range config.fields {
+		if fieldExists(field.Name(), config.fields[:i]) {
+			continue // skip duplicate field name
+		}
 		fmt.Fprintf(config.output, ", %s: %s", field.Name(), field.ValueJSON())
 	}
 	config.lock.Unlock()
 
-	for _, field := range fields {
+	for i, field := range fields {
+		if fieldExists(field.Name(), config.fields) || fieldExists(field.Name(), fields[:i]) {
+			continue // skip duplicate field name
+		}
 		fmt.Fprintf(config.output, ", %s: %s", field.Name(), field.ValueJSON())
 	}
 
@@ -353,6 +366,16 @@ func (config *systemConfig) writeTextEntry(level Level, caller string, fields []
 	}
 
 	return nil
+}
+
+func fieldExists(name string, fields []Field) bool {
+	for _, f := range fields {
+		if f.Name() == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Output interface {
