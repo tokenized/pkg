@@ -124,7 +124,7 @@ func Test_DuplicateFields(t *testing.T) {
 func TestWaitWarning(t *testing.T) {
 	ctx := ContextWithLogger(context.Background(), false, false, "")
 
-	waitWarning := NewWaitingWarning(ctx, "Print this 4 times", 0.5)
+	waitWarning := NewWaitingWarning(ctx, 500*time.Millisecond, "Print this 4 times")
 	time.Sleep(2 * time.Second)
 	waitWarning.Cancel()
 }
