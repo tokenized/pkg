@@ -136,15 +136,13 @@ func MarkMessages(ctx context.Context, baseURL, channelID, token string, sequenc
 
 // Listen starts a websocket for push notifications. `incoming` is the channel new messages will be
 // fed through. `interrupt` will stop listening if something is fed into it.
-func Listen(ctx context.Context, baseURL, channelID, token string,
-	incoming chan SPVMessage, interrupt chan interface{}) error {
+func Listen(ctx context.Context, baseURL, channelID, token string, incoming chan SPVMessage,
+	interrupt <-chan interface{}) error {
 
 	url := fmt.Sprintf("%s/api/v1/channel/%s/notify", baseURL, channelID)
 	url = strings.ReplaceAll(url, "http", "ws")
-	// u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
 
 	header := make(http.Header)
-	// Authorization: Bearer <token>
 	header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	conn, response, err := websocket.DefaultDialer.Dial(url, header)
@@ -162,10 +160,9 @@ func Listen(ctx context.Context, baseURL, channelID, token string,
 		logger.Warn(ctx, "Failed to dial websocket : %s", err)
 		return errors.Wrap(err, "dial")
 	}
-	defer conn.Close()
 
 	// Listen for messages in separate thread.
-	stopPing := make(chan interface{})
+	done := make(chan interface{})
 	go func() {
 		for {
 			messageType, messageBytes, err := conn.ReadMessage()
@@ -182,12 +179,14 @@ func Listen(ctx context.Context, baseURL, channelID, token string,
 					}
 				}
 
+				conn.Close()
 				break
 			}
 
 			if messageType != websocket.TextMessage {
 				logger.Info(ctx, "Wrong message type : got %d, want %d", messageType,
 					websocket.TextMessage)
+				conn.Close()
 				break
 			}
 
@@ -196,6 +195,7 @@ func Listen(ctx context.Context, baseURL, channelID, token string,
 			var message SPVMessage
 			if err := json.Unmarshal(messageBytes, &message); err != nil {
 				logger.Info(ctx, "Failed to json unmarshal message : %s", err)
+				conn.Close()
 				break
 			}
 
@@ -203,54 +203,50 @@ func Listen(ctx context.Context, baseURL, channelID, token string,
 		}
 
 		logger.Info(ctx, "Finished listening for messages")
-		close(stopPing) // hit select to stop ping thread.
+		close(done)
 	}()
 
-	// Send pings periodically in separate thread.
-	done := make(chan interface{})
-	go func() {
-		stop := false
-		for !stop {
+	wait := func() {
+		start := time.Now()
+		for {
 			select {
-			case <-stopPing:
-				stop = true
+			case <-time.After(time.Second):
+				logger.WarnWithFields(ctx, []logger.Field{
+					logger.Timestamp("start", start.UnixNano()),
+					logger.MillisecondsFromNano("elapsed_ms", time.Since(start).Nanoseconds()),
+				}, "Waiting for: Listen SPV Channel")
 
-			case <-time.After(30 * time.Second): // send ping every 30 seconds to keep alive
-				if err := conn.WriteControl(websocket.PingMessage, []byte("ping"),
-					time.Now().Add(time.Second)); err != nil {
-					logger.Warn(ctx, "Failed to send ping : %s", err)
-					stop = true
-				}
+			case <-done:
+				return
 			}
 		}
+	}
 
-		logger.Info(ctx, "Finished sending pings")
-		close(done) // hit top level select to return from listen function
-	}()
-
-	// Wait for interrupt or for listening to finish.
-	select {
-	case <-done:
-		return nil
-
-	case <-interrupt:
-		logger.Info(ctx, "Stopping listen")
-
-		// Cleanly close the connection by sending a close message and then waiting (with timeout)
-		// for the server to close the connection.
-		if err := conn.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
-			return errors.Wrap(err, "send close")
-		}
-
+	for {
 		select {
-		case <-done:
-			break
-		case <-time.After(time.Second * 3):
-			logger.Info(ctx, "Server didn't close connection")
-		}
+		case <-time.After(30 * time.Second): // send ping every 30 seconds to keep alive
+			if err := conn.WriteControl(websocket.PingMessage, []byte("ping"),
+				time.Now().Add(time.Second)); err != nil {
+				conn.Close()
+				wait()
+				return errors.Wrap(err, "send ping")
+			}
 
-		return nil
+		case <-done:
+			return nil
+
+		case <-interrupt:
+			// Cleanly close the connection by sending a close message and then waiting (with timeout)
+			// for the server to close the connection.
+			if err := conn.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
+				wait()
+				return errors.Wrap(err, "send close")
+			}
+
+			wait()
+			return nil
+		}
 	}
 }
 
