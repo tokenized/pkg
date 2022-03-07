@@ -22,8 +22,8 @@ import (
 )
 
 type Config struct {
-	FeeRate     float32 `default:"0.5" envconfig:"FEE_RATE" json:"FEE_RATE"`
-	DustFeeRate float32 `default:"0.25" envconfig:"DUST_FEE_RATE" json:"DUST_FEE_RATE"`
+	FeeRate     float32 `default:"0.5" envconfig:"FEE_RATE" json:"fee_rate"`
+	DustFeeRate float32 `default:"0.25" envconfig:"DUST_FEE_RATE" json:"dust_fee_rate"`
 }
 
 func main() {
@@ -33,6 +33,15 @@ func main() {
 	if err := config.LoadConfig(ctx, cfg); err != nil {
 		logger.Fatal(ctx, "Failed to load config : %s", err)
 	}
+
+	maskedConfig, err := config.MarshalJSONMaskedRaw(cfg)
+	if err != nil {
+		logger.Fatal(ctx, "Failed to marshal config : %s", err)
+	}
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.JSON("config", maskedConfig),
+	}, "Config")
 
 	if len(os.Args) < 2 {
 		logger.Fatal(ctx, "Not enough arguments. Need command (create_send)")
@@ -49,7 +58,7 @@ func main() {
 // Parameters: <WIF key> <To Address> <Send Amount> <OutpointHash:Index> ...
 func CreateSend(ctx context.Context, cfg *Config, args []string) {
 	if len(args) < 4 {
-		logger.Fatal(ctx, "Wrong argument count: send_tx [Hex]")
+		logger.Fatal(ctx, "Wrong argument count: create_send [Key] [Receive Address] [Amount] [Outpoints]...")
 	}
 
 	key, err := bitcoin.KeyFromStr(args[0])
