@@ -69,6 +69,18 @@ type Message interface {
 	MaxPayloadLength(uint32) uint64
 }
 
+// MessageHeader defines the header structure for all bitcoin P2P messages.
+type MessageHeader struct {
+	Network  bitcoin.Network // 4 bytes
+	Command  [12]byte        // 12 bytes
+	Length   uint64          // only actually use 4 bytes unless it is an extended message
+	Checksum [4]byte         // 4 bytes
+}
+
+func (hdr MessageHeader) CommandString() string {
+	return string(bytes.TrimRight(hdr.Command[:], string(rune(0))))
+}
+
 // makeEmptyMessage creates a message of the appropriate concrete type based
 // on the command.
 func makeEmptyMessage(command string) (Message, error) {
