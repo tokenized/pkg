@@ -88,7 +88,7 @@ func SendTx(ctx context.Context, cfg *Config, args []string) {
 		return
 	}
 
-	mpFormat := "TSC"
+	mpFormat := merchant_api.CallBackMerkleProofFormat
 
 	request := merchant_api.SubmitTxRequest{
 		Tx:                tx,

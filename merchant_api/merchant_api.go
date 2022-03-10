@@ -30,6 +30,8 @@ const (
 	CallBackReasonDoubleSpendAttempt = "doubleSpendAttempt"
 	CallBackReasonDoubleSpend        = "doubleSpend"
 
+	CallBackMerkleProofFormat = "TSC"
+
 	FeeQuoteTypeStandard = "standard"
 	FeeQuoteTypeData     = "data" // only bytes in scripts that start with OP_RETURN or OP_FALSE, OP_RETURN
 )
