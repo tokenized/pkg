@@ -244,6 +244,7 @@ func (str GetTxStatusResponse) Success() error {
 	return nil
 }
 
+// GetTxStatus returns the status of a tx. If it is confirmed it will return valid.
 func GetTxStatus(ctx context.Context, baseURL string,
 	txid bitcoin.Hash32) (*GetTxStatusResponse, error) {
 

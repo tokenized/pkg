@@ -14,6 +14,7 @@ import (
 
 	"github.com/tokenized/pkg/json"
 	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/pkg/threads"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -245,7 +246,7 @@ func Listen(ctx context.Context, baseURL, channelID, token string, incoming chan
 			}
 
 			wait()
-			return nil
+			return threads.Interrupted
 		}
 	}
 }

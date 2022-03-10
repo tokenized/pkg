@@ -9,15 +9,16 @@ import (
 	"os"
 
 	"github.com/tokenized/config"
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/merchant_api"
 	"github.com/tokenized/pkg/wire"
 )
 
 type Config struct {
-	URL           string `envconfig:"URL" json:"URL"`
-	CallBackURL   string `envconfig:"CALL_BACK_URL" json:"CALL_BACK_URL"`
-	CallBackToken string `envconfig:"CALL_BACK_TOKEN" json:"CALL_BACK_TOKEN"`
+	URL           string `envconfig:"URL" json:"url"`
+	CallBackURL   string `envconfig:"CALLBACK_URL" json:"callback_url"`
+	CallBackToken string `envconfig:"CALLBACK_TOKEN" json:"callback_token"`
 }
 
 func main() {
@@ -29,13 +30,44 @@ func main() {
 	}
 
 	if len(os.Args) < 2 {
-		logger.Fatal(ctx, "Not enough arguments. Need command (send_tx)")
+		logger.Fatal(ctx, "Not enough arguments. Need command (send_tx, tx_status)")
 	}
 
 	switch os.Args[1] {
 	case "send_tx":
 		SendTx(ctx, cfg, os.Args[2:])
+
+	case "tx_status":
+		TxStatus(ctx, cfg, os.Args[2:])
 	}
+}
+
+func TxStatus(ctx context.Context, cfg *Config, args []string) {
+	if len(args) != 1 {
+		logger.Fatal(ctx, "Wrong argument count: tx_status [TxID]")
+	}
+
+	txid, err := bitcoin.NewHash32FromStr(args[0])
+	if err != nil {
+		fmt.Printf("Invalid txid : %s\n", err)
+		return
+	}
+
+	status, err := merchant_api.GetTxStatus(ctx, cfg.URL, *txid)
+	if err != nil {
+		fmt.Printf("Failed to get tx status : %s\n", err)
+		return
+	}
+
+	js, _ := json.MarshalIndent(status, "", "  ")
+	fmt.Printf("Tx Status : %s\n", js)
+
+	if err := status.Success(); err != nil {
+		fmt.Printf("Invalid tx status : %s\n", err)
+		return
+	}
+
+	fmt.Printf("Tx is valid\n")
 }
 
 func SendTx(ctx context.Context, cfg *Config, args []string) {
@@ -46,13 +78,13 @@ func SendTx(ctx context.Context, cfg *Config, args []string) {
 	h := args[0]
 	b, err := hex.DecodeString(h)
 	if err != nil {
-		fmt.Printf("Failed to decode tx hex : %s", err)
+		fmt.Printf("Failed to decode tx hex : %s\n", err)
 		return
 	}
 
 	tx := &wire.MsgTx{}
 	if err := tx.Deserialize(bytes.NewReader(b)); err != nil {
-		fmt.Printf("Failed to decode tx : %s", err)
+		fmt.Printf("Failed to decode tx : %s\n", err)
 		return
 	}
 
