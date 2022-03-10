@@ -20,6 +20,7 @@ import (
 var (
 	ErrFailure        = errors.New("Failure")
 	ErrDoubleSpend    = errors.New("Double Spend")
+	AlreadyInMempool  = errors.New("Already In Mempool")
 	ErrHTTPNotFound   = errors.New("HTTP Not Found")
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
 )
@@ -157,11 +158,15 @@ func (str SubmitTxResponse) Success() error {
 		return errors.Wrapf(ErrDoubleSpend, "%+v", txids)
 	}
 
-	if str.Result != "success" {
-		return errors.Wrap(ErrFailure, str.Result)
+	if str.Result == "success" {
+		return nil
 	}
 
-	return nil
+	if str.Result == "failure" && str.ResultDescription == "Transaction already in the mempool" {
+		return AlreadyInMempool
+	}
+
+	return errors.Wrap(ErrFailure, str.Result)
 }
 
 // SubmitTxCallbackResponse is the message posted to the SPV channel specified in the
