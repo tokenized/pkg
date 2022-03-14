@@ -183,7 +183,7 @@ func TestPaymentRequest(t *testing.T) {
 	}
 }
 
-func TestAssetAlias(t *testing.T) {
+func TestInstrumentAlias(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
@@ -192,7 +192,7 @@ func TestAssetAlias(t *testing.T) {
 			t.Fatalf("Failed to get identity : %s", err)
 		}
 
-		request, err := id.ListTokenizedAssets(ctx)
+		request, err := id.ListTokenizedInstruments(ctx)
 		if err != nil {
 			if errors.Cause(err) == ErrNotCapable {
 				t.Logf("Payment Request Not Supported")
@@ -201,8 +201,8 @@ func TestAssetAlias(t *testing.T) {
 			t.Fatalf("Failed to get payment request : %s", err)
 		}
 
-		for _, asset := range request {
-			t.Logf("Asset alias %s : %s", asset.AssetAlias, asset.AssetID)
+		for _, instrument := range request {
+			t.Logf("Instrument alias %s : %s", instrument.InstrumentAlias, instrument.InstrumentID)
 		}
 	}
 }
@@ -232,7 +232,7 @@ func TestBRFCID(t *testing.T) {
 	}
 	t.Logf("Payment Request BRFC ID : %s", hash.String()[:12])
 
-	// Our payment request transaction BRFC ID
+	// Our asset alias BRFC ID
 	title = "List Tokenized Asset Alias"
 	author = "Jonathan Vaage (Tokenized)"
 	version = "1"
@@ -242,7 +242,7 @@ func TestBRFCID(t *testing.T) {
 	if hash.String()[:12] != "e243785d1f17" {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "e243785d1f17")
 	}
-	t.Logf("List Asset Alias BRFC ID : %s", hash.String()[:12])
+	t.Logf("List Instrument Alias BRFC ID : %s", hash.String()[:12])
 }
 
 func TestMessageSignature(t *testing.T) {

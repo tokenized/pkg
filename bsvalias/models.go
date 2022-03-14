@@ -166,7 +166,7 @@ type PaymentRequestRequest struct {
 	SenderName   string `json:"senderName"`
 	SenderHandle string `json:"senderHandle"`
 	DateTime     string `json:"dt"`
-	AssetID      string `json:"assetID"`
+	InstrumentID string `json:"instrumentID"`
 	Amount       uint64 `json:"amount"`
 	Purpose      string `json:"purpose"`
 	Signature    string `json:"signature"`
@@ -174,7 +174,7 @@ type PaymentRequestRequest struct {
 
 // Sign adds a signature to the request. The key should correspond to the sender handle's PKI.
 func (r *PaymentRequestRequest) Sign(key bitcoin.Key) error {
-	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.AssetID +
+	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.InstrumentID +
 		strconv.FormatUint(r.Amount, 10) + r.DateTime + r.Purpose)
 	if err != nil {
 		return errors.Wrap(err, "signature hash")
@@ -190,7 +190,7 @@ func (r *PaymentRequestRequest) Sign(key bitcoin.Key) error {
 }
 
 func (r PaymentRequestRequest) CheckSignature(publicKey bitcoin.PublicKey) error {
-	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.AssetID +
+	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.InstrumentID +
 		strconv.FormatUint(r.Amount, 10) + r.DateTime + r.Purpose)
 	if err != nil {
 		return errors.Wrap(err, "signature hash")
@@ -220,11 +220,11 @@ type PaymentRequest struct {
 	Outputs []*wire.TxOut
 }
 
-type AssetAliasListResponse struct {
-	AssetAliases []AssetAlias `json:"asset_aliases"`
+type InstrumentAliasListResponse struct {
+	InstrumentAliases []InstrumentAlias `json:"instrument_aliases"`
 }
 
-type AssetAlias struct {
-	AssetAlias string `json:"asset_alias"`
-	AssetID    string `json:"asset_id"`
+type InstrumentAlias struct {
+	InstrumentAlias string `json:"instrument_alias"`
+	InstrumentID    string `json:"instrument_id"`
 }

@@ -37,11 +37,11 @@ func (f *MockFactory) NewClient(ctx context.Context, handle string) (Client, err
 
 // mockUser is a mock user for testing systems that use paymail.
 type mockUser struct {
-	handle       string
-	identityKey  bitcoin.Key
-	addressKey   bitcoin.Key
-	p2pTxs       map[string][]*wire.MsgTx
-	assetAliases []AssetAlias
+	handle            string
+	identityKey       bitcoin.Key
+	addressKey        bitcoin.Key
+	p2pTxs            map[string][]*wire.MsgTx
+	instrumentAliases []InstrumentAlias
 }
 
 // AddMockUser adds a new mock user.
@@ -55,15 +55,15 @@ func (f *MockFactory) AddMockUser(handle string, identityKey, addressKey bitcoin
 }
 
 // AddMockUser adds a new mock user.
-func (f *MockFactory) AddMockAsset(handle string, assetAlias, assetID string) {
+func (f *MockFactory) AddMockInstrument(handle string, instrumentAlias, instrumentID string) {
 	for _, user := range f.users {
 		if user.handle != handle {
 			continue
 		}
 
-		user.assetAliases = append(user.assetAliases, AssetAlias{
-			AssetAlias: assetAlias,
-			AssetID:    assetID,
+		user.instrumentAliases = append(user.instrumentAliases, InstrumentAlias{
+			InstrumentAlias: instrumentAlias,
+			InstrumentID:    instrumentID,
 		})
 		return
 	}
@@ -126,11 +126,11 @@ func (c *MockClient) GetPaymentDestination(ctx context.Context, senderName, send
 
 // GetPaymentRequest gets a payment request from the identity.
 //   senderHandle is required.
-//   assetID can be empty or "BSV" to request bitcoin.
+//   instrumentID can be empty or "BSV" to request bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add
 // a signature to the request.
 func (c *MockClient) GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose,
-	assetID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
+	instrumentID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
 
 	ra, err := c.user.addressKey.RawAddress()
 	if err != nil {
@@ -144,10 +144,10 @@ func (c *MockClient) GetPaymentRequest(ctx context.Context, senderName, senderHa
 
 	tx := wire.NewMsgTx(1)
 
-	if assetID == "BSV" {
+	if instrumentID == "BSV" {
 		tx.AddTxOut(wire.NewTxOut(amount, script))
 	} else {
-		// Note: requires contract address of asset and possibly access to mock identity oracle
+		// Note: requires contract address of instrument and possibly access to mock identity oracle
 		// client.
 		return nil, errors.Wrap(ErrNotCapable, "not implemented in mock client")
 	}
@@ -214,7 +214,7 @@ func (c *MockClient) CheckP2PTx(txid bitcoin.Hash32) error {
 	return errors.New("Not posted")
 }
 
-// ListTokenizedAssets returns the list of asset aliases for this paymail handle.
-func (c *MockClient) ListTokenizedAssets(ctx context.Context) ([]AssetAlias, error) {
-	return c.user.assetAliases, nil
+// ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
+func (c *MockClient) ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error) {
+	return c.user.instrumentAliases, nil
 }
