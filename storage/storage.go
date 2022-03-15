@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"strings"
 )
 
@@ -51,7 +52,11 @@ type List interface {
 }
 
 // CreateStorage builds an appropriate Storage from the details.
-func CreateStorage(bucket, root string, maxRetries, retryDelay int) Storage {
+func CreateStorage(bucket, root string, maxRetries, retryDelay int) (Storage, error) {
+	if len(bucket) == 0 {
+		return nil, errors.New("Bucket value required")
+	}
+
 	config := Config{
 		Bucket:     bucket,
 		Root:       root,
@@ -60,10 +65,10 @@ func CreateStorage(bucket, root string, maxRetries, retryDelay int) Storage {
 	}
 
 	if strings.ToLower(config.Bucket) == "standalone" {
-		return NewFilesystemStorage(config)
+		return NewFilesystemStorage(config), nil
 	} else if strings.ToLower(config.Bucket) == "mock" {
-		return NewMockStorage()
+		return NewMockStorage(), nil
 	} else {
-		return NewS3Storage(config)
+		return NewS3Storage(config), nil
 	}
 }

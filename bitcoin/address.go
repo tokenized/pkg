@@ -30,7 +30,6 @@ const (
 	AddressTypeTestRPH         = 0x7d // RPH (starts with s) - Experimental value. Not standard
 	AddressTypeTestPK          = 0x07 // Public Key - Experimental value. Not standard
 	AddressTypeTestNonStandard = 0x09 // Unknown, but possibly spendable locking script
-
 )
 
 type Address struct {

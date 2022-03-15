@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/sha512"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"strconv"
@@ -133,7 +132,7 @@ func ExtendedKeyFromStr(s string) (ExtendedKey, error) {
 		// Fall back to BIP-0032 format
 		bip32Key, b32err := bip32.B58Deserialize(s)
 		if b32err != nil {
-			return ExtendedKey{}, errors.Wrap(err, "decode xkey hex string")
+			return ExtendedKey{}, errors.Wrap(err, "base58 deserialize")
 		}
 
 		return fromBIP32(bip32Key)
@@ -218,7 +217,9 @@ func (k ExtendedKey) String() string {
 
 // String58 returns the key formatted as base 58 text.
 func (k ExtendedKey) String58() string {
-	return BIP0276Encode58(k.Network, ExtendedKeyURLPrefix, k.Bytes())
+	// return BIP0276Encode58(k.Network, ExtendedKeyURLPrefix, k.Bytes())
+	bip32 := k.ToBIP32()
+	return bip32.String()
 }
 
 // SetString decodes a key from hex text.
@@ -460,22 +461,14 @@ func (k *ExtendedKey) UnmarshalJSON(data []byte) error {
 // MarshalText returns the text encoding of the extended key.
 // Implements encoding.TextMarshaler interface.
 func (k ExtendedKey) MarshalText() ([]byte, error) {
-	b := k.Bytes()
-	result := make([]byte, hex.EncodedLen(len(b)))
-	hex.Encode(result, b)
-	return result, nil
+	s := k.String58()
+	return []byte(s), nil
 }
 
 // UnmarshalText parses a text encoded extended key and sets the value of this object.
 // Implements encoding.TextUnmarshaler interface.
 func (k *ExtendedKey) UnmarshalText(text []byte) error {
-	b := make([]byte, hex.DecodedLen(len(text)))
-	_, err := hex.Decode(b, text)
-	if err != nil {
-		return err
-	}
-
-	return k.SetBytes(b)
+	return k.SetString58(string(text))
 }
 
 // MarshalBinary returns the binary encoding of the extended key.
@@ -524,6 +517,30 @@ func (k *ExtendedKey) setFromBIP32(old *bip32.Key) error {
 	}
 
 	return nil
+}
+
+func (k ExtendedKey) ToBIP32() bip32.Key {
+	var result bip32.Key
+
+	result.FingerPrint = make([]byte, 4)
+	copy(result.FingerPrint, k.FingerPrint[:])
+	result.ChildNumber = make([]byte, 4)
+	binary.BigEndian.PutUint32(result.ChildNumber, k.Index)
+	result.ChainCode = make([]byte, 32)
+	copy(result.ChainCode, k.ChainCode[:])
+	result.Depth = k.Depth
+	if k.KeyValue[0] == 0 {
+		result.IsPrivate = true
+		result.Version = bip32.PrivateWalletVersion
+		result.Key = make([]byte, 32)
+		copy(result.Key, k.KeyValue[1:])
+	} else {
+		result.Version = bip32.PublicWalletVersion
+		result.Key = make([]byte, 33)
+		copy(result.Key, k.KeyValue[:])
+	}
+
+	return result
 }
 
 // read reads just the basic data of the extended key.

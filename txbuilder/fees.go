@@ -2,6 +2,7 @@ package txbuilder
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
@@ -10,6 +11,11 @@ import (
 )
 
 const (
+	// InputBaseSize is the size of a tx input not including script
+	//   Previous Transaction ID = 32 bytes
+	//   Previous Transaction Output Index = 4 bytes
+	InputBaseSize = 32 + 4
+
 	// MaximumP2PKHInputSize is the maximum serialized size of a P2PKH tx input based on all of the
 	// variable sized data.
 	// P2PKH/P2SH input size 149
@@ -25,7 +31,7 @@ const (
 	//       public key size = 33 bytes
 	//   Sequence number = 4
 	MaximumP2PKHSigScriptSize = 1 + 74 + 34
-	MaximumP2PKHInputSize     = 32 + 4 + MaximumP2PKHSigScriptSize + 4
+	MaximumP2PKHInputSize     = InputBaseSize + MaximumP2PKHSigScriptSize + 4
 
 	// MaximumP2RPHInputSize is the maximum serialized size of a P2RPH tx input based on all of the
 	// variable sized data.
@@ -42,7 +48,7 @@ const (
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
 	MaximumP2RPHSigScriptSize = 1 + 34 + 74
-	MaximumP2RPHInputSize     = 32 + 4 + MaximumP2RPHSigScriptSize + 4
+	MaximumP2RPHInputSize     = InputBaseSize + MaximumP2RPHSigScriptSize + 4
 
 	// MaximumP2PKInputSize is the maximium serialized size of a P2PK tx input based on all of the
 	// variable sized data.
@@ -56,7 +62,7 @@ const (
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
 	MaximumP2PKSigScriptSize = 1 + 74
-	MaximumP2PKInputSize     = 32 + 4 + MaximumP2PKSigScriptSize + 4
+	MaximumP2PKInputSize     = InputBaseSize + MaximumP2PKSigScriptSize + 4
 
 	// OutputBaseSize is the size of a tx output not including script
 	OutputBaseSize = 8
@@ -82,6 +88,9 @@ const (
 	P2PKOutputScriptSize = 36
 	P2PKOutputSize       = OutputBaseSize + P2PKOutputScriptSize
 
+	PublicKeyPushDataSize     = 34 // 1 byte push op code + 33 byte public key
+	MaxSignaturesPushDataSize = 74 // 1 byte push op code + 72 byte sig + 1 byte sig hash type
+
 	// DustInputSize is the fixed size of an input used in the calculation of the dust limit.
 	// This is actually the estimated size of a P2PKH input, but is used for dust calculation of all
 	//   locking scripts.
@@ -92,6 +101,53 @@ const (
 	//   LockTime = 4 bytes
 	BaseTxSize = 8
 )
+
+// UnlockingScriptSize calculates the length of the unlocking script needed to unlock the specified
+// locking script.
+func UnlockingScriptSize(lockingScript bitcoin.Script) (int, error) {
+	scriptSize := 0
+
+	if lockingScript.IsP2PK() {
+		// Only a signature in a P2PK unlocking script
+		scriptSize = MaxSignaturesPushDataSize
+	} else if lockingScript.IsP2PKH() {
+		// Signature and a public key in a P2PKH unlocking script
+		scriptSize = MaxSignaturesPushDataSize + PublicKeyPushDataSize
+	} else {
+		required, total, err := lockingScript.MultiPKHCounts()
+		if err != nil {
+			return 0, bitcoin.ErrWrongScriptTemplate
+		}
+
+		scriptSize = int(total - required) // OP_FALSE for all signatures not included
+
+		// Signature, public key and OP_TRUE for each required signature
+		scriptSize += int(required) * (MaxSignaturesPushDataSize + PublicKeyPushDataSize + 1)
+	}
+
+	return scriptSize, nil
+}
+
+// InputSize returns the serialize size in bytes of an input spending the specified locking script.
+// Note: The script is not the script that would be contained in the input, but the script that
+// is contained in the output being spent by this input.
+func InputSize(lockingScript bitcoin.Script) (int, error) {
+	scriptSize, err := UnlockingScriptSize(lockingScript)
+	if err != nil {
+		return 0, err
+	}
+
+	return InputBaseSize + 4 + // outpoint + sequence
+		VarIntSerializeSize(uint64(scriptSize)) + scriptSize, nil // unlocking script
+}
+
+// OutputSize returns the serialize size in bytes of an output containing the specified locking
+// script.
+func OutputSize(lockingScript bitcoin.Script) int {
+	scriptSize := len(lockingScript)
+	return OutputBaseSize + // value
+		VarIntSerializeSize(uint64(scriptSize)) + scriptSize // locking script
+}
 
 // The fee should be estimated before signing, then after signing the fee should be checked.
 // If the fee is too low after signing, then the fee should be adjusted and the tx re-signed.
@@ -112,7 +168,7 @@ func (tx *TxBuilder) EstimatedSize() int {
 		wire.VarIntSerializeSize(uint64(len(tx.MsgTx.TxOut)))
 
 	for _, input := range tx.Inputs {
-		size, err := lockingScriptUnlockSize(input.LockingScript)
+		size, err := InputSize(input.LockingScript)
 		if err != nil {
 			result += MaximumP2PKHInputSize // Fall back to P2PKH
 			continue
@@ -215,18 +271,14 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 		if changeOutputIndex == 0xffffffff {
 			// Add a change output if it would be more than the dust limit plus the fee to add the
 			// output
-			changeFee, dustLimit, err := OutputFeeAndDustForAddress(tx.ChangeAddress,
+			changeFee, dustLimit := OutputFeeAndDustForLockingScript(tx.ChangeScript,
 				tx.DustFeeRate, tx.FeeRate)
-			if err != nil {
-				changeFee = uint64(float32(P2PKHOutputSize) * tx.FeeRate)
-				dustLimit = DustLimit(P2PKHOutputSize, tx.DustFeeRate)
-			}
 			if uint64(-amount) > dustLimit+changeFee {
-				if tx.ChangeAddress.IsEmpty() {
+				if len(tx.ChangeScript) == 0 {
 					return false, errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
 						uint64(-amount)))
 				}
-				err := tx.AddPaymentOutput(tx.ChangeAddress, uint64(-amount)-changeFee, true)
+				err := tx.AddOutput(tx.ChangeScript, uint64(-amount)-changeFee, true, false)
 				if err != nil {
 					return false, err
 				}
@@ -246,21 +298,25 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	return done, nil
 }
 
-// lockingScriptUnlockFee returns the size (in bytes) of the input that spends it.
-func lockingScriptUnlockSize(lockingScript []byte) (int, error) {
-	ra, err := bitcoin.RawAddressFromLockingScript(lockingScript)
-	if err != nil {
-		return 0, errors.Wrap(err, "parse locking script")
+// VarIntSerializeSize returns the number of bytes it would take to serialize
+// val as a variable length integer.
+func VarIntSerializeSize(val uint64) int {
+	// The value is small enough to be represented by itself, so it's
+	// just 1 byte.
+	if val < 0xfd {
+		return 1
 	}
-	switch ra.Type() {
-	case bitcoin.ScriptTypePKH:
-		return MaximumP2PKHInputSize, nil
-	case bitcoin.ScriptTypeRPH:
-		return MaximumP2RPHInputSize, nil
-	case bitcoin.ScriptTypePK:
-		return MaximumP2PKInputSize, nil
-	// TODO Add MultiPKH
-	default:
-		return 0, errors.Wrap(err, "script type")
+
+	// Discriminant 1 byte plus 2 bytes for the uint16.
+	if val <= math.MaxUint16 {
+		return 3
 	}
+
+	// Discriminant 1 byte plus 4 bytes for the uint32.
+	if val <= math.MaxUint32 {
+		return 5
+	}
+
+	// Discriminant 1 byte plus 8 bytes for the uint64.
+	return 9
 }

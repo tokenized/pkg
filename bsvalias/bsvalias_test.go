@@ -43,7 +43,7 @@ func TestP2PTransactionSignature(t *testing.T) {
 		t.Fatalf("Failed to create txid message sig hash : %s", err)
 	}
 
-	if !signature.Verify(sigHash[:], key) {
+	if !signature.Verify(sigHash, key) {
 		t.Errorf("Not message hash")
 	} else {
 		t.Logf("Signature is valid")
@@ -147,9 +147,9 @@ func TestP2PPaymentDestination(t *testing.T) {
 		}
 
 		for _, output := range outputs.Outputs {
-			t.Logf("Output Value %d : Script %x", output.Value, output.PkScript)
+			t.Logf("Output Value %d : Script %x", output.Value, output.LockingScript)
 
-			ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
+			ra, err := bitcoin.RawAddressFromLockingScript(output.LockingScript)
 			if err != nil {
 				t.Fatalf("Failed to parse locking script : %s", err)
 			}
@@ -183,6 +183,30 @@ func TestPaymentRequest(t *testing.T) {
 	}
 }
 
+func TestInstrumentAlias(t *testing.T) {
+	ctx := context.Background()
+
+	for _, handle := range handles {
+		id, err := NewHTTPClient(ctx, handle)
+		if err != nil {
+			t.Fatalf("Failed to get identity : %s", err)
+		}
+
+		request, err := id.ListTokenizedInstruments(ctx)
+		if err != nil {
+			if errors.Cause(err) == ErrNotCapable {
+				t.Logf("Payment Request Not Supported")
+				continue
+			}
+			t.Fatalf("Failed to get payment request : %s", err)
+		}
+
+		for _, instrument := range request {
+			t.Logf("Instrument alias %s : %s", instrument.InstrumentAlias, instrument.InstrumentID)
+		}
+	}
+}
+
 func TestBRFCID(t *testing.T) {
 	// Example
 	title := "BRFC Specifications"
@@ -206,7 +230,19 @@ func TestBRFCID(t *testing.T) {
 	if hash.String()[:12] != "f7ecaab847eb" {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f7ecaab847eb")
 	}
-	t.Logf("BRFC ID : %s", hash.String()[:12])
+	t.Logf("Payment Request BRFC ID : %s", hash.String()[:12])
+
+	// Our asset alias BRFC ID
+	title = "List Tokenized Asset Alias"
+	author = "Jonathan Vaage (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "e243785d1f17" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "e243785d1f17")
+	}
+	t.Logf("List Instrument Alias BRFC ID : %s", hash.String()[:12])
 }
 
 func TestMessageSignature(t *testing.T) {

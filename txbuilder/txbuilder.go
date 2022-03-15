@@ -44,12 +44,12 @@ var (
 )
 
 type TxBuilder struct {
-	MsgTx         *wire.MsgTx
-	Inputs        []*InputSupplement  // Input Data that is not in wire.MsgTx
-	Outputs       []*OutputSupplement // Output Data that is not in wire.MsgTx
-	ChangeAddress bitcoin.RawAddress  // The address to pay extra bitcoins to if a change output isn't specified
-	FeeRate       float32             // The target fee rate in sat/byte
-	SendMax       bool                // When set, AddFunding will add all UTXOs given
+	MsgTx        *wire.MsgTx
+	Inputs       []*InputSupplement  // Input Data that is not in wire.MsgTx
+	Outputs      []*OutputSupplement // Output Data that is not in wire.MsgTx
+	ChangeScript bitcoin.Script      // The script to pay extra bitcoins to if a change output isn't specified
+	FeeRate      float32             // The target fee rate in sat/byte
+	SendMax      bool                // When set, AddFunding will add all UTXOs given
 
 	// The fee rate used by miners to calculate dust. It is currently maintained as a different rate
 	// than min accept and min propagate. Currently 1.0
@@ -91,7 +91,7 @@ func NewTxBuilderFromWire(feeRate, dustFeeRate float32, tx *wire.MsgTx,
 				int(input.PreviousOutPoint.Index) < len(inputTx.TxOut) {
 				// Add input
 				result.Inputs[i] = &InputSupplement{
-					LockingScript: inputTx.TxOut[input.PreviousOutPoint.Index].PkScript,
+					LockingScript: inputTx.TxOut[input.PreviousOutPoint.Index].LockingScript,
 					Value:         uint64(inputTx.TxOut[input.PreviousOutPoint.Index].Value),
 				}
 				found = true
@@ -166,13 +166,14 @@ func (tx *TxBuilder) Serialize() ([]byte, error) {
 }
 
 func (tx *TxBuilder) String(net bitcoin.Network) string {
-	result := fmt.Sprintf("TxId: %s (%d bytes)\n", tx.MsgTx.TxHash().String(), tx.MsgTx.SerializeSize())
+	result := fmt.Sprintf("TxId: %s (%d bytes) (%d estimated / %d fee)\n", tx.MsgTx.TxHash(),
+		tx.MsgTx.SerializeSize(), tx.EstimatedSize(), tx.Fee())
 	result += fmt.Sprintf("  Version: %d\n", tx.MsgTx.Version)
 	result += "  Inputs:\n\n"
 	for i, input := range tx.MsgTx.TxIn {
 		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
 			input.PreviousOutPoint.Hash.String())
-		result += fmt.Sprintf("    Script: %x\n", input.SignatureScript)
+		result += fmt.Sprintf("    UnlockingScript: %s\n", input.UnlockingScript)
 		result += fmt.Sprintf("    Sequence: %x\n", input.Sequence)
 
 		ra, err := bitcoin.RawAddressFromLockingScript(tx.Inputs[i].LockingScript)
@@ -180,6 +181,7 @@ func (tx *TxBuilder) String(net bitcoin.Network) string {
 			result += fmt.Sprintf("    Address: %s\n",
 				bitcoin.NewAddressFromRawAddress(ra, net).String())
 		}
+		result += fmt.Sprintf("    LockingScript: %s\n", tx.Inputs[i].LockingScript)
 		result += fmt.Sprintf("    Value: %d\n", tx.Inputs[i].Value)
 		if len(tx.Inputs[i].KeyID) > 0 {
 			result += fmt.Sprintf("    KeyID : %s\n", tx.Inputs[i].KeyID)
@@ -189,8 +191,8 @@ func (tx *TxBuilder) String(net bitcoin.Network) string {
 	result += "  Outputs:\n\n"
 	for i, output := range tx.MsgTx.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
-		result += fmt.Sprintf("    Script: %x\n", output.PkScript)
-		ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
+		result += fmt.Sprintf("    LockingScript: %s\n", output.LockingScript)
+		ra, err := bitcoin.RawAddressFromLockingScript(output.LockingScript)
 		if err == nil {
 			result += fmt.Sprintf("    Address: %s\n",
 				bitcoin.NewAddressFromRawAddress(ra, net).String())

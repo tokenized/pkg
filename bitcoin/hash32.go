@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/pkg/errors"
 )
@@ -55,6 +56,19 @@ func AddHashes(l, r Hash32) Hash32 {
 // Bytes returns the data for the hash.
 func (h Hash32) Bytes() []byte {
 	return h[:]
+}
+
+// Bytes returns the bytes in reverse order (big endian).
+func (h Hash32) ReverseBytes() []byte {
+	b := make([]byte, Hash32Size)
+	reverse32(b, h[:])
+	return b
+}
+
+func (h Hash32) Value() *big.Int {
+	value := &big.Int{}
+	value.SetBytes(h.ReverseBytes())
+	return value
 }
 
 // SetBytes sets the value of the hash.
@@ -122,15 +136,20 @@ func (h Hash32) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON converts from json.
 func (h *Hash32) UnmarshalJSON(data []byte) error {
-	if len(data) != (2*Hash32Size)+2 {
-		return fmt.Errorf("Wrong size hex for Hash32 : %d", len(data)-2)
+	b, err := ConvertJSONHexToBytes(data)
+	if err != nil {
+		return errors.Wrap(err, "hex")
 	}
 
-	b := make([]byte, Hash32Size)
-	_, err := hex.Decode(b, data[1:len(data)-1])
-	if err != nil {
-		return err
+	if len(b) == 0 {
+		h = nil
+		return nil
 	}
+
+	if len(b) != Hash32Size {
+		return fmt.Errorf("Wrong size hex for Hash32 : %d", len(b)*2)
+	}
+
 	reverse32(h[:], b)
 	return nil
 }

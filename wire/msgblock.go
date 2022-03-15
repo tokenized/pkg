@@ -25,7 +25,7 @@ const defaultTransactionAlloc = 2048
 const MaxBlocksPerMsg = 500
 
 // MaxBlockPayload is the maximum bytes a block message can be in bytes.
-const MaxBlockPayload = math.MaxUint32
+const MaxBlockPayload = math.MaxUint64
 
 // maxTxPerBlock is the maximum number of transactions that could
 // possibly fit into a block.
@@ -253,7 +253,7 @@ func (msg *MsgBlock) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgBlock) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgBlock) MaxPayloadLength(pver uint32) uint64 {
 	// Block header at 80 bytes + transaction count + max transactions
 	// which can vary up to the MaxBlockPayload (including the block header
 	// and transaction count).

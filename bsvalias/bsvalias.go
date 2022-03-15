@@ -34,6 +34,10 @@ const (
 	// URLNameP2PTransactions is the name used to identify the peer to peer transactions URL and
 	// capability.
 	URLNameP2PTransactions = "5f1323cddf31"
+
+	// URLNameListTokenizedInstrumentAlias is the name used to identify the list Tokenized instrument alias
+	// URL and capability.
+	URLNameListTokenizedInstrumentAlias = "e243785d1f17"
 )
 
 var (
@@ -70,14 +74,14 @@ type Client interface {
 	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
 	// a signature to the request.
 	GetPaymentDestination(ctx context.Context, senderName, senderHandle, purpose string,
-		amount uint64, senderKey *bitcoin.Key) ([]byte, error)
+		amount uint64, senderKey *bitcoin.Key) (bitcoin.Script, error)
 
-	// GetPaymentRequest requests a payment request that can be used to send bitcoin or an asset.
+	// GetPaymentRequest requests a payment request that can be used to send bitcoin or an instrument.
 	//   senderHandle is required.
-	//   assetID can be empty or "BSV" to request bitcoin.
+	//   instrumentID can be empty or "BSV" to request bitcoin.
 	// If senderKey is not nil then it must be associated with senderHandle and will be used to add
 	// a signature to the request.
-	GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose, assetID string,
+	GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose, instrumentID string,
 		amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error)
 
 	// GetP2PPaymentDestination requests a peer to peer payment destination.
@@ -89,4 +93,7 @@ type Client interface {
 	// endpoint.
 	PostP2PTransaction(ctx context.Context, senderHandle, note, reference string,
 		senderKey *bitcoin.Key, tx *wire.MsgTx) (string, error)
+
+	// ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
+	ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error)
 }

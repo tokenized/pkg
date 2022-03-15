@@ -157,17 +157,17 @@ func (alert *Alert) Serialize(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	count := len(alert.SetCancel)
+	count := uint64(len(alert.SetCancel))
 	if count > maxCountSetCancel {
 		str := fmt.Sprintf("too many cancel alert IDs for alert "+
 			"[count %v, max %v]", count, maxCountSetCancel)
 		return messageError("Alert.Serialize", str)
 	}
-	err = WriteVarInt(w, pver, uint64(count))
+	err = WriteVarInt(w, pver, count)
 	if err != nil {
 		return err
 	}
-	for i := 0; i < count; i++ {
+	for i := uint64(0); i < count; i++ {
 		err = writeElement(w, alert.SetCancel[i])
 		if err != nil {
 			return err
@@ -179,7 +179,7 @@ func (alert *Alert) Serialize(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	count = len(alert.SetSubVer)
+	count = uint64(len(alert.SetSubVer))
 	if count > maxCountSetSubVer {
 		str := fmt.Sprintf("too many sub versions for alert "+
 			"[count %v, max %v]", count, maxCountSetSubVer)
@@ -189,7 +189,7 @@ func (alert *Alert) Serialize(w io.Writer, pver uint32) error {
 	if err != nil {
 		return err
 	}
-	for i := 0; i < count; i++ {
+	for i := uint64(0); i < count; i++ {
 		err = WriteVarString(w, pver, alert.SetSubVer[i])
 		if err != nil {
 			return err
@@ -392,7 +392,7 @@ func (msg *MsgAlert) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgAlert) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgAlert) MaxPayloadLength(pver uint32) uint64 {
 	// Since this can vary depending on the message, make it the max
 	// size allowed.
 	return MaxMessagePayload

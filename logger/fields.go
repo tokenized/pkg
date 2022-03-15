@@ -1,10 +1,15 @@
 package logger
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
 	"github.com/tokenized/pkg/json"
+)
+
+const (
+	JSONNull = "null"
 )
 
 type Field interface {
@@ -42,6 +47,10 @@ func (f JSONMarshallerField) Name() string {
 }
 
 func (f JSONMarshallerField) ValueJSON() string {
+	if f.value == nil {
+		return JSONNull
+	}
+
 	b, err := f.value.MarshalJSON()
 	if err != nil {
 		return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
@@ -66,6 +75,10 @@ func (f JSONField) Name() string {
 }
 
 func (f JSONField) ValueJSON() string {
+	if f.value == nil {
+		return JSONNull
+	}
+
 	b, err := json.Marshal(f.value)
 	if err != nil {
 		return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
@@ -90,6 +103,10 @@ func (f StringerField) Name() string {
 }
 
 func (f StringerField) ValueJSON() string {
+	if f.value == nil {
+		return JSONNull
+	}
+
 	return strconv.Quote(f.value.String())
 }
 
@@ -393,5 +410,215 @@ func Float64s(name string, values []float64) *FloatListField {
 	return &FloatListField{
 		name:   name,
 		values: values,
+	}
+}
+
+type StringersField struct {
+	name   string
+	values []fmt.Stringer
+}
+
+func (f StringersField) Name() string {
+	return f.name
+}
+
+func (f StringersField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+
+		if v == nil {
+			result += JSONNull
+			continue
+		}
+
+		result += strconv.Quote(v.String())
+	}
+	result += "]"
+
+	return result
+}
+
+func Stringers(name string, values []fmt.Stringer) *StringersField {
+	return &StringersField{
+		name:   name,
+		values: values,
+	}
+}
+
+type StringsField struct {
+	name   string
+	values []string
+}
+
+func (f StringsField) Name() string {
+	return f.name
+}
+
+func (f StringsField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+		result += strconv.Quote(v)
+	}
+	result += "]"
+
+	return result
+}
+
+func Strings(name string, values []string) *StringsField {
+	return &StringsField{
+		name:   name,
+		values: values,
+	}
+}
+
+type JSONMarshallersField struct {
+	name   string
+	values []json.Marshaler
+}
+
+func (f JSONMarshallersField) Name() string {
+	return f.name
+}
+
+func (f JSONMarshallersField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+
+		if v == nil {
+			result += JSONNull
+			continue
+		}
+
+		b, err := v.MarshalJSON()
+		if err != nil {
+			return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
+		}
+
+		result += string(b)
+	}
+	result += "]"
+
+	return result
+}
+
+func Marshalers(name string, values []json.Marshaler) *JSONMarshallersField {
+	return &JSONMarshallersField{
+		name:   name,
+		values: values,
+	}
+}
+
+type JSONsField struct {
+	name   string
+	values []interface{}
+}
+
+func (f JSONsField) Name() string {
+	return f.name
+}
+
+func (f JSONsField) ValueJSON() string {
+	result := "["
+	for i, v := range f.values {
+		if i != 0 {
+			result += ","
+		}
+
+		if v == nil {
+			result += JSONNull
+			continue
+		}
+
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("\"JSON Convert Failed : %s\"", err)
+		}
+		result += string(b)
+	}
+	result += "]"
+
+	return result
+}
+
+func JSONs(name string, values []interface{}) *JSONsField {
+	return &JSONsField{
+		name:   name,
+		values: values,
+	}
+}
+
+type HexField struct {
+	name  string
+	value []byte
+}
+
+func (f HexField) Name() string {
+	return f.name
+}
+
+func (f HexField) ValueJSON() string {
+	return strconv.Quote(hex.EncodeToString(f.value))
+}
+
+func Hex(name string, value []byte) *HexField {
+	return &HexField{
+		name:  name,
+		value: value,
+	}
+}
+
+type MillisecondsField struct {
+	name  string
+	value float64
+}
+
+func (f MillisecondsField) Name() string {
+	return f.name
+}
+
+func (f MillisecondsField) ValueJSON() string {
+	return fmt.Sprintf("%06f", f.value)
+}
+
+func MillisecondsFromNano(name string, value int64) *MillisecondsField {
+	return &MillisecondsField{
+		name:  name,
+		value: float64(value) / 1e6,
+	}
+}
+
+func Milliseconds(name string, value float64) *MillisecondsField {
+	return &MillisecondsField{
+		name:  name,
+		value: value,
+	}
+}
+
+type TimestampField struct {
+	name  string
+	value float64 // seconds since epoch
+}
+
+func (f TimestampField) Name() string {
+	return f.name
+}
+
+func (f TimestampField) ValueJSON() string {
+	return fmt.Sprintf("%06f", f.value)
+}
+
+func Timestamp(name string, nanosecondsSinceEpoch int64) *TimestampField {
+	return &TimestampField{
+		name:  name,
+		value: float64(nanosecondsSinceEpoch) / 1e9,
 	}
 }

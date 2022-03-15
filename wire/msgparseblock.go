@@ -151,7 +151,7 @@ func (mpb *MsgParseBlock) Command() string {
 	return CmdBlock
 }
 
-func (mpb *MsgParseBlock) MaxPayloadLength(pver uint32) uint32 {
+func (mpb *MsgParseBlock) MaxPayloadLength(pver uint32) uint64 {
 	return MaxBlockPayload
 }
 
@@ -178,7 +178,7 @@ func ReadMessageParse(r io.Reader, pver uint32, btcnet BitcoinNet) (int, Message
 	}
 
 	// Enforce maximum message payload.
-	if hdr.length > MaxMessagePayload {
+	if uint64(hdr.length) > MaxMessagePayload {
 		str := fmt.Sprintf("message payload is too large - header "+
 			"indicates %d bytes, but max message payload is %d "+
 			"bytes.", hdr.length, MaxMessagePayload)
@@ -211,7 +211,7 @@ func ReadMessageParse(r io.Reader, pver uint32, btcnet BitcoinNet) (int, Message
 	// could otherwise create a well-formed header and set the length to max
 	// numbers in order to exhaust the machine's memory.
 	mpl := msg.MaxPayloadLength(pver)
-	if hdr.length > mpl {
+	if uint64(hdr.length) > mpl {
 		discardInput(r, hdr.length)
 		str := fmt.Sprintf("payload exceeds max length - header "+
 			"indicates %v bytes, but max payload size for "+
@@ -481,7 +481,7 @@ func ReadInputBytes(b []byte, pver uint32) (uint64, *TxIn, error) {
 	// Unlocking script
 	var scriptSize uint64
 	var err error
-	scriptSize, result.SignatureScript, err = ReadScriptBytes(b[offset:], pver)
+	scriptSize, result.UnlockingScript, err = ReadScriptBytes(b[offset:], pver)
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "read script")
 	}
@@ -512,7 +512,7 @@ func ReadOutputBytes(b []byte, pver uint32) (uint64, *TxOut, error) {
 	// Locking script
 	var scriptSize uint64
 	var err error
-	scriptSize, result.PkScript, err = ReadScriptBytes(b[offset:], pver)
+	scriptSize, result.LockingScript, err = ReadScriptBytes(b[offset:], pver)
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "read script")
 	}

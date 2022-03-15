@@ -119,11 +119,11 @@ func (msg *MsgGetHeaders) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgGetHeaders) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgGetHeaders) MaxPayloadLength(pver uint32) uint64 {
 	// Version 4 bytes + num block locator hashes (varInt) + max allowed block
 	// locators + hash stop.
-	return 4 + MaxVarIntPayload + (MaxBlockLocatorsPerMsg *
-		bitcoin.Hash32Size) + bitcoin.Hash32Size
+	return uint64(4 + MaxVarIntPayload + (MaxBlockLocatorsPerMsg *
+		bitcoin.Hash32Size) + bitcoin.Hash32Size)
 }
 
 // NewMsgGetHeaders returns a new bitcoin getheaders message that conforms to

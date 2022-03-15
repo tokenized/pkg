@@ -121,7 +121,7 @@ func (msg *MsgGetBlocks) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgGetBlocks) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgGetBlocks) MaxPayloadLength(pver uint32) uint64 {
 	// Protocol version 4 bytes + num hashes (varInt) + max block locator
 	// hashes + hash stop.
 	return 4 + MaxVarIntPayload + (MaxBlockLocatorsPerMsg * bitcoin.Hash32Size) + bitcoin.Hash32Size

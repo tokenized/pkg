@@ -31,7 +31,7 @@ type BlockHeader struct {
 
 	// Time the block was created.  This is, unfortunately, encoded as a
 	// uint32 on the wire and therefore is limited to 2106.
-	Timestamp time.Time
+	Timestamp uint32
 
 	// Difficulty target for the block.
 	Bits uint32
@@ -55,6 +55,14 @@ func (h *BlockHeader) BlockHash() *bitcoin.Hash32 {
 
 	result, _ := bitcoin.NewHash32(bitcoin.DoubleSha256(buf.Bytes()))
 	return result
+}
+
+func (h BlockHeader) WorkIsValid() bool {
+	value := h.BlockHash().Value()
+	target := bitcoin.ConvertToDifficulty(h.Bits)
+
+	// Hash value must be less than target to be valid
+	return value.Cmp(target) <= 0
 }
 
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.
@@ -105,7 +113,7 @@ func NewBlockHeader(version int32, prevHash, merkleRootHash *bitcoin.Hash32,
 		Version:    version,
 		PrevBlock:  *prevHash,
 		MerkleRoot: *merkleRootHash,
-		Timestamp:  time.Unix(time.Now().Unix(), 0),
+		Timestamp:  uint32(time.Now().Unix()),
 		Bits:       bits,
 		Nonce:      nonce,
 	}
@@ -116,14 +124,13 @@ func NewBlockHeader(version int32, prevHash, merkleRootHash *bitcoin.Hash32,
 // decoding from the wire.
 func readBlockHeader(r io.Reader, pver uint32, bh *BlockHeader) error {
 	return readElements(r, &bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
-		(*uint32Time)(&bh.Timestamp), &bh.Bits, &bh.Nonce)
+		&bh.Timestamp, &bh.Bits, &bh.Nonce)
 }
 
 // writeBlockHeader writes a bitcoin block header to w.  See Serialize for
 // encoding block headers to be stored to disk, such as in a database, as
 // opposed to encoding for the wire.
 func writeBlockHeader(w io.Writer, pver uint32, bh *BlockHeader) error {
-	sec := uint32(bh.Timestamp.Unix())
 	return writeElements(w, bh.Version, &bh.PrevBlock, &bh.MerkleRoot,
-		sec, bh.Bits, bh.Nonce)
+		bh.Timestamp, bh.Bits, bh.Nonce)
 }

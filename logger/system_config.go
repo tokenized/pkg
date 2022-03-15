@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -47,13 +45,19 @@ type systemConfig struct {
 	format     int
 
 	first bool
+
+	lock sync.Mutex
 }
 
 // Copy makes a separate copy so if the fields are modified in one copy they will not be in another.
-func (sc systemConfig) Copy() systemConfig {
-	result := sc
-	result.fields = make([]Field, len(sc.fields))
-	copy(result.fields, sc.fields)
+func (config systemConfig) Copy() systemConfig {
+	result := config
+
+	config.lock.Lock()
+	result.fields = make([]Field, len(config.fields))
+	copy(result.fields, config.fields)
+	config.lock.Unlock()
+
 	return result
 }
 
@@ -102,34 +106,55 @@ func newEmptySystemConfig() (systemConfig, error) {
 }
 
 // addField adds a field to the log outputs
-func (s *systemConfig) addField(newField Field) {
-	for i, field := range s.fields {
+func (config *systemConfig) addField(newField Field) {
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	for i, field := range config.fields {
 		if field.Name() == newField.Name() {
-			s.fields[i] = newField
+			// Insert new field in same location as previous field with same name.
+			var prev []Field
+			if i > 0 {
+				prev = config.fields[:i]
+			}
+
+			var after []Field
+			if i+1 < len(config.fields) {
+				after = config.fields[i+1:]
+			}
+
+			config.fields = append(prev, newField)
+			config.fields = append(config.fields, after...)
 			return
 		}
 	}
 
-	s.fields = append(s.fields, newField)
+	config.fields = append(config.fields, newField)
 }
 
 // addSubSystem adds a subsystem to the log outputs
-func (s *systemConfig) addSubSystem(name string) {
-	for i, field := range s.fields {
+func (config *systemConfig) addSubSystem(name string) {
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	for i, field := range config.fields {
 		if field.Name() == "subsystem" {
-			s.fields[i] = String("subsystem", name)
+			config.fields[i] = String("subsystem", name)
 			return
 		}
 	}
 
-	s.fields = append(s.fields, String("subsystem", name))
+	config.fields = append(config.fields, String("subsystem", name))
 }
 
 // removeSubSystem removes the subsystem from the log outputs
-func (s *systemConfig) removeSubSystem() {
-	for i, field := range s.fields {
+func (config *systemConfig) removeSubSystem() {
+	config.lock.Lock()
+	defer config.lock.Unlock()
+
+	for i, field := range config.fields {
 		if field.Name() == "subsystem" {
-			s.fields = append(s.fields[:i], s.fields[i+1:]...)
+			config.fields = append(config.fields[:i], config.fields[i+1:]...)
 			return
 		}
 	}
@@ -147,18 +172,18 @@ func (config *systemConfig) writeField(format string, values ...interface{}) {
 	fmt.Fprintf(config.output, format, values...)
 }
 
-func (config *systemConfig) writeEntry(level Level, depth int, fields []Field, format string,
-	values ...interface{}) error {
+func (config *systemConfig) writeEntry(level Level, caller string, fields []Field,
+	format string, values ...interface{}) error {
 
 	if config.isText {
-		return config.writeTextEntry(level, depth+1, fields, format, values...)
+		return config.writeTextEntry(level, caller, fields, format, values...)
 	}
 
-	return config.writeJSONEntry(level, depth+1, fields, format, values...)
+	return config.writeJSONEntry(level, caller, fields, format, values...)
 }
 
-func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Field, format string,
-	values ...interface{}) error {
+func (config *systemConfig) writeJSONEntry(level Level, caller string, fields []Field,
+	format string, values ...interface{}) error {
 
 	if config.output == nil {
 		return nil
@@ -201,7 +226,7 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 	if config.format&IncludeTime != 0 {
 		hour, min, sec := now.Clock()
 		fmt.Fprintf(&datetime, "%02d:%02d:%02d", hour, min, sec)
-		if config.format&IncludeMicro == 0 {
+		if config.format&IncludeMicro != 0 {
 			fmt.Fprintf(&datetime, " %06d", now.Nanosecond()/1e3)
 		}
 	}
@@ -220,31 +245,25 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 
 	// Append Caller
 	if config.format&IncludeCaller != 0 {
-		_, filepath, line, ok := runtime.Caller(depth + 1)
-		if ok {
-			fileParts := strings.Split(filepath, string(os.PathSeparator))
-			l := len(fileParts)
-			if l >= 2 {
-				filepath = fileParts[l-2] + string(os.PathSeparator) + fileParts[l-1]
-			} else if l != 0 {
-				filepath = fileParts[0]
-			}
-		} else {
-			filepath = "???"
-			line = 0
-		}
-
-		config.writeField("\"caller\":\"%s:%d\"", filepath, line)
+		config.writeField("\"caller\":%s", strconv.Quote(caller))
 	}
 
 	// Append actual log entry
 	config.writeField("\"msg\":%s", strconv.Quote(fmt.Sprintf(format, values...)))
 
-	for _, field := range config.fields {
+	config.lock.Lock()
+	for i, field := range config.fields {
+		if fieldExists(field.Name(), config.fields[:i]) {
+			continue // skip duplicate field name
+		}
 		config.writeField("\"%s\":%s", field.Name(), field.ValueJSON())
 	}
+	config.lock.Unlock()
 
-	for _, field := range fields {
+	for i, field := range fields {
+		if fieldExists(field.Name(), config.fields) || fieldExists(field.Name(), fields[:i]) {
+			continue // skip duplicate field name
+		}
 		config.writeField("\"%s\":%s", field.Name(), field.ValueJSON())
 	}
 
@@ -260,8 +279,8 @@ func (config *systemConfig) writeJSONEntry(level Level, depth int, fields []Fiel
 	return nil
 }
 
-func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Field, format string,
-	values ...interface{}) error {
+func (config *systemConfig) writeTextEntry(level Level, caller string, fields []Field,
+	format string, values ...interface{}) error {
 
 	if config.output == nil {
 		return nil
@@ -304,8 +323,8 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 	if config.format&IncludeTime != 0 {
 		hour, min, sec := now.Clock()
 		fmt.Fprintf(&datetime, "%02d:%02d:%02d", hour, min, sec)
-		if config.format&IncludeMicro == 0 {
-			fmt.Fprintf(&datetime, " %06d", now.Nanosecond()/1e3)
+		if config.format&IncludeMicro != 0 {
+			fmt.Fprintf(&datetime, ".%06d", now.Nanosecond()/1e3)
 		}
 	}
 
@@ -315,31 +334,25 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 
 	// Append Caller
 	if config.format&IncludeCaller != 0 {
-		_, filepath, line, ok := runtime.Caller(depth + 1)
-		if ok {
-			fileParts := strings.Split(filepath, string(os.PathSeparator))
-			l := len(fileParts)
-			if l >= 2 {
-				filepath = fileParts[l-2] + string(os.PathSeparator) + fileParts[l-1]
-			} else if l != 0 {
-				filepath = fileParts[0]
-			}
-		} else {
-			filepath = "???"
-			line = 0
-		}
-
-		config.writeField("%s:%d", filepath, line)
+		config.writeField(caller)
 	}
 
 	// Append actual log entry
 	config.writeField("%s", fmt.Sprintf(format, values...))
 
-	for _, field := range config.fields {
+	config.lock.Lock()
+	for i, field := range config.fields {
+		if fieldExists(field.Name(), config.fields[:i]) {
+			continue // skip duplicate field name
+		}
 		fmt.Fprintf(config.output, ", %s: %s", field.Name(), field.ValueJSON())
 	}
+	config.lock.Unlock()
 
-	for _, field := range fields {
+	for i, field := range fields {
+		if fieldExists(field.Name(), config.fields) || fieldExists(field.Name(), fields[:i]) {
+			continue // skip duplicate field name
+		}
 		fmt.Fprintf(config.output, ", %s: %s", field.Name(), field.ValueJSON())
 	}
 
@@ -353,6 +366,16 @@ func (config *systemConfig) writeTextEntry(level Level, depth int, fields []Fiel
 	}
 
 	return nil
+}
+
+func fieldExists(name string, fields []Field) bool {
+	for _, f := range fields {
+		if f.Name() == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Output interface {

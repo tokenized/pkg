@@ -37,10 +37,11 @@ func (f *MockFactory) NewClient(ctx context.Context, handle string) (Client, err
 
 // mockUser is a mock user for testing systems that use paymail.
 type mockUser struct {
-	handle      string
-	identityKey bitcoin.Key
-	addressKey  bitcoin.Key
-	p2pTxs      map[string][]*wire.MsgTx
+	handle            string
+	identityKey       bitcoin.Key
+	addressKey        bitcoin.Key
+	p2pTxs            map[string][]*wire.MsgTx
+	instrumentAliases []InstrumentAlias
 }
 
 // AddMockUser adds a new mock user.
@@ -51,6 +52,21 @@ func (f *MockFactory) AddMockUser(handle string, identityKey, addressKey bitcoin
 		addressKey:  addressKey,
 		p2pTxs:      make(map[string][]*wire.MsgTx),
 	})
+}
+
+// AddMockUser adds a new mock user.
+func (f *MockFactory) AddMockInstrument(handle string, instrumentAlias, instrumentID string) {
+	for _, user := range f.users {
+		if user.handle != handle {
+			continue
+		}
+
+		user.instrumentAliases = append(user.instrumentAliases, InstrumentAlias{
+			InstrumentAlias: instrumentAlias,
+			InstrumentID:    instrumentID,
+		})
+		return
+	}
 }
 
 // GenerateMockUser generates a mock user and returns the user's handle, public key, and address.
@@ -93,7 +109,7 @@ func (c *MockClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, erro
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add
 // a signature to the request.
 func (c *MockClient) GetPaymentDestination(ctx context.Context, senderName, senderHandle,
-	purpose string, amount uint64, senderKey *bitcoin.Key) ([]byte, error) {
+	purpose string, amount uint64, senderKey *bitcoin.Key) (bitcoin.Script, error) {
 
 	ra, err := c.user.addressKey.RawAddress()
 	if err != nil {
@@ -110,11 +126,11 @@ func (c *MockClient) GetPaymentDestination(ctx context.Context, senderName, send
 
 // GetPaymentRequest gets a payment request from the identity.
 //   senderHandle is required.
-//   assetID can be empty or "BSV" to request bitcoin.
+//   instrumentID can be empty or "BSV" to request bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add
 // a signature to the request.
 func (c *MockClient) GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose,
-	assetID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
+	instrumentID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
 
 	ra, err := c.user.addressKey.RawAddress()
 	if err != nil {
@@ -128,10 +144,10 @@ func (c *MockClient) GetPaymentRequest(ctx context.Context, senderName, senderHa
 
 	tx := wire.NewMsgTx(1)
 
-	if assetID == "BSV" {
+	if instrumentID == "BSV" {
 		tx.AddTxOut(wire.NewTxOut(amount, script))
 	} else {
-		// Note: requires contract address of asset and possibly access to mock identity oracle
+		// Note: requires contract address of instrument and possibly access to mock identity oracle
 		// client.
 		return nil, errors.Wrap(ErrNotCapable, "not implemented in mock client")
 	}
@@ -159,8 +175,8 @@ func (c *MockClient) GetP2PPaymentDestination(ctx context.Context,
 	result := &P2PPaymentDestinationOutputs{
 		Outputs: []*wire.TxOut{
 			&wire.TxOut{
-				Value:    value,
-				PkScript: script,
+				Value:         value,
+				LockingScript: script,
 			},
 		},
 		Reference: uuid.New().String(),
@@ -196,4 +212,9 @@ func (c *MockClient) CheckP2PTx(txid bitcoin.Hash32) error {
 	}
 
 	return errors.New("Not posted")
+}
+
+// ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
+func (c *MockClient) ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error) {
+	return c.user.instrumentAliases, nil
 }

@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 func TestBasic(t *testing.T) {
@@ -45,7 +46,7 @@ func TestBasic(t *testing.T) {
 	tx.SetChangeAddress(address, "")
 
 	err = tx.AddInput(wire.OutPoint{Hash: *inputTx.MsgTx.TxHash(), Index: 0},
-		inputTx.MsgTx.TxOut[0].PkScript, uint64(inputTx.MsgTx.TxOut[0].Value))
+		inputTx.MsgTx.TxOut[0].LockingScript, uint64(inputTx.MsgTx.TxOut[0].Value))
 	if err != nil {
 		t.Errorf("Failed to add input : %s", err)
 	}
@@ -85,11 +86,11 @@ func TestBasic(t *testing.T) {
 	}
 	t.Logf("Tx Fee : %d", tx.Fee())
 
-	// Test bad PkScript
+	// Test bad LockingScript
 	txMalformed := NewTxBuilder(1.0, 1.0)
 	txMalformed.SetChangeAddress(address, "")
 	err = txMalformed.AddInput(wire.OutPoint{Hash: *inputTx.MsgTx.TxHash(), Index: 0},
-		append(inputTx.MsgTx.TxOut[0].PkScript, 5), uint64(inputTx.MsgTx.TxOut[0].Value))
+		append(inputTx.MsgTx.TxOut[0].LockingScript, 5), uint64(inputTx.MsgTx.TxOut[0].Value))
 	if errors.Cause(err) == ErrWrongScriptTemplate {
 		if err != nil {
 			t.Errorf("Failed to return \"Not P2PKH Script\" error : %s", err)
@@ -182,12 +183,12 @@ func TestTxSigHash(t *testing.T) {
 	tx.SetChangeAddress(changeAddress, "")
 
 	hashCache := &SigHashCache{}
-	sighash, err := signatureHash(msg, 0, msg1.TxOut[0].PkScript, msg1.TxOut[0].Value,
+	sighash, err := SignatureHash(msg, 0, msg1.TxOut[0].LockingScript, msg1.TxOut[0].Value,
 		SigHashAll+SigHashForkID, hashCache)
 	if err != nil {
 		t.Fatalf("Failed to generate signature hash : %s", err)
 	}
-	sighashHex := hex.EncodeToString(sighash)
+	sighashHex := hex.EncodeToString(sighash[:])
 
 	if sighashHex != "54638b5c5126e187cb3a6e62c28fa595c925d3c1dec50780d5a2116879eaf381" {
 		t.Fatalf("Wrong sig hash : \n  got  %s\n  want %s", sighashHex,
@@ -281,12 +282,12 @@ func TestAddFunding(t *testing.T) {
 		t.Fatalf("Incorrect fee : got %f, want %f", fee, estimatedFee)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[0].PkScript, toScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].PkScript, toScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[0].LockingScript, toScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].LockingScript, toScript)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[1].PkScript, changeScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[1].PkScript, changeScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[1].LockingScript, changeScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[1].LockingScript, changeScript)
 	}
 
 	// Already has change output *******************************************************************
@@ -321,12 +322,12 @@ func TestAddFunding(t *testing.T) {
 		t.Fatalf("Incorrect fee : got %f, want %f", fee, estimatedFee)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[0].PkScript, toScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].PkScript, toScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[0].LockingScript, toScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].LockingScript, toScript)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[1].PkScript, changeScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[1].PkScript, changeScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[1].LockingScript, changeScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[1].LockingScript, changeScript)
 	}
 
 	// Change is dust ******************************************************************************
@@ -357,8 +358,8 @@ func TestAddFunding(t *testing.T) {
 		t.Fatalf("Incorrect fee : got %f, want %f", fee, estimatedFee)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[0].PkScript, toScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].PkScript, toScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[0].LockingScript, toScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].LockingScript, toScript)
 	}
 
 	if len(tx.Outputs) != 1 {
@@ -426,8 +427,8 @@ func TestSendMax(t *testing.T) {
 		t.Fatalf("Incorrect output count : got %d, want %d", len(tx.Outputs), 2)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[0].PkScript, toScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].PkScript, toScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[0].LockingScript, toScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].LockingScript, toScript)
 	}
 
 	fee := float32(tx.Fee())
@@ -459,8 +460,8 @@ func TestSendMax(t *testing.T) {
 		t.Fatalf("Incorrect output count : got %d, want %d", len(tx.Outputs), 1)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[0].PkScript, toScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].PkScript, toScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[0].LockingScript, toScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].LockingScript, toScript)
 	}
 
 	fee = float32(tx.Fee())
@@ -493,12 +494,12 @@ func TestSendMax(t *testing.T) {
 		t.Fatalf("Incorrect output count : got %d, want %d", len(tx.Outputs), 2)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[0].PkScript, toScript) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].PkScript, toScript)
+	if !bytes.Equal(tx.MsgTx.TxOut[0].LockingScript, toScript) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[0].LockingScript, toScript)
 	}
 
-	if !bytes.Equal(tx.MsgTx.TxOut[1].PkScript, toScript2) {
-		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[1].PkScript, toScript2)
+	if !bytes.Equal(tx.MsgTx.TxOut[1].LockingScript, toScript2) {
+		t.Fatalf("Incorrect locking script : \ngot  %s\nwant %s", tx.MsgTx.TxOut[1].LockingScript, toScript2)
 	}
 
 	fee = float32(tx.Fee())

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -80,24 +81,27 @@ func TestFields(t *testing.T) {
 	ui := Uint("unsigned int", uint(20))
 	f := Float32("float32", 1.0)
 	f64 := Float64("float64", 2.0)
-	InfoWithFields(ctx, []Field{s, i, ui, f, f64}, "")
+	InfoWithFields(ctx, []Field{s, i, ui, f, f64}, "String, Int, Uint, Float32, Float64")
 
 	stringWithQuotes := String("with quote", `"should escape quote`)
 	stringWithBackspace := String("with backspace", "\b should escape backspace")
-	InfoWithFields(ctx, []Field{stringWithQuotes, stringWithBackspace}, "")
+	InfoWithFields(ctx, []Field{stringWithQuotes, stringWithBackspace}, "String, String")
 
 	stringWithNewLine := String("with newline", `
 	should escape newline and tab`)
-	InfoWithFields(ctx, []Field{stringWithNewLine}, "")
+	InfoWithFields(ctx, []Field{stringWithNewLine}, "String")
 
 	stringWithBackslash := String("with backslash", `\ should escape backslash`)
-	InfoWithFields(ctx, []Field{stringWithBackslash}, "")
+	InfoWithFields(ctx, []Field{stringWithBackslash}, "String")
+
+	hex := Hex("hex", []byte{1, 2, 3})
+	InfoWithFields(ctx, []Field{hex}, "Hex")
 
 	u32s := Uint32s("uint list", []uint32{1, 2, 3})
-	InfoWithFields(ctx, []Field{u32s}, "")
+	InfoWithFields(ctx, []Field{u32s}, "Uint32s")
 
 	float32s := Float32s("float list", []float32{1.234, 2.948463, 3.1})
-	InfoWithFields(ctx, []Field{float32s}, "")
+	InfoWithFields(ctx, []Field{float32s}, "Float32s")
 
 	json := struct {
 		Field1 string `json:"field_1"`
@@ -107,7 +111,22 @@ func TestFields(t *testing.T) {
 		Field2: 2,
 	}
 	jsonField := JSON("json_struct", &json)
-	InfoWithFields(ctx, []Field{jsonField}, "")
+	InfoWithFields(ctx, []Field{jsonField}, "JSON")
+}
+
+func Test_DuplicateFields(t *testing.T) {
+	ctx := ContextWithLogger(context.Background(), false, false, "")
+	ctx = ContextWithLogFields(ctx, String("duplicate", "original"))
+
+	InfoWithFields(ctx, []Field{String("duplicate", "should not show")}, "Message")
+}
+
+func TestWaitWarning(t *testing.T) {
+	ctx := ContextWithLogger(context.Background(), false, false, "")
+
+	waitWarning := NewWaitingWarning(ctx, 500*time.Millisecond, "Print this 4 times")
+	time.Sleep(2 * time.Second)
+	waitWarning.Cancel()
 }
 
 func BenchmarkContextWithLogTrace(b *testing.B) {

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/tokenized/pkg/bitcoin"
 
@@ -60,7 +61,7 @@ const (
 
 	// minTxInPayload is the minimum payload size for a transaction input.
 	// PreviousOutPoint.Hash + PreviousOutPoint.Index 4 bytes + Varint for
-	// SignatureScript length 1 byte + Sequence 4 bytes.
+	// UnlockingScript length 1 byte + Sequence 4 bytes.
 	minTxInPayload = 9 + bitcoin.Hash32Size
 
 	// maxTxInPerMessage is the maximum number of transactions inputs that
@@ -68,7 +69,7 @@ const (
 	maxTxInPerMessage = (MaxMessagePayload / minTxInPayload) + 1
 
 	// minTxOutPayload is the minimum payload size for a transaction output.
-	// Value 8 bytes + Varint for PkScript length 1 byte.
+	// Value 8 bytes + Varint for LockingScript length 1 byte.
 	minTxOutPayload = 9
 
 	// maxTxOutPerMessage is the maximum number of transactions outputs that
@@ -173,6 +174,26 @@ func NewOutPoint(hash *bitcoin.Hash32, index uint32) *OutPoint {
 	}
 }
 
+// OutPointFromStr parses a string into an outpoint. The format is "<txid:index>".
+func OutPointFromStr(s string) (*OutPoint, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return nil, errors.New("Invalid format: wrong colon count")
+	}
+
+	hash, err := bitcoin.NewHash32FromStr(parts[0])
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid hash")
+	}
+
+	index, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid index")
+	}
+
+	return NewOutPoint(hash, uint32(index)), nil
+}
+
 // String returns the OutPoint in the human-readable form "hash:index".
 func (o OutPoint) String() string {
 	// Allocate enough for hash string, colon, and 10 digits.  Although
@@ -217,36 +238,36 @@ func (op *OutPoint) Deserialize(r io.Reader) error {
 
 // TxIn defines a bitcoin transaction input.
 type TxIn struct {
-	PreviousOutPoint OutPoint `json:"outpoint"`
-	SignatureScript  []byte   `json:"script"`
-	Sequence         uint32   `json:"sequence"`
+	PreviousOutPoint OutPoint       `json:"outpoint"`
+	UnlockingScript  bitcoin.Script `json:"script"`
+	Sequence         uint32         `json:"sequence"`
 }
 
 // SerializeSize returns the number of bytes it would take to serialize the
 // the transaction input.
 func (t *TxIn) SerializeSize() int {
 	// Outpoint Hash 32 bytes + Outpoint Index 4 bytes + Sequence 4 bytes +
-	// serialized varint size for the length of SignatureScript +
-	// SignatureScript bytes.
-	return 40 + VarIntSerializeSize(uint64(len(t.SignatureScript))) +
-		len(t.SignatureScript)
+	// serialized varint size for the length of UnlockingScript +
+	// UnlockingScript bytes.
+	return 40 + VarIntSerializeSize(uint64(len(t.UnlockingScript))) +
+		len(t.UnlockingScript)
 }
 
 // NewTxIn returns a new bitcoin transaction input with the provided
 // previous outpoint point and signature script with a default sequence of
 // MaxTxInSequenceNum.
-func NewTxIn(prevOut *OutPoint, signatureScript []byte) *TxIn {
+func NewTxIn(prevOut *OutPoint, unlockingScript bitcoin.Script) *TxIn {
 	return &TxIn{
 		PreviousOutPoint: *prevOut,
-		SignatureScript:  signatureScript,
+		UnlockingScript:  unlockingScript,
 		Sequence:         MaxTxInSequenceNum,
 	}
 }
 
 // TxOut defines a bitcoin transaction output.
 type TxOut struct {
-	Value    uint64
-	PkScript []byte
+	Value         uint64         `json:"value"`
+	LockingScript bitcoin.Script `json:"locking_script"`
 }
 
 // Serialize encodes to into the bitcoin protocol encoding for a transaction
@@ -263,9 +284,9 @@ func (t *TxOut) Deserialize(r io.Reader, pver uint32, version int32) error {
 // SerializeSize returns the number of bytes it would take to serialize the
 // the transaction output.
 func (t *TxOut) SerializeSize() int {
-	// Value 8 bytes + serialized varint size for the length of PkScript +
-	// PkScript bytes.
-	return 8 + VarIntSerializeSize(uint64(len(t.PkScript))) + len(t.PkScript)
+	// Value 8 bytes + serialized varint size for the length of LockingScript +
+	// LockingScript bytes.
+	return 8 + VarIntSerializeSize(uint64(len(t.LockingScript))) + len(t.LockingScript)
 }
 
 // MarshalText implements encoding.TextMarshaler for json and other text encoding packages.
@@ -313,10 +334,10 @@ func (t *TxOut) UnmarshalBinary(b []byte) error {
 
 // NewTxOut returns a new bitcoin transaction output with the provided
 // transaction value and public key script.
-func NewTxOut(value uint64, pkScript []byte) *TxOut {
+func NewTxOut(value uint64, lockingScript bitcoin.Script) *TxOut {
 	return &TxOut{
-		Value:    value,
-		PkScript: pkScript,
+		Value:         value,
+		LockingScript: lockingScript,
 	}
 }
 
@@ -356,39 +377,39 @@ func (msg *MsgTx) TxHash() *bitcoin.Hash32 {
 }
 
 func (msg *MsgTx) String() string {
-	result := fmt.Sprintf("TxId: %s (%d bytes)\n", msg.TxHash().String(), msg.SerializeSize())
+	result := fmt.Sprintf("TxId: %s (%d bytes)\n", msg.TxHash(), msg.SerializeSize())
 	result += fmt.Sprintf("  Version: %d\n", msg.Version)
 	result += "  Inputs:\n\n"
 	for _, input := range msg.TxIn {
 		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
 			input.PreviousOutPoint.Hash.String())
-		result += fmt.Sprintf("    Script: %x\n", input.SignatureScript)
+		result += fmt.Sprintf("    Script: %s\n", input.UnlockingScript)
 		result += fmt.Sprintf("    Sequence: %x\n\n", input.Sequence)
 	}
 	result += "  Outputs:\n\n"
 	for _, output := range msg.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
-		result += fmt.Sprintf("    Script: %x\n\n", output.PkScript)
+		result += fmt.Sprintf("    Script: %s\n\n", output.LockingScript)
 	}
 	result += fmt.Sprintf("  LockTime: %d\n", msg.LockTime)
 	return result
 }
 
 func (msg *MsgTx) StringWithAddresses(net bitcoin.Network) string {
-	result := fmt.Sprintf("TxId: %s\n", msg.TxHash().String())
+	result := fmt.Sprintf("TxId: %s\n", msg.TxHash())
 	result += fmt.Sprintf("  Version: %d\n", msg.Version)
 	result += "  Inputs:\n\n"
 	for _, input := range msg.TxIn {
 		result += fmt.Sprintf("    Outpoint: %d - %s\n", input.PreviousOutPoint.Index,
-			input.PreviousOutPoint.Hash.String())
-		result += fmt.Sprintf("    Script: %x\n", input.SignatureScript)
+			input.PreviousOutPoint.Hash)
+		result += fmt.Sprintf("    Script: %s\n", input.UnlockingScript)
 		result += fmt.Sprintf("    Sequence: %x\n", input.Sequence)
 
 		// Address
-		ra, err := bitcoin.RawAddressFromUnlockingScript(input.SignatureScript)
+		ra, err := bitcoin.RawAddressFromUnlockingScript(input.UnlockingScript)
 		if err == nil {
 			ad := bitcoin.NewAddressFromRawAddress(ra, net)
-			result += fmt.Sprintf("    Address: %s\n", ad.String())
+			result += fmt.Sprintf("    Address: %s\n", ad)
 		}
 
 		result += "\n"
@@ -396,13 +417,13 @@ func (msg *MsgTx) StringWithAddresses(net bitcoin.Network) string {
 	result += "  Outputs:\n\n"
 	for _, output := range msg.TxOut {
 		result += fmt.Sprintf("    Value: %.08f\n", float32(output.Value)/100000000.0)
-		result += fmt.Sprintf("    Script: %x\n", output.PkScript)
+		result += fmt.Sprintf("    Script: %s\n", output.LockingScript)
 
 		// Address
-		ra, err := bitcoin.RawAddressFromLockingScript(output.PkScript)
+		ra, err := bitcoin.RawAddressFromLockingScript(output.LockingScript)
 		if err == nil {
 			ad := bitcoin.NewAddressFromRawAddress(ra, net)
-			result += fmt.Sprintf("    Address: %s\n", ad.String())
+			result += fmt.Sprintf("    Address: %s\n", ad)
 		}
 
 		result += "\n"
@@ -433,7 +454,7 @@ func (msg *MsgTx) Copy() *MsgTx {
 
 		// Deep copy the old signature script.
 		var newScript []byte
-		oldScript := oldTxIn.SignatureScript
+		oldScript := oldTxIn.UnlockingScript
 		oldScriptLen := len(oldScript)
 		if oldScriptLen > 0 {
 			newScript = make([]byte, oldScriptLen)
@@ -444,7 +465,7 @@ func (msg *MsgTx) Copy() *MsgTx {
 		// new Tx.
 		newTxIn := TxIn{
 			PreviousOutPoint: newOutPoint,
-			SignatureScript:  newScript,
+			UnlockingScript:  newScript,
 			Sequence:         oldTxIn.Sequence,
 		}
 		newTx.TxIn = append(newTx.TxIn, &newTxIn)
@@ -452,9 +473,9 @@ func (msg *MsgTx) Copy() *MsgTx {
 
 	// Deep copy the old TxOut data.
 	for _, oldTxOut := range msg.TxOut {
-		// Deep copy the old PkScript
+		// Deep copy the old LockingScript
 		var newScript []byte
-		oldScript := oldTxOut.PkScript
+		oldScript := oldTxOut.LockingScript
 		oldScriptLen := len(oldScript)
 		if oldScriptLen > 0 {
 			newScript = make([]byte, oldScriptLen)
@@ -464,8 +485,8 @@ func (msg *MsgTx) Copy() *MsgTx {
 		// Create new txOut with the deep copied data and append it to
 		// new Tx.
 		newTxOut := TxOut{
-			Value:    oldTxOut.Value,
-			PkScript: newScript,
+			Value:         oldTxOut.Value,
+			LockingScript: newScript,
 		}
 		newTx.TxOut = append(newTx.TxOut, &newTxOut)
 	}
@@ -507,16 +528,16 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 	// returns them.
 	returnScriptBuffers := func() {
 		for _, txIn := range msg.TxIn {
-			if txIn == nil || txIn.SignatureScript == nil {
+			if txIn == nil || txIn.UnlockingScript == nil {
 				continue
 			}
-			scriptPool.Return(txIn.SignatureScript)
+			scriptPool.Return(txIn.UnlockingScript)
 		}
 		for _, txOut := range msg.TxOut {
-			if txOut == nil || txOut.PkScript == nil {
+			if txOut == nil || txOut.LockingScript == nil {
 				continue
 			}
-			scriptPool.Return(txOut.PkScript)
+			scriptPool.Return(txOut.LockingScript)
 		}
 	}
 
@@ -534,7 +555,7 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 			returnScriptBuffers()
 			return err
 		}
-		totalScriptSize += uint64(len(ti.SignatureScript))
+		totalScriptSize += uint64(len(ti.UnlockingScript))
 	}
 
 	count, err = ReadVarInt(r, pver)
@@ -567,7 +588,7 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 			returnScriptBuffers()
 			return err
 		}
-		totalScriptSize += uint64(len(to.PkScript))
+		totalScriptSize += uint64(len(to.LockingScript))
 	}
 
 	err = binary.Read(r, endian, &msg.LockTime)
@@ -595,14 +616,14 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 	for i := 0; i < len(msg.TxIn); i++ {
 		// Copy the signature script into the contiguous buffer at the
 		// appropriate offset.
-		signatureScript := msg.TxIn[i].SignatureScript
+		signatureScript := msg.TxIn[i].UnlockingScript
 		copy(scripts[offset:], signatureScript)
 
 		// Reset the signature script of the transaction input to the
 		// slice of the contiguous buffer where the script lives.
 		scriptSize := uint64(len(signatureScript))
 		end := offset + scriptSize
-		msg.TxIn[i].SignatureScript = scripts[offset:end:end]
+		msg.TxIn[i].UnlockingScript = scripts[offset:end:end]
 		offset += scriptSize
 
 		// Return the temporary script buffer to the pool.
@@ -611,14 +632,14 @@ func (msg *MsgTx) BtcDecode(r io.Reader, pver uint32) error {
 	for i := 0; i < len(msg.TxOut); i++ {
 		// Copy the public key script into the contiguous buffer at the
 		// appropriate offset.
-		pkScript := msg.TxOut[i].PkScript
+		pkScript := msg.TxOut[i].LockingScript
 		copy(scripts[offset:], pkScript)
 
 		// Reset the public key script of the transaction output to the
 		// slice of the contiguous buffer where the script lives.
 		scriptSize := uint64(len(pkScript))
 		end := offset + scriptSize
-		msg.TxOut[i].PkScript = scripts[offset:end:end]
+		msg.TxOut[i].LockingScript = scripts[offset:end:end]
 		offset += scriptSize
 
 		// Return the temporary script buffer to the pool.
@@ -772,15 +793,15 @@ func (msg *MsgTx) Command() string {
 
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
-func (msg *MsgTx) MaxPayloadLength(pver uint32) uint32 {
+func (msg *MsgTx) MaxPayloadLength(pver uint32) uint64 {
 	return MaxBlockPayload
 }
 
-// PkScriptLocs returns a slice containing the start of each public key script
+// LockingScriptLocs returns a slice containing the start of each public key script
 // within the raw serialized transaction.  The caller can easily obtain the
 // length of each script by using len on the script available via the
 // appropriate transaction output entry.
-func (msg *MsgTx) PkScriptLocs() []int {
+func (msg *MsgTx) LockingScriptLocs() []int {
 	numTxOut := len(msg.TxOut)
 	if numTxOut == 0 {
 		return nil
@@ -804,10 +825,10 @@ func (msg *MsgTx) PkScriptLocs() []int {
 		// The offset of the script in the transaction output is:
 		//
 		// Value 8 bytes + serialized varint size for the length of
-		// PkScript.
-		n += 8 + VarIntSerializeSize(uint64(len(txOut.PkScript)))
+		// LockingScript.
+		n += 8 + VarIntSerializeSize(uint64(len(txOut.LockingScript)))
 		pkScriptLocs[i] = n
-		n += len(txOut.PkScript)
+		n += len(txOut.LockingScript)
 	}
 
 	return pkScriptLocs
@@ -844,7 +865,7 @@ func readOutPoint(r io.Reader, pver uint32, version int32, op *OutPoint) error {
 // memory exhuastion attacks and forced panics thorugh malformed messages.  The
 // fieldName parameter is only used for the error message so it provides more
 // context in the error.
-func readScript(r io.Reader, pver uint32, maxAllowed uint32, fieldName string) ([]byte, error) {
+func readScript(r io.Reader, pver uint32, maxAllowed uint64, fieldName string) ([]byte, error) {
 	count, err := ReadVarInt(r, pver)
 	if err != nil {
 		return nil, err
@@ -853,7 +874,7 @@ func readScript(r io.Reader, pver uint32, maxAllowed uint32, fieldName string) (
 	// Prevent byte array larger than the max message size.  It would
 	// be possible to cause memory exhaustion and panics without a sane
 	// upper bound on this count.
-	if count > uint64(maxAllowed) {
+	if count > maxAllowed {
 		str := fmt.Sprintf("%s is larger than the max allowed size "+
 			"[count %d, max %d]", fieldName, count, maxAllowed)
 		return nil, messageError("readScript", str)
@@ -876,7 +897,7 @@ func readTxIn(r io.Reader, pver uint32, version int32, ti *TxIn) error {
 		return err
 	}
 
-	ti.SignatureScript, err = readScript(r, pver, MaxMessagePayload,
+	ti.UnlockingScript, err = readScript(r, pver, MaxMessagePayload,
 		"transaction input signature script")
 	if err != nil {
 		return err
@@ -893,7 +914,7 @@ func writeTxIn(w io.Writer, pver uint32, version int32, ti *TxIn) error {
 		return err
 	}
 
-	err = WriteVarBytes(w, pver, ti.SignatureScript)
+	err = WriteVarBytes(w, pver, ti.UnlockingScript)
 	if err != nil {
 		return err
 	}
@@ -909,7 +930,7 @@ func readTxOut(r io.Reader, pver uint32, version int32, to *TxOut) error {
 		return err
 	}
 
-	to.PkScript, err = readScript(r, pver, MaxMessagePayload,
+	to.LockingScript, err = readScript(r, pver, MaxMessagePayload,
 		"transaction output public key script")
 	return err
 }
@@ -922,5 +943,44 @@ func writeTxOut(w io.Writer, pver uint32, version int32, to *TxOut) error {
 		return err
 	}
 
-	return WriteVarBytes(w, pver, to.PkScript)
+	return WriteVarBytes(w, pver, to.LockingScript)
+}
+
+func (tx *MsgTx) Clear() {
+	tx.Version = 1
+	tx.TxIn = nil
+	tx.TxOut = nil
+	tx.LockTime = 0
+}
+
+// Scan converts from a database column.
+func (tx *MsgTx) Scan(data interface{}) error {
+	if data == nil {
+		tx.Clear()
+		return nil
+	}
+
+	b, ok := data.([]byte)
+	if !ok {
+		return errors.New("MsgTx db column not bytes")
+	}
+
+	if len(b) == 0 {
+		tx.Clear()
+		return nil
+	}
+
+	// Copy byte slice because it will be wiped out by the database after this call.
+	c := make([]byte, len(b))
+	copy(c, b)
+
+	// Decode into raw address
+	return tx.Deserialize(bytes.NewReader(c))
+}
+
+// Bytes returns the byte encoded format of the tx.
+func (tx MsgTx) Bytes() []byte {
+	buf := &bytes.Buffer{}
+	tx.Serialize(buf)
+	return buf.Bytes()
 }

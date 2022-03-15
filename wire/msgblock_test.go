@@ -9,7 +9,6 @@ import (
 	"io"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/tokenized/pkg/bitcoin"
@@ -490,9 +489,9 @@ var blockOne = MsgBlock{
 			0xcd, 0xb6, 0x06, 0xe8, 0x57, 0x23, 0x3e, 0x0e,
 		}),
 
-		Timestamp: time.Unix(0x4966bc61, 0), // 2009-01-08 20:54:25 -0600 CST
-		Bits:      0x1d00ffff,               // 486604799
-		Nonce:     0x9962e301,               // 2573394689
+		Timestamp: 0x4966bc61, // 2009-01-08 20:54:25 -0600 CST
+		Bits:      0x1d00ffff, // 486604799
+		Nonce:     0x9962e301, // 2573394689
 	},
 	Transactions: []*MsgTx{
 		{
@@ -503,7 +502,7 @@ var blockOne = MsgBlock{
 						Hash:  bitcoin.Hash32{},
 						Index: 0xffffffff,
 					},
-					SignatureScript: []byte{
+					UnlockingScript: []byte{
 						0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04,
 					},
 					Sequence: 0xffffffff,
@@ -512,7 +511,7 @@ var blockOne = MsgBlock{
 			TxOut: []*TxOut{
 				{
 					Value: 0x12a05f200,
-					PkScript: []byte{
+					LockingScript: []byte{
 						0x41, // OP_DATA_65
 						0x04, 0x96, 0xb5, 0x38, 0xe8, 0x53, 0x51, 0x9c,
 						0x72, 0x6a, 0x2c, 0x91, 0xe6, 0x1e, 0xc1, 0x16,

@@ -3,39 +3,64 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/pkg/errors"
 )
 
 const (
-	OP_FALSE              = 0x00
-	OP_TRUE               = 0x51
-	OP_1NEGATE            = 0x4f
-	OP_1                  = 0x51
-	OP_3                  = 0x53
-	OP_16                 = 0x60
-	OP_RETURN             = 0x6a
-	OP_DUP                = 0x76
-	OP_HASH160            = 0xa9
-	OP_PUSH_DATA_20       = 0x14
-	OP_PUSH_DATA_33       = 0x21
-	OP_EQUAL              = 0x87
-	OP_EQUALVERIFY        = 0x88
-	OP_LESSTHANOREQUAL    = 0xa1
-	OP_GREATERTHANOREQUAL = 0xa2
-	OP_CHECKSIG           = 0xac
-	OP_CHECKSIGVERIFY     = 0xad
-	OP_IF                 = 0x63
-	OP_ENDIF              = 0x68
-	OP_TOALTSTACK         = 0x6b
-	OP_FROMALTSTACK       = 0x6c
-	OP_1ADD               = 0x8b
-	OP_SPLIT              = 0x7f
-	OP_NIP                = 0x77
-	OP_SWAP               = 0x7c
-	OP_DROP               = 0x75
+	ScriptItemTypeOpCode   = ScriptItemType(0x01)
+	ScriptItemTypePushData = ScriptItemType(0x02)
+
+	PublicKeyHashSize = 20
+
+	OP_FALSE = byte(0x00)
+	OP_TRUE  = byte(0x51)
+
+	OP_1NEGATE = byte(0x4f)
+
+	OP_0  = byte(0x00)
+	OP_1  = byte(0x51)
+	OP_2  = byte(0x52)
+	OP_3  = byte(0x53)
+	OP_4  = byte(0x54)
+	OP_5  = byte(0x55)
+	OP_6  = byte(0x56)
+	OP_7  = byte(0x57)
+	OP_8  = byte(0x58)
+	OP_9  = byte(0x59)
+	OP_10 = byte(0x5a)
+	OP_11 = byte(0x5b)
+	OP_12 = byte(0x5c)
+	OP_13 = byte(0x5d)
+	OP_14 = byte(0x5e)
+	OP_15 = byte(0x5f)
+	OP_16 = byte(0x60)
+
+	OP_IF                 = byte(0x63)
+	OP_ENDIF              = byte(0x68)
+	OP_RETURN             = byte(0x6a)
+	OP_TOALTSTACK         = byte(0x6b)
+	OP_FROMALTSTACK       = byte(0x6c)
+	OP_DROP               = byte(0x75)
+	OP_DUP                = byte(0x76)
+	OP_NIP                = byte(0x77)
+	OP_SWAP               = byte(0x7c)
+	OP_SPLIT              = byte(0x7f)
+	OP_EQUAL              = byte(0x87)
+	OP_EQUALVERIFY        = byte(0x88)
+	OP_1ADD               = byte(0x8b)
+	OP_LESSTHANOREQUAL    = byte(0xa1)
+	OP_GREATERTHANOREQUAL = byte(0xa2)
+	OP_HASH160            = byte(0xa9)
+	OP_CHECKSIG           = byte(0xac)
+	OP_CHECKSIGVERIFY     = byte(0xad)
+
+	OP_PUSH_DATA_20 = byte(0x14)
+	OP_PUSH_DATA_33 = byte(0x21)
 
 	// OP_MAX_SINGLE_BYTE_PUSH_DATA represents the max length for a single byte push
 	OP_MAX_SINGLE_BYTE_PUSH_DATA = byte(0x4b)
@@ -61,9 +86,438 @@ const (
 var (
 	endian = binary.LittleEndian
 
-	ErrNotP2PKH  = errors.New("Not P2PKH")
-	ErrNotPushOp = errors.New("Not Push Op")
+	ErrInvalidScript       = errors.New("Invalid Script")
+	ErrNotP2PKH            = errors.New("Not P2PKH")
+	ErrWrongScriptTemplate = errors.New("Wrong Script Template")
+	ErrNotPushOp           = errors.New("Not Push Op")
+	ErrUnknownScriptNumber = errors.New("Unknown Script Number")
+	ErrWrongOpCode         = errors.New("Wrong Op Code")
+
+	byteToNames = map[byte]string{
+		OP_FALSE:              "OP_FALSE",
+		OP_1NEGATE:            "OP_1NEGATE",
+		OP_1:                  "OP_1",
+		OP_2:                  "OP_2",
+		OP_3:                  "OP_3",
+		OP_4:                  "OP_4",
+		OP_5:                  "OP_5",
+		OP_6:                  "OP_6",
+		OP_7:                  "OP_7",
+		OP_8:                  "OP_8",
+		OP_9:                  "OP_9",
+		OP_10:                 "OP_10",
+		OP_11:                 "OP_11",
+		OP_12:                 "OP_12",
+		OP_13:                 "OP_13",
+		OP_14:                 "OP_14",
+		OP_15:                 "OP_15",
+		OP_16:                 "OP_16",
+		OP_RETURN:             "OP_RETURN",
+		OP_DUP:                "OP_DUP",
+		OP_HASH160:            "OP_HASH160",
+		OP_EQUAL:              "OP_EQUAL",
+		OP_EQUALVERIFY:        "OP_EQUALVERIFY",
+		OP_LESSTHANOREQUAL:    "OP_LESSTHANOREQUAL",
+		OP_GREATERTHANOREQUAL: "OP_GREATERTHANOREQUAL",
+		OP_CHECKSIG:           "OP_CHECKSIG",
+		OP_CHECKSIGVERIFY:     "OP_CHECKSIGVERIFY",
+		OP_IF:                 "OP_IF",
+		OP_ENDIF:              "OP_ENDIF",
+		OP_TOALTSTACK:         "OP_TOALTSTACK",
+		OP_FROMALTSTACK:       "OP_FROMALTSTACK",
+		OP_1ADD:               "OP_1ADD",
+		OP_SPLIT:              "OP_SPLIT",
+		OP_NIP:                "OP_NIP",
+		OP_SWAP:               "OP_SWAP",
+		OP_DROP:               "OP_DROP",
+		OP_PUBKEY:             "OP_PUBKEY",
+		OP_PUBKEYHASH:         "OP_PUBKEYHASH",
+	}
+
+	byteFromNames = map[string]byte{
+		"OP_FALSE":              OP_FALSE,
+		"OP_TRUE":               OP_TRUE,
+		"OP_1NEGATE":            OP_1NEGATE,
+		"OP_0":                  OP_0,
+		"OP_1":                  OP_1,
+		"OP_2":                  OP_2,
+		"OP_3":                  OP_3,
+		"OP_4":                  OP_4,
+		"OP_5":                  OP_5,
+		"OP_6":                  OP_6,
+		"OP_7":                  OP_7,
+		"OP_8":                  OP_8,
+		"OP_9":                  OP_9,
+		"OP_10":                 OP_10,
+		"OP_11":                 OP_11,
+		"OP_12":                 OP_12,
+		"OP_13":                 OP_13,
+		"OP_14":                 OP_14,
+		"OP_15":                 OP_15,
+		"OP_16":                 OP_16,
+		"OP_RETURN":             OP_RETURN,
+		"OP_DUP":                OP_DUP,
+		"OP_HASH160":            OP_HASH160,
+		"OP_EQUAL":              OP_EQUAL,
+		"OP_EQUALVERIFY":        OP_EQUALVERIFY,
+		"OP_LESSTHANOREQUAL":    OP_LESSTHANOREQUAL,
+		"OP_GREATERTHANOREQUAL": OP_GREATERTHANOREQUAL,
+		"OP_CHECKSIG":           OP_CHECKSIG,
+		"OP_CHECKSIGVERIFY":     OP_CHECKSIGVERIFY,
+		"OP_IF":                 OP_IF,
+		"OP_ENDIF":              OP_ENDIF,
+		"OP_TOALTSTACK":         OP_TOALTSTACK,
+		"OP_FROMALTSTACK":       OP_FROMALTSTACK,
+		"OP_1ADD":               OP_1ADD,
+		"OP_SPLIT":              OP_SPLIT,
+		"OP_NIP":                OP_NIP,
+		"OP_SWAP":               OP_SWAP,
+		"OP_DROP":               OP_DROP,
+		"OP_PUBKEY":             OP_PUBKEY,
+		"OP_PUBKEYHASH":         OP_PUBKEYHASH,
+	}
 )
+
+type ScriptItemType uint8
+
+type ScriptItem struct {
+	Type   ScriptItemType
+	OpCode byte
+	Data   []byte
+}
+
+type Script []byte
+
+func (item ScriptItem) String() string {
+	if item.Type == ScriptItemTypePushData {
+		return fmt.Sprintf("0x%s", hex.EncodeToString(item.Data))
+	}
+
+	// Op Code
+	name, exists := byteToNames[item.OpCode]
+	if exists {
+		return name
+	}
+
+	// Undefined op code
+	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode}))
+}
+
+func NewScript(b []byte) Script {
+	return Script(b)
+}
+
+func (s Script) PubKeyCount() uint32 {
+	buf := bytes.NewReader(s)
+	result := uint32(0)
+	for {
+		item, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0
+		}
+
+		if item.Type == ScriptItemTypePushData {
+			l := len(item.Data)
+			if l == Hash20Size || l == PublicKeyCompressedLength {
+				result++
+			}
+
+			continue
+		}
+	}
+
+	return result
+}
+
+// RequiredSignatures is the number of signatures required to unlock the template.
+// Note: Only supports P2PKH and MultiPKH.
+func (s Script) RequiredSignatures() (uint32, error) {
+	if s.MatchesTemplate(PKHTemplate) || s.MatchesTemplate(PKTemplate) {
+		return 1, nil
+	}
+
+	if required, _, err := s.MultiPKHCounts(); err == nil {
+		return required, nil
+	} else {
+		return 0, errors.Wrap(err, "multi-pkh counts")
+	}
+
+	return 0, ErrUnknownScriptTemplate
+}
+
+func (s Script) IsP2PKH() bool {
+	return s.MatchesTemplate(PKHTemplate)
+}
+
+func (s Script) IsP2PK() bool {
+	return s.MatchesTemplate(PKTemplate)
+}
+
+func (s Script) MatchesTemplate(template Template) bool {
+	buf := bytes.NewReader(s)
+	for {
+		item, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return false
+		}
+
+		if len(template) == 0 {
+			return false
+		}
+
+		expected := template[0]
+		template = template[1:]
+
+		if expected == OP_PUBKEYHASH {
+			if item.Type != ScriptItemTypePushData || len(item.Data) != Hash20Size {
+				return false
+			}
+		} else if expected == OP_PUBKEY {
+			if item.Type != ScriptItemTypePushData || len(item.Data) != PublicKeyCompressedLength {
+				return false
+			}
+		} else if item.OpCode != expected {
+			return false
+		}
+	}
+
+	return len(template) == 0
+}
+
+func CheckOpCode(r *bytes.Reader, opCode byte) error {
+	item, err := ParseScript(r)
+	if err != nil {
+		return errors.Wrap(err, "parse script")
+	}
+
+	if item.Type == ScriptItemTypePushData {
+		return errors.Wrap(ErrWrongOpCode, "is push op")
+	}
+
+	if item.OpCode == opCode {
+		return nil
+	}
+
+	return errors.Wrapf(ErrWrongOpCode, "got %s, want %s", OpCodeToString(item.OpCode),
+		OpCodeToString(opCode))
+}
+
+// MultiPKHCounts returns the number of require signatures and total signers for a multi-pkh locking
+// script. It returns the error ErrWrongScriptTemplate if the locking script doesn't match the
+// template.
+//
+// Returns:
+// Required Signatures Count
+// Total Signers Count
+func (s Script) MultiPKHCounts() (uint32, uint32, error) {
+	r := bytes.NewReader(s)
+
+	// Initialize alt stack
+	if err := CheckOpCode(r, OP_0); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	if err := CheckOpCode(r, OP_TOALTSTACK); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	// For each signer
+	total := uint32(0)
+	var requiredSigners int64
+	for {
+		item, err := ParseScript(r)
+		if err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if item.Type != ScriptItemTypeOpCode || item.OpCode != OP_IF {
+			requiredSigners, err = ScriptNumberValue(item)
+			if err != nil {
+				return 0, 0, errors.Wrap(ErrWrongScriptTemplate,
+					errors.Wrap(err, "required signers script number").Error())
+			}
+
+			break // this must be the required signers count
+		}
+
+		if item.OpCode != OP_IF {
+			return 0, 0, errors.Wrapf(ErrWrongScriptTemplate, "not OP_IF: %s",
+				OpCodeToString(item.OpCode))
+		}
+
+		if err := CheckOpCode(r, OP_DUP); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_HASH160); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		pubKeyItem, err := ParseScript(r)
+		if err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate,
+				errors.Wrap(err, "public key hash").Error())
+		}
+
+		if pubKeyItem.Type != ScriptItemTypePushData {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, "public key hash not push data")
+		}
+
+		if len(pubKeyItem.Data) != PublicKeyHashSize {
+			return 0, 0, errors.Wrapf(ErrWrongScriptTemplate,
+				"wrong public key hash size: got %d, want %d", len(pubKeyItem.Data),
+				PublicKeyHashSize)
+		}
+
+		if err := CheckOpCode(r, OP_EQUALVERIFY); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_CHECKSIGVERIFY); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		// Increment alt stack for a valid signature
+		if err := CheckOpCode(r, OP_FROMALTSTACK); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_1ADD); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_TOALTSTACK); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		if err := CheckOpCode(r, OP_ENDIF); err != nil {
+			return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+		}
+
+		total++
+	}
+
+	// Check alt stack
+	// Already got {required signers count} in loop to break from the loop
+	if requiredSigners < 1 || requiredSigners > 0xffffffff {
+		return 0, 0, errors.Wrapf(ErrUnknownScriptTemplate, "require signer value %d",
+			requiredSigners)
+	}
+
+	if err := CheckOpCode(r, OP_FROMALTSTACK); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	if err := CheckOpCode(r, OP_LESSTHANOREQUAL); err != nil {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, err.Error())
+	}
+
+	if _, err := ParseScript(r); errors.Cause(err) != io.EOF {
+		return 0, 0, errors.Wrap(ErrWrongScriptTemplate, "not end of script")
+	}
+
+	return uint32(requiredSigners), total, nil
+}
+
+func (s Script) Equal(r Script) bool {
+	return bytes.Equal(s, r)
+}
+
+func (s Script) String() string {
+	return ScriptToString(s)
+}
+
+func (s Script) Bytes() []byte {
+	return s
+}
+
+// MarshalText returns the text encoding of the raw address.
+// Implements encoding.TextMarshaler interface.
+func (s Script) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+// UnmarshalText parses a text encoded raw address and sets the value of this object.
+// Implements encoding.TextUnmarshaler interface.
+func (s *Script) UnmarshalText(text []byte) error {
+	b, err := StringToScript(string(text))
+	if err != nil {
+		return errors.Wrap(err, "script to string")
+	}
+
+	return s.UnmarshalBinary(b)
+}
+
+// MarshalBinary returns the binary encoding of the raw address.
+// Implements encoding.BinaryMarshaler interface.
+func (s Script) MarshalBinary() ([]byte, error) {
+	return s.Bytes(), nil
+}
+
+// UnmarshalBinary parses a binary encoded raw address and sets the value of this object.
+// Implements encoding.BinaryUnmarshaler interface.
+func (s *Script) UnmarshalBinary(data []byte) error {
+	// Copy byte slice in case it is reused after this call.
+	*s = make([]byte, len(data))
+	copy(*s, data)
+	return nil
+}
+
+// MarshalJSON converts to json.
+func (s Script) MarshalJSON() ([]byte, error) {
+	return []byte("\"" + hex.EncodeToString(s) + "\""), nil
+}
+
+// UnmarshalJSON converts from json.
+func (s *Script) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 {
+		return fmt.Errorf("Too short for RawAddress hex data : %d", len(data))
+	}
+
+	if len(data) == 2 {
+		*s = nil
+		return nil
+	}
+
+	// Decode hex and remove double quotes.
+	raw, err := hex.DecodeString(string(data[1 : len(data)-1]))
+	if err != nil {
+		return err
+	}
+	*s = raw
+
+	return nil
+}
+
+// Scan converts from a database column.
+func (s *Script) Scan(data interface{}) error {
+	if data == nil {
+		*s = nil
+		return nil
+	}
+
+	b, ok := data.([]byte)
+	if !ok {
+		return errors.New("Script db column not bytes")
+	}
+
+	if len(b) == 0 {
+		*s = nil
+		return nil
+	}
+
+	// Copy byte slice because it will be wiped out by the database after this call.
+	*s = make([]byte, len(b))
+	copy(*s, b)
+
+	return nil
+}
 
 // PushDataScriptSize returns the encoded push data script size op codes.
 func PushDataScriptSize(size uint64) []byte {
@@ -111,6 +565,100 @@ func WritePushDataScript(buf *bytes.Buffer, data []byte) error {
 
 	_, err = buf.Write(data)
 	return err
+}
+
+// ParseScript will parse the next item of a bitcoin script.
+// A bytes.Reader object is needed to check the size against the remaining length before allocating
+// the memory to store the push.
+func ParseScript(buf *bytes.Reader) (*ScriptItem, error) {
+	var opCode byte
+	if err := binary.Read(buf, endian, &opCode); err != nil {
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: 0,
+			Data:   nil,
+		}, err
+	}
+
+	isPushOp := false
+	dataSize := 0
+	if opCode == OP_FALSE {
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
+	} else if opCode <= OP_MAX_SINGLE_BYTE_PUSH_DATA {
+		isPushOp = true
+		dataSize = int(opCode)
+	} else if opCode >= OP_1 && opCode <= OP_16 {
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
+	} else if opCode == OP_1NEGATE {
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
+	} else {
+		switch opCode {
+		case OP_PUSH_DATA_1:
+			var size uint8
+			if err := binary.Read(buf, endian, &size); err != nil {
+				return nil, err
+			}
+			isPushOp = true
+			dataSize = int(size)
+		case OP_PUSH_DATA_2:
+			var size uint16
+			if err := binary.Read(buf, endian, &size); err != nil {
+				return nil, err
+			}
+			isPushOp = true
+			dataSize = int(size)
+		case OP_PUSH_DATA_4:
+			var size uint32
+			if err := binary.Read(buf, endian, &size); err != nil {
+				return nil, err
+			}
+			isPushOp = true
+			dataSize = int(size)
+		}
+	}
+
+	if !isPushOp {
+		return &ScriptItem{
+			Type:   ScriptItemTypeOpCode,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
+	}
+	if dataSize == 0 {
+		return &ScriptItem{
+			Type:   ScriptItemTypePushData,
+			OpCode: opCode,
+			Data:   nil,
+		}, nil
+	}
+
+	if dataSize > buf.Len() { // Check this to prevent trying to allocate a large amount.
+		return nil, errors.Wrap(ErrInvalidScript,
+			fmt.Sprintf("Push data size past end of script : %d/%d", dataSize, buf.Len()))
+	}
+
+	data := make([]byte, dataSize)
+	if _, err := buf.Read(data); err != nil {
+		return nil, err
+	}
+
+	return &ScriptItem{
+		Type:   ScriptItemTypePushData,
+		OpCode: opCode,
+		Data:   data,
+	}, nil
 }
 
 // ParsePushDataScriptSize will parse a push data script and return its size.
@@ -165,7 +713,9 @@ func ParsePushDataScript(buf *bytes.Reader) (uint8, []byte, error) {
 
 	isPushOp := false
 	dataSize := 0
-	if opCode <= OP_MAX_SINGLE_BYTE_PUSH_DATA {
+	if opCode == OP_FALSE {
+		return opCode, nil, nil
+	} else if opCode <= OP_MAX_SINGLE_BYTE_PUSH_DATA {
 		isPushOp = true
 		dataSize = int(opCode)
 	} else if opCode >= OP_1 && opCode <= OP_16 {
@@ -287,6 +837,28 @@ func PushNumberScript(n int64) []byte {
 	return append([]byte{byte(len(result))}, result...)
 }
 
+// ScriptNumberValue returns the number value given the op code or push data returned from
+// ParseScript.
+func ScriptNumberValue(item *ScriptItem) (int64, error) {
+	if item.Type == ScriptItemTypePushData {
+		return DecodeScriptLittleEndian(item.Data), nil
+	}
+
+	if item.OpCode >= OP_1 && item.OpCode <= OP_16 {
+		return int64(item.OpCode - 0x50), nil
+	}
+
+	switch item.OpCode {
+	case OP_FALSE:
+		return 0, nil
+	case OP_1NEGATE:
+		return -1, nil
+	}
+
+	return 0, errors.Wrapf(ErrUnknownScriptNumber, "op code : %s, data : %x",
+		OpCodeToString(item.OpCode), item.Data)
+}
+
 // ParsePushNumberScript reads a number out of script and returns the value, the bytes of script it
 //   used, and an error if one occured.
 func ParsePushNumberScript(b []byte) (int64, int, error) {
@@ -317,23 +889,25 @@ func ParsePushNumberScript(b []byte) (int64, int, error) {
 	b = b[1:]
 
 	// Decode from little endian.
+	return DecodeScriptLittleEndian(b), length, nil
+}
+
+func DecodeScriptLittleEndian(b []byte) int64 {
 	var result int64
 	for i, val := range b {
 		result |= int64(val) << uint8(8*i)
 	}
 
-	// When the most significant byte of the input bytes has the sign bit
-	// set, the result is negative.  So, remove the sign bit from the result
-	// and make it negative.
+	// When the most significant byte of the input bytes has the sign bit set, the result is
+	// negative.  So, remove the sign bit from the result and make it negative.
 	if b[len(b)-1]&0x80 != 0 {
-		// The maximum length of v has already been determined to be 4
-		// above, so uint8 is enough to cover the max possible shift
-		// value of 24.
+		// The maximum length of v has already been determined to be 4 above, so uint8 is enough to
+		// cover the max possible shift value of 24.
 		result &= ^(int64(0x80) << uint8(8*(len(b)-1)))
 		result = -result
 	}
 
-	return result, length, nil
+	return result
 }
 
 func PubKeyFromP2PKHSigScript(script []byte) ([]byte, error) {
@@ -445,4 +1019,78 @@ func LockingScriptIsUnspendable(script []byte) bool {
 	}
 
 	return false
+}
+
+func OpCodeToString(opCode byte) string {
+	name, exists := byteToNames[opCode]
+	if exists {
+		return name
+	}
+
+	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{opCode}))
+}
+
+// ScriptToString converts a bitcoin script into a text representation.
+func ScriptToString(script Script) string {
+	var result []string
+	buf := bytes.NewReader(script)
+
+	for {
+		item, err := ParseScript(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		result = append(result, item.String())
+	}
+
+	return strings.Join(result, " ")
+}
+
+// StringToScript converts a text representation of a bitcoin script to a string.
+func StringToScript(text string) (Script, error) {
+	buf := &bytes.Buffer{}
+
+	parts := strings.Fields(text)
+	for _, part := range parts {
+		opCode, exists := byteFromNames[part]
+		if exists {
+			buf.WriteByte(opCode)
+			continue
+		}
+
+		if len(part) < 2 {
+			return nil, fmt.Errorf("Invalid part : \"%s\"", part)
+		}
+
+		if part[0] == '{' && part[len(part)-1] == '}' {
+			// Undefined op code
+			b, err := hex.DecodeString(part)
+			if err != nil {
+				return nil, errors.Wrapf(err, "decode undefined op code hex: %s", part)
+			}
+
+			buf.Write(b)
+			continue
+		}
+
+		b, err := hex.DecodeString(part[2:]) // skip leading "0x"
+		if err != nil {
+			return nil, errors.Wrapf(err, "decode push data hex: %s", part[2:])
+		}
+
+		if err := WritePushDataScript(buf, b); err != nil {
+			return nil, errors.Wrap(err, "write push data")
+		}
+	}
+
+	return Script(buf.Bytes()), nil
+}
+
+func CleanScriptText(text string) string {
+	parts := strings.Fields(text)
+	return strings.Join(parts, " ")
 }

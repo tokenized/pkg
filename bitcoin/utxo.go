@@ -11,7 +11,7 @@ type UTXO struct {
 	Hash          Hash32 `db:"hash" json:"hash"`
 	Index         uint32 `db:"index" json:"index"`
 	Value         uint64 `db:"value" json:"value"`
-	LockingScript []byte `db:"locking_script" json:"locking_script"`
+	LockingScript Script `db:"locking_script" json:"locking_script"`
 
 	// Optional identifier for external use to track the key needed to spend the UTXO.
 	KeyID string `json:"key_id,omitempty"`

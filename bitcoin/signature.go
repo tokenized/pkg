@@ -23,13 +23,13 @@ type Signature struct {
 }
 
 // Verify returns true if the signature is valid for this public key and hash.
-func (s Signature) Verify(hash []byte, pubkey PublicKey) bool {
+func (s Signature) Verify(hash Hash32, pubkey PublicKey) bool {
 	ecPubKey := &ecdsa.PublicKey{
 		curveS256,
 		&pubkey.X,
 		&pubkey.Y,
 	}
-	return ecdsa.Verify(ecPubKey, hash, &s.R, &s.S)
+	return ecdsa.Verify(ecPubKey, hash[:], &s.R, &s.S)
 }
 
 // SignatureFromStr converts signature text to a signature.
@@ -456,7 +456,6 @@ var (
 
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979 and BIP 62.
 func signRFC6979(pk big.Int, hash []byte) (Signature, error) {
-
 	N := curveS256.N
 	k := nonceRFC6979(pk, hash)
 	inv := new(big.Int).ModInverse(k, N)

@@ -230,14 +230,19 @@ func (k Key) RawAddress() (RawAddress, error) {
 	return k.PublicKey().RawAddress()
 }
 
+// LockingScript returns a PKH locking script for this key.
+func (k Key) LockingScript() (Script, error) {
+	return k.PublicKey().LockingScript()
+}
+
 // IsEmpty returns true if the value is zero.
 func (k Key) IsEmpty() bool {
 	return k.value.Cmp(&zeroBigInt) == 0
 }
 
 // Sign returns the serialized signature of the hash for the private key.
-func (k Key) Sign(hash []byte) (Signature, error) {
-	return signRFC6979(k.value, hash)
+func (k Key) Sign(hash Hash32) (Signature, error) {
+	return signRFC6979(k.value, hash[:])
 }
 
 // MarshalJSON converts to json.

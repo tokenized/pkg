@@ -90,7 +90,7 @@ func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, erro
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add a
 // signature to the request.
 func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, senderHandle,
-	purpose string, amount uint64, senderKey *bitcoin.Key) ([]byte, error) {
+	purpose string, amount uint64, senderKey *bitcoin.Key) (bitcoin.Script, error) {
 
 	url, err := c.Site.Capabilities.GetURL(URLNamePaymentDestination)
 	if err != nil {
@@ -112,7 +112,7 @@ func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, send
 			return nil, errors.Wrap(err, "signature hash")
 		}
 
-		sig, err := senderKey.Sign(sigHash.Bytes())
+		sig, err := senderKey.Sign(sigHash)
 		if err != nil {
 			return nil, errors.Wrap(err, "sign")
 		}
@@ -137,11 +137,11 @@ func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, send
 
 // GetPaymentRequest gets a payment request from the identity.
 //   senderHandle is required.
-//   assetID can be empty or "BSV" to request bitcoin.
+//   instrumentID can be empty or "BSV" to request bitcoin.
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add a
 // signature to the request.
 func (c *HTTPClient) GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose,
-	assetID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
+	instrumentID string, amount uint64, senderKey *bitcoin.Key) (*PaymentRequest, error) {
 
 	url, err := c.Site.Capabilities.GetURL(URLNamePaymentRequest)
 	if err != nil {
@@ -152,19 +152,19 @@ func (c *HTTPClient) GetPaymentRequest(ctx context.Context, senderName, senderHa
 		SenderName:   senderName,
 		SenderHandle: senderHandle,
 		DateTime:     time.Now().UTC().Format("2006-01-02T15:04:05.999Z"),
-		AssetID:      assetID,
+		InstrumentID: instrumentID,
 		Amount:       amount,
 		Purpose:      purpose,
 	}
 
 	if senderKey != nil {
-		sigHash, err := SignatureHashForMessage(request.SenderHandle + request.AssetID +
+		sigHash, err := SignatureHashForMessage(request.SenderHandle + request.InstrumentID +
 			strconv.FormatUint(request.Amount, 10) + request.DateTime + request.Purpose)
 		if err != nil {
 			return nil, errors.Wrap(err, "signature hash")
 		}
 
-		sig, err := senderKey.Sign(sigHash.Bytes())
+		sig, err := senderKey.Sign(sigHash)
 		if err != nil {
 			return nil, errors.Wrap(err, "sign")
 		}
@@ -242,8 +242,8 @@ func (c *HTTPClient) GetP2PPaymentDestination(ctx context.Context,
 	totalValue := uint64(0)
 	for i, output := range response.Outputs {
 		result.Outputs[i] = &wire.TxOut{
-			PkScript: output.Script,
-			Value:    output.Value,
+			LockingScript: output.Script,
+			Value:         output.Value,
 		}
 		totalValue += output.Value
 	}
@@ -295,6 +295,24 @@ func (c *HTTPClient) PostP2PTransaction(ctx context.Context, senderHandle, note,
 	}
 
 	return response.Note, nil
+}
+
+// ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
+func (c *HTTPClient) ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error) {
+	url, err := c.Site.Capabilities.GetURL(URLNameListTokenizedInstrumentAlias)
+	if err != nil {
+		return nil, errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	var response InstrumentAliasListResponse
+	if err := get(ctx, url, &response); err != nil {
+		return nil, errors.Wrap(err, "http get")
+	}
+
+	return response.InstrumentAliases, nil
 }
 
 // post sends a request to the HTTP server using the POST method.

@@ -143,6 +143,8 @@ func TestExtendedKeyVsBIP0032(t *testing.T) {
 }
 
 func TestExtendedKey(t *testing.T) {
+	t.Skip() // This tests the new encoding format which is currently disabled --ce
+
 	tests := []struct {
 		name     string
 		key      string
@@ -374,6 +376,10 @@ func TestOldExtendedKey(t *testing.T) {
 			newKey, err := ExtendedKeyFromStr(tt.key)
 			if err != nil {
 				t.Fatalf("Failed to deserialize new key : %s", err)
+			}
+
+			if newKey.String58() != bip32Key.String() {
+				t.Fatalf("Wrong string 58 : got %s, want %s", newKey.String58(), bip32Key.String())
 			}
 
 			if !bytes.Equal(newKey.KeyValue[:], bip32Key.Key) {

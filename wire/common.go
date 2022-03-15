@@ -17,7 +17,7 @@ import (
 
 const (
 	// MaxVarIntPayload is the maximum payload size for a variable length integer.
-	MaxVarIntPayload = 9
+	MaxVarIntPayload = uint64(9)
 )
 
 var (
@@ -477,8 +477,8 @@ func ReadVarString(r io.Reader, pver uint32) (string, error) {
 	// message size.  It would be possible to cause memory exhaustion and
 	// panics without a sane upper bound on this count.
 	if count > MaxMessagePayload {
-		str := fmt.Sprintf("variable length string is too long "+
-			"[count %d, max %d]", count, MaxMessagePayload)
+		str := fmt.Sprintf("variable length string is too long "+"[count %d, max %d]", count,
+			MaxMessagePayload)
 		return "", messageError("ReadVarString", str)
 	}
 
@@ -509,7 +509,7 @@ func WriteVarString(w io.Writer, pver uint32, str string) error {
 // attacks and forced panics thorugh malformed messages.  The fieldName
 // parameter is only used for the error message so it provides more context in
 // the error.
-func ReadVarBytes(r io.Reader, pver uint32, maxAllowed uint32,
+func ReadVarBytes(r io.Reader, pver uint32, maxAllowed uint64,
 	fieldName string) ([]byte, error) {
 
 	count, err := ReadVarInt(r, pver)

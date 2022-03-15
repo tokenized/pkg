@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/pkg/errors"
 )
@@ -52,6 +53,19 @@ func NewHash20FromData(b []byte) (*Hash20, error) {
 // Bytes returns the data for the hash.
 func (h Hash20) Bytes() []byte {
 	return h[:]
+}
+
+// Bytes returns the bytes in reverse order (big endian).
+func (h Hash20) ReverseBytes() []byte {
+	b := make([]byte, Hash20Size)
+	reverse20(b, h[:])
+	return b
+}
+
+func (h Hash20) Value() *big.Int {
+	value := &big.Int{}
+	value.SetBytes(h.ReverseBytes())
+	return value
 }
 
 // SetBytes sets the value of the hash.
@@ -119,15 +133,20 @@ func (h Hash20) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON converts from json.
 func (h *Hash20) UnmarshalJSON(data []byte) error {
-	if len(data) != (2*Hash20Size)+2 {
-		return fmt.Errorf("Wrong size hex for Hash20 : %d", len(data)-2)
+	b, err := ConvertJSONHexToBytes(data)
+	if err != nil {
+		return errors.Wrap(err, "hex")
 	}
 
-	b := make([]byte, Hash20Size)
-	_, err := hex.Decode(b, data[1:len(data)-1])
-	if err != nil {
-		return err
+	if len(b) == 0 {
+		h = nil
+		return nil
 	}
+
+	if len(b) != Hash20Size {
+		return fmt.Errorf("Wrong size hex for Hash20 : %d", len(b)*2)
+	}
+
 	reverse20(h[:], b)
 	return nil
 }

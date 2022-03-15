@@ -17,7 +17,7 @@ const (
 	MaxInvPerMsg = 50000
 
 	// Maximum payload size for an inventory vector.
-	maxInvVectPayload = 4 + bitcoin.Hash32Size
+	maxInvVectPayload = uint64(4 + bitcoin.Hash32Size)
 )
 
 // InvType represents the allowed types of inventory vectors.  See InvVect.

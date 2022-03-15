@@ -168,6 +168,11 @@ func (k ExtendedKeys) String() string {
 
 // String58 returns the list of keys formatted as base58 text.
 func (k ExtendedKeys) String58() string {
+	if len(k) == 1 {
+		// Temporarily use singular BIP32 encoding --ce
+		return k[0].String58()
+	}
+
 	var net Network
 	if len(k) > 0 {
 		net = k[0].Network

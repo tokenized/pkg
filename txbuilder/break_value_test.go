@@ -52,7 +52,7 @@ func Test_BreakValue(t *testing.T) {
 		t.Logf("Testing BreakValue %d/%d", changeValue, breakValue)
 
 		outputs, err := BreakValue(changeValue, breakValue, changeAddresses, dustFeeRate, feeRate,
-			true)
+			true, true)
 		if err != nil {
 			t.Fatalf("Failed to break change : %s", err)
 		}
@@ -62,7 +62,7 @@ func Test_BreakValue(t *testing.T) {
 		for _, output := range outputs {
 			sum += output.TxOut.Value
 			txfees += uint64(float32(output.TxOut.SerializeSize()) * feeRate)
-			t.Logf("Output %d : %x", output.TxOut.Value, output.TxOut.PkScript)
+			t.Logf("Output %d : %x", output.TxOut.Value, output.TxOut.LockingScript)
 		}
 
 		if sum > changeValue {
@@ -133,7 +133,7 @@ func Test_BreakValueNoFee(t *testing.T) {
 	for _, value := range values {
 		t.Logf("Testing BreakValue %d/%d", value, breakValue)
 
-		outputs, err := BreakValue(value, breakValue, addresses, dustFeeRate, feeRate, true)
+		outputs, err := BreakValue(value, breakValue, addresses, dustFeeRate, feeRate, true, true)
 		if err != nil {
 			t.Fatalf("Failed to break change : %s", err)
 		}
@@ -141,7 +141,7 @@ func Test_BreakValueNoFee(t *testing.T) {
 		sum := uint64(0)
 		for _, output := range outputs {
 			sum += output.TxOut.Value
-			t.Logf("Output %d : %x", output.TxOut.Value, output.TxOut.PkScript)
+			t.Logf("Output %d : %x", output.TxOut.Value, output.TxOut.LockingScript)
 		}
 
 		if value > dustLimit {
@@ -350,10 +350,10 @@ func Test_AddFundingBreakChange(t *testing.T) {
 						t.Fatalf("Wrong payment output value : got %d, want %d", output.Value,
 							receivers[i].Value)
 					}
-					t.Logf("Payment Output %d : %x", output.Value, output.PkScript)
+					t.Logf("Payment Output %d : %x", output.Value, output.LockingScript)
 				} else {
 					totalChange += output.Value
-					t.Logf("Change Output  %d : %x", output.Value, output.PkScript)
+					t.Logf("Change Output  %d : %x", output.Value, output.LockingScript)
 				}
 			}
 
@@ -566,10 +566,10 @@ func Test_AddFundingBreakChangeInitiallyFunded(t *testing.T) {
 						t.Fatalf("Wrong payment output value : got %d, want %d", output.Value,
 							receivers[i].Value)
 					}
-					t.Logf("Payment Output %d : %x", output.Value, output.PkScript)
+					t.Logf("Payment Output %d : %x", output.Value, output.LockingScript)
 				} else {
 					totalChange += output.Value
-					t.Logf("Change Output  %d : %x", output.Value, output.PkScript)
+					t.Logf("Change Output  %d : %x", output.Value, output.LockingScript)
 				}
 			}
 
@@ -624,14 +624,14 @@ func Test_RandomizeOutputs(t *testing.T) {
 		for _, txout := range txouts {
 			found := false
 			for _, to := range tx.MsgTx.TxOut {
-				if to.Value == txout.Value && bytes.Equal(to.PkScript, txout.PkScript) {
+				if to.Value == txout.Value && bytes.Equal(to.LockingScript, txout.LockingScript) {
 					found = true
 					break
 				}
 			}
 
 			if !found {
-				t.Fatalf("Output not found : %d %x", txout.Value, txout.PkScript)
+				t.Fatalf("Output not found : %d %x", txout.Value, txout.LockingScript)
 			}
 		}
 	}
@@ -674,22 +674,22 @@ func Test_RandomizeOutputsAfter(t *testing.T) {
 		for i, txout := range txouts {
 			if i <= after {
 				if tx.MsgTx.TxOut[i].Value != txout.Value ||
-					!bytes.Equal(tx.MsgTx.TxOut[i].PkScript, txout.PkScript) {
-					t.Fatalf("Unmoved output %d not matching : %d %x", i, txout.Value, txout.PkScript)
+					!bytes.Equal(tx.MsgTx.TxOut[i].LockingScript, txout.LockingScript) {
+					t.Fatalf("Unmoved output %d not matching : %d %x", i, txout.Value, txout.LockingScript)
 				}
 				continue
 			}
 
 			found := false
 			for _, to := range tx.MsgTx.TxOut {
-				if to.Value == txout.Value && bytes.Equal(to.PkScript, txout.PkScript) {
+				if to.Value == txout.Value && bytes.Equal(to.LockingScript, txout.LockingScript) {
 					found = true
 					break
 				}
 			}
 
 			if !found {
-				t.Fatalf("Output not found : %d %x", txout.Value, txout.PkScript)
+				t.Fatalf("Output not found : %d %x", txout.Value, txout.LockingScript)
 			}
 		}
 	}

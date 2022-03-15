@@ -2,6 +2,10 @@ package logger
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"runtime"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -147,7 +151,7 @@ func ContextWithLogTrace(ctx context.Context, trace string) context.Context {
 }
 
 // ContextWithLogFields returns a context with a field added to the logger.
-func ContextWithLogFields(ctx context.Context, fields []Field) context.Context {
+func ContextWithLogFields(ctx context.Context, fields ...Field) context.Context {
 	var config *Config
 
 	configValue := ctx.Value(key)
@@ -169,39 +173,57 @@ func ContextWithLogFields(ctx context.Context, fields []Field) context.Context {
 	return context.WithValue(ctx, key, *config)
 }
 
+func GetCaller(depth int) string {
+	_, filepath, line, ok := runtime.Caller(depth + 1)
+	if ok {
+		fileParts := strings.Split(filepath, string(os.PathSeparator))
+		l := len(fileParts)
+		if l >= 2 {
+			filepath = fileParts[l-2] + string(os.PathSeparator) + fileParts[l-1]
+		} else if l != 0 {
+			filepath = fileParts[0]
+		}
+	} else {
+		filepath = "???"
+		line = 0
+	}
+
+	return fmt.Sprintf("%s:%d", filepath, line)
+}
+
 // Debug adds a debug level entry to the log.
 func Debug(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelDebug, 1, format, values...)
+	return LogDepth(ctx, LevelDebug, GetCaller(1), format, values...)
 }
 
 // Verbose adds a verbose level entry to the log.
 func Verbose(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelVerbose, 1, format, values...)
+	return LogDepth(ctx, LevelVerbose, GetCaller(1), format, values...)
 }
 
 // Info adds a info level entry to the log.
 func Info(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelInfo, 1, format, values...)
+	return LogDepth(ctx, LevelInfo, GetCaller(1), format, values...)
 }
 
 // Warn adds a warn level entry to the log.
 func Warn(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelWarn, 1, format, values...)
+	return LogDepth(ctx, LevelWarn, GetCaller(1), format, values...)
 }
 
 // Error adds a error level entry to the log.
 func Error(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelError, 1, format, values...)
+	return LogDepth(ctx, LevelError, GetCaller(1), format, values...)
 }
 
 // Fatal adds a fatal level entry to the log and then calls os.Exit(1).
 func Fatal(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelFatal, 1, format, values...)
+	return LogDepth(ctx, LevelFatal, GetCaller(1), format, values...)
 }
 
 // Panic adds a panic level entry to the log and then calls panic().
 func Panic(ctx context.Context, format string, values ...interface{}) error {
-	return LogDepth(ctx, LevelPanic, 1, format, values...)
+	return LogDepth(ctx, LevelPanic, GetCaller(1), format, values...)
 }
 
 // Log an entry to the main Outputs if:
@@ -210,12 +232,12 @@ func Panic(ctx context.Context, format string, values ...interface{}) error {
 //   And the level is equal to or above the specified minimum logging level.
 // Logs to the Config.SubSystems if the level is above minimum.
 func Log(ctx context.Context, level Level, format string, values ...interface{}) error {
-	return LogDepth(ctx, level, 1, format, values...)
+	return LogDepth(ctx, level, GetCaller(1), format, values...)
 }
 
 // LogDepth is the same as Log, but the number of levels above the current call in the stack from
 // which to get the file name/line of code can be specified as depth.
-func LogDepth(ctx context.Context, level Level, depth int, format string,
+func LogDepth(ctx context.Context, level Level, caller string, format string,
 	values ...interface{}) error {
 
 	var config *systemConfig
@@ -236,61 +258,61 @@ func LogDepth(ctx context.Context, level Level, depth int, format string,
 		config = &newConfig
 	}
 
-	return config.writeEntry(level, depth+1, nil, format, values...)
+	return config.writeEntry(level, caller, nil, format, values...)
 }
 
 // DebugWithFields adds a debug level entry to the log with the included zap fields.
 func DebugWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelDebug, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelDebug, GetCaller(1), fields, format, values...)
 }
 
 // VerboseWithFields adds a verbose level entry to the log with the included zap fields.
 func VerboseWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelVerbose, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelVerbose, GetCaller(1), fields, format, values...)
 }
 
 // InfoWithFields adds a info level entry to the log with the included zap fields.
 func InfoWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelInfo, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelInfo, GetCaller(1), fields, format, values...)
 }
 
 // WarnWithFields adds a warn level entry to the log with the included zap fields.
 func WarnWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelWarn, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelWarn, GetCaller(1), fields, format, values...)
 }
 
 // ErrorWithFields adds a error level entry to the log with the included zap fields.
 func ErrorWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelError, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelError, GetCaller(1), fields, format, values...)
 }
 
 // FatalWithFields adds a fatal level entry to the log with the included zap fields.
 func FatalWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelFatal, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelFatal, GetCaller(1), fields, format, values...)
 }
 
 // PanicWithFields adds a panic level entry to the log with the included zap fields.
 func PanicWithFields(ctx context.Context, fields []Field, format string,
 	values ...interface{}) error {
 
-	return LogDepthWithFields(ctx, LevelPanic, 1, fields, format, values...)
+	return LogDepthWithFields(ctx, LevelPanic, GetCaller(1), fields, format, values...)
 }
 
 // LogDepth is the same as Log, but the number of levels above the current call in the stack from
 // which to get the file name/line of code can be specified as depth with the included zap fields.
-func LogDepthWithFields(ctx context.Context, level Level, depth int, fields []Field,
+func LogDepthWithFields(ctx context.Context, level Level, caller string, fields []Field,
 	format string, values ...interface{}) error {
 
 	var config *systemConfig
@@ -311,5 +333,5 @@ func LogDepthWithFields(ctx context.Context, level Level, depth int, fields []Fi
 		config = &newConfig
 	}
 
-	return config.writeEntry(level, depth+1, fields, format, values...)
+	return config.writeEntry(level, caller, fields, format, values...)
 }

@@ -47,7 +47,7 @@ func (r *PaymentDestinationRequest) Sign(key bitcoin.Key) error {
 		return errors.Wrap(err, "signature hash")
 	}
 
-	sig, err := key.Sign(sigHash.Bytes())
+	sig, err := key.Sign(sigHash)
 	if err != nil {
 		return errors.Wrap(err, "sign")
 	}
@@ -68,7 +68,7 @@ func (r PaymentDestinationRequest) CheckSignature(publicKey bitcoin.PublicKey) e
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.Signature))
 	}
 
-	if !sig.Verify(sigHash.Bytes(), publicKey) {
+	if !sig.Verify(sigHash, publicKey) {
 		return ErrInvalidSignature
 	}
 
@@ -102,7 +102,7 @@ func (r *P2PTransactionRequest) Sign(key bitcoin.Key) error {
 		return errors.Wrap(err, "signature hash")
 	}
 
-	sig, err := key.Sign(sigHash[:])
+	sig, err := key.Sign(sigHash)
 	if err != nil {
 		return errors.Wrap(err, "sign txid")
 	}
@@ -128,7 +128,7 @@ func (r P2PTransactionRequest) CheckSignature(publicKey bitcoin.PublicKey) error
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.MetaData.Signature))
 	}
 
-	if !sig.Verify(sigHash[:], publicKey) {
+	if !sig.Verify(sigHash, publicKey) {
 		return ErrInvalidSignature
 	}
 
@@ -137,7 +137,7 @@ func (r P2PTransactionRequest) CheckSignature(publicKey bitcoin.PublicKey) error
 
 // PaymentDestinationResponse is the raw response from a PaymentDestination endpoint.
 type PaymentDestinationResponse struct {
-	Output []byte `json:"output"`
+	Output bitcoin.Script `json:"output"`
 }
 
 // P2PPaymentDestinationResponse is the raw response from a PaymentDestination endpoint.
@@ -147,8 +147,8 @@ type P2PPaymentDestinationResponse struct {
 }
 
 type P2PPaymentDestinationOutput struct {
-	Script []byte `json:"script"`
-	Value  uint64 `json:"satoshis"`
+	Script bitcoin.Script `json:"script"`
+	Value  uint64         `json:"satoshis"`
 }
 
 type P2PPaymentDestinationOutputs struct {
@@ -166,7 +166,7 @@ type PaymentRequestRequest struct {
 	SenderName   string `json:"senderName"`
 	SenderHandle string `json:"senderHandle"`
 	DateTime     string `json:"dt"`
-	AssetID      string `json:"assetID"`
+	InstrumentID string `json:"instrumentID"`
 	Amount       uint64 `json:"amount"`
 	Purpose      string `json:"purpose"`
 	Signature    string `json:"signature"`
@@ -174,13 +174,13 @@ type PaymentRequestRequest struct {
 
 // Sign adds a signature to the request. The key should correspond to the sender handle's PKI.
 func (r *PaymentRequestRequest) Sign(key bitcoin.Key) error {
-	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.AssetID +
+	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.InstrumentID +
 		strconv.FormatUint(r.Amount, 10) + r.DateTime + r.Purpose)
 	if err != nil {
 		return errors.Wrap(err, "signature hash")
 	}
 
-	sig, err := key.Sign(sigHash.Bytes())
+	sig, err := key.Sign(sigHash)
 	if err != nil {
 		return errors.Wrap(err, "sign")
 	}
@@ -190,7 +190,7 @@ func (r *PaymentRequestRequest) Sign(key bitcoin.Key) error {
 }
 
 func (r PaymentRequestRequest) CheckSignature(publicKey bitcoin.PublicKey) error {
-	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.AssetID +
+	sigHash, err := SignatureHashForMessage(r.SenderHandle + r.InstrumentID +
 		strconv.FormatUint(r.Amount, 10) + r.DateTime + r.Purpose)
 	if err != nil {
 		return errors.Wrap(err, "signature hash")
@@ -201,7 +201,7 @@ func (r PaymentRequestRequest) CheckSignature(publicKey bitcoin.PublicKey) error
 		return errors.Wrap(err, fmt.Sprintf("parse signature: %s", r.Signature))
 	}
 
-	if !sig.Verify(sigHash.Bytes(), publicKey) {
+	if !sig.Verify(sigHash, publicKey) {
 		return ErrInvalidSignature
 	}
 
@@ -218,4 +218,13 @@ type PaymentRequestResponse struct {
 type PaymentRequest struct {
 	Tx      *wire.MsgTx
 	Outputs []*wire.TxOut
+}
+
+type InstrumentAliasListResponse struct {
+	InstrumentAliases []InstrumentAlias `json:"instrument_aliases"`
+}
+
+type InstrumentAlias struct {
+	InstrumentAlias string `json:"instrument_alias"`
+	InstrumentID    string `json:"instrument_id"`
 }

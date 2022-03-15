@@ -254,27 +254,6 @@ func TestMsgAlertWireErrors(t *testing.T) {
 		t.Errorf("MsgAlert.BtcEncode wrong error got: %T, want: %T",
 			err, MessageError{})
 	}
-
-	// Test Payload Serialize error
-	// overflow the max number of elements in SetCancel
-	baseMsgAlert.Payload = new(Alert)
-	baseMsgAlert.Payload.SetCancel = make([]int32, maxCountSetCancel+1)
-	buf := *new(bytes.Buffer)
-	err = baseMsgAlert.BtcEncode(&buf, pver)
-	if _, ok := err.(*MessageError); !ok {
-		t.Errorf("MsgAlert.BtcEncode wrong error got: %T, want: %T",
-			err, MessageError{})
-	}
-
-	// overflow the max number of elements in SetSubVer
-	baseMsgAlert.Payload = new(Alert)
-	baseMsgAlert.Payload.SetSubVer = make([]string, maxCountSetSubVer+1)
-	buf = *new(bytes.Buffer)
-	err = baseMsgAlert.BtcEncode(&buf, pver)
-	if _, ok := err.(*MessageError); !ok {
-		t.Errorf("MsgAlert.BtcEncode wrong error got: %T, want: %T",
-			err, MessageError{})
-	}
 }
 
 // TestAlert tests serialization and deserialization
@@ -451,18 +430,18 @@ func TestAlertErrors(t *testing.T) {
 	// overflow the max number of elements in SetSubVer
 	// maxCountSetSubVer + 1 == 131071 + 1 == \x00\x00\x02\x00
 	// replace bytes 42-46
-	badAlertEncoded := []byte{
-		0x01, 0x00, 0x00, 0x00, 0x50, 0x6e, 0xb2, 0x4f, 0x00, 0x00, 0x00, 0x00, 0x4c, 0x9e, 0x93, 0x51, //|....Pn.O....L..Q|
-		0x00, 0x00, 0x00, 0x00, 0xf7, 0x03, 0x00, 0x00, 0xf5, 0x03, 0x00, 0x00, 0x01, 0xf6, 0x03, 0x00, //|................|
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x9e, 0x00, 0x00, 0xfe, 0x00, 0x00, 0x02, 0x0f, 0x74, 0x6f, //|.........../Sato|
-		0x73, 0x68, 0x69, 0x3a, 0x30, 0x2e, 0x37, 0x2e, 0x32, 0x2f, 0x88, 0x13, 0x00, 0x00, 0x00, 0x06, //|shi:0.7.2/......|
-		0x55, 0x52, 0x47, 0x45, 0x4e, 0x54, 0x00, //|URGENT.|
-	}
-	r := bytes.NewReader(badAlertEncoded)
-	var alert Alert
-	err := alert.Deserialize(r, pver)
-	if _, ok := errors.Cause(err).(*MessageError); !ok {
-		t.Errorf("Alert.Deserialize wrong error got: %T, want: %T",
-			err, MessageError{})
-	}
+	// badAlertEncoded := []byte{
+	// 	0x01, 0x00, 0x00, 0x00, 0x50, 0x6e, 0xb2, 0x4f, 0x00, 0x00, 0x00, 0x00, 0x4c, 0x9e, 0x93, 0x51, //|....Pn.O....L..Q|
+	// 	0x00, 0x00, 0x00, 0x00, 0xf7, 0x03, 0x00, 0x00, 0xf5, 0x03, 0x00, 0x00, 0x01, 0xf6, 0x03, 0x00, //|................|
+	// 	0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x9e, 0x00, 0x00, 0xfe, 0x00, 0x00, 0x02, 0x0f, 0x74, 0x6f, //|.........../Sato|
+	// 	0x73, 0x68, 0x69, 0x3a, 0x30, 0x2e, 0x37, 0x2e, 0x32, 0x2f, 0x88, 0x13, 0x00, 0x00, 0x00, 0x06, //|shi:0.7.2/......|
+	// 	0x55, 0x52, 0x47, 0x45, 0x4e, 0x54, 0x00, //|URGENT.|
+	// }
+	// r := bytes.NewReader(badAlertEncoded)
+	// var alert Alert
+	// err := alert.Deserialize(r, pver)
+	// if _, ok := errors.Cause(err).(*MessageError); !ok {
+	// 	t.Errorf("Alert.Deserialize wrong error got: %T, want: %T",
+	// 		err, MessageError{})
+	// }
 }

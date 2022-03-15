@@ -3,8 +3,10 @@ package txbuilder
 import (
 	"bytes"
 	"encoding/hex"
+	"math/rand"
 	"testing"
 
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 )
 
@@ -49,15 +51,194 @@ func TestSigHash(t *testing.T) {
 			}
 
 			var hashCache SigHashCache
-			gotHash, err := signatureHash(&tx, tt.input_index, script, tt.value,
+			gotHash, err := SignatureHash(&tx, tt.input_index, script, tt.value,
 				SigHashType(tt.hashType), &hashCache)
 			if err != nil {
 				t.Fatalf("Failed to generate signature hash : %s\n", err)
 			}
 
-			if !bytes.Equal(wantHash, gotHash) {
-				t.Fatalf("Invalid Sig Hash\ngot:%x\nwant:%x", gotHash, wantHash)
+			if !bytes.Equal(wantHash, gotHash[:]) {
+				t.Fatalf("Invalid Sig Hash\ngot:%x\nwant:%x", gotHash[:], wantHash)
 			}
 		})
 	}
+}
+
+func TestSigHashJS(t *testing.T) {
+	b, err := hex.DecodeString("01000000019418223c6d8d9e4d3fc5acd4d2641a7021362906bddb14d4ed9bd33b7d5e0cd10000000000ffffffff0258020000000000001976a914f01354f339b033474c4f607c03036224b5d9c0bd88acc3230000000000001976a914047ee96e142bb9763e0c4de2688821b4e8c5708888ac00000000")
+	if err != nil {
+		t.Fatalf("Failed to decode tx hex : %s", err)
+	}
+
+	msgTx := wire.NewMsgTx(1)
+	if err := msgTx.Deserialize(bytes.NewReader(b)); err != nil {
+		t.Fatalf("Failed to decode tx : %s", err)
+	}
+
+	lockingScript, err := hex.DecodeString("76a9145315bffb33ab27eac7c4113299ccb020ce4344ee88ac")
+	if err != nil {
+		t.Fatalf("Failed to decode locking script hex : %s", err)
+	}
+
+	tx := NewTxBuilder(1.0, 1.0)
+	tx.MsgTx = msgTx
+	tx.Inputs = []*InputSupplement{
+		&InputSupplement{
+			LockingScript: lockingScript,
+			Value:         10000,
+		},
+	}
+
+	hash, err := SignatureHash(msgTx, 0, lockingScript, 10000, SigHashAll+SigHashForkID,
+		&SigHashCache{})
+	if err != nil {
+		t.Fatalf("Failed to create sig hash : %s", err)
+	}
+
+	t.Logf("Tx : %s", msgTx)
+
+	t.Logf("Sig hash : %s\n", hash)
+}
+
+func TestTxSig(t *testing.T) {
+	t.Skip() // Not sure what is wrong with this test --ce
+
+	h := "0100000003e2c28e2d82fe4d70a1440e421f36a2c22d63d92e3236fb101bca001055f0866c010000006a4730440220435690c216261bdba7faa0ce1bab20029ae3d5401aa864df484c0cfd8e4bed3b022069a89448714e3f114cec42aeca387591a911533ee4e94721ae4e387a884fbf0e4121035872eb69ccb4537d9ab825253042ab5ec050c769a1c8cd761833266e2dcafa1fffffffffd77152da599947d0462c4f698996752934b65ee7e5e8758925eaaaa0e9f6986a010000006a47304402200e1ac2e59438acb35e45b03fa20336f853daf0e2bb9baa8a2aef27cbe6d868420220117708898b906f9a3873b9dbd34fbded15ff2f5d3d94ebe25a55acac3001de444121034ed0ea77ce2e57dd1040654b6aceec413b249c5d78006d65304090004e95fcfcffffffffe2ff4a51a41057d0a4aba810a4f6dbb3b48a3d6ce7e7c63e0df08a064aa66e94030000006b4830450221009314a8b43e7c666be97cfe1d2cf89eef039d940584687bc10a10696e1a8e77d002201fa88385f8e8b8523e7916fa0f0c11d303cd9ff61a129f3deffd2c93b2ad8251412103f59fa994c5d6f8fa302e93d6771bb00cb2d01ac06be1ba5ec797e991c9efe4efffffffff03470b0000000000001976a914448744dfc5194b515908c58cebdd9aa2aadfb71088ac0000000000000000fd2101006a02bd0008746573742e544b4e041a0254314d0b010a880212034343591a140d3c8e864bd937f69aa7657495c1143eed677972220310f4032a720a15204912a0273590fa136510b05afad65bddd27d5e4610900318012a46304402204029f9c23d7ec1f2930c33a3f45e1843c24d866b92fc4b9fb18323d0f8323d4402206cc6acb79f8d4c0a9beed71c1aa14447538a24f5fe644d97cea162564d2473003097df2938d483b58f9fe98dbd162a720a152052b7d8ec766df65e6c845abb35ee617483725384106418012a4730450221008afbf8a38b0156ba051026d0e7538e129c413b9e545babb96109b698440bac47022018e8ff3a2d928207b68ae66018a4ec09e3a0858da4cb325cff564d4947f7d5423097df2938a8c0bc989fe98dbd16bf080000000000001976a9140a7f185d1ed9d3120dab77476e1e71305cc907ce88ac00000000"
+	b, err := hex.DecodeString(h)
+	if err != nil {
+		t.Fatalf("Failed to decode hex : %s", err)
+	}
+
+	msgTx := wire.NewMsgTx(1)
+	if err := msgTx.Deserialize(bytes.NewReader(b)); err != nil {
+		t.Fatalf("Failed to deserialize tx : %s", err)
+	}
+
+	utxos := []bitcoin.UTXO{
+		bitcoin.UTXO{
+			Index: 1,
+			Value: 136,
+		},
+		bitcoin.UTXO{
+			Index: 1,
+			Value: 1507,
+		},
+		bitcoin.UTXO{
+			Index: 3,
+			Value: 3894,
+		},
+	}
+
+	hash, err := bitcoin.NewHash32FromStr("6c86f0551000ca1b10fb36322ed9632dc2a2361f420e44a1704dfe822d8ec2e2")
+	if err != nil {
+		t.Fatalf("Failed to decode hash : %s", err)
+	}
+	utxos[0].Hash = *hash
+
+	utxos[0].LockingScript, err = hex.DecodeString("76a91481218b4f1e8b0b0e509b67ae21cf956222f5488088ac")
+	if err != nil {
+		t.Fatalf("Failed to decode locking script : %s", err)
+	}
+
+	hash, err = bitcoin.NewHash32FromStr("6a98f6e9a0aaea258975e8e5e75eb63429759689694f2c46d0479959da5271d7")
+	if err != nil {
+		t.Fatalf("Failed to decode hash : %s", err)
+	}
+	utxos[1].Hash = *hash
+
+	utxos[1].LockingScript, err = hex.DecodeString("76a914b6753eaf42d1e2920831d4c6f04c42b9ec82744688ac")
+	if err != nil {
+		t.Fatalf("Failed to decode locking script : %s", err)
+	}
+
+	hash, err = bitcoin.NewHash32FromStr("946ea64a068af00d3ec6e7e76c3d8ab4b3dbf6a410a8aba4d05710a4514affe2")
+	if err != nil {
+		t.Fatalf("Failed to decode hash : %s", err)
+	}
+	utxos[2].Hash = *hash
+
+	utxos[2].LockingScript, err = hex.DecodeString("76a91454de557ca96abc0604c0b9fa0ecc59a4b03b9ce988ac")
+	if err != nil {
+		t.Fatalf("Failed to decode locking script : %s", err)
+	}
+
+	tx, err := NewTxBuilderFromWireUTXOs(1.0, 1.0, msgTx, utxos)
+	if err != nil {
+		t.Fatalf("Failed to create tx : %s", err)
+	}
+
+	t.Logf("Tx : %s\n", tx.String(bitcoin.MainNet))
+
+	pubKey1, err := bitcoin.PublicKeyFromStr("035872eb69ccb4537d9ab825253042ab5ec050c769a1c8cd761833266e2dcafa1f")
+	if err != nil {
+		t.Fatalf("Failed to decode pub key : %s", err)
+	}
+
+	sig1, err := bitcoin.SignatureFromStr("30440220435690c216261bdba7faa0ce1bab20029ae3d5401aa864df484c0cfd8e4bed3b022069a89448714e3f114cec42aeca387591a911533ee4e94721ae4e387a884fbf0e")
+	if err != nil {
+		t.Fatalf("Failed to decode sig : %s", err)
+	}
+
+	hashCache := &SigHashCache{}
+
+	sigHash, err := SignatureHash(msgTx, 0, utxos[0].LockingScript, utxos[0].Value,
+		SigHashAll|SigHashForkID, hashCache)
+
+	if !sig1.Verify(*sigHash, pubKey1) {
+		t.Fatalf("Failed to verify sig 1")
+	}
+
+	// pubKey2, err := bitcoin.PublicKeyFromStr("034ed0ea77ce2e57dd1040654b6aceec413b249c5d78006d65304090004e95fcfc")
+	// if err != nil {
+	// 	t.Fatalf("Failed to decode pub key : %s", err)
+	// }
+
+	// pubKey3, err := bitcoin.PublicKeyFromStr("03f59fa994c5d6f8fa302e93d6771bb00cb2d01ac06be1ba5ec797e991c9efe4ef")
+	// if err != nil {
+	// 	t.Fatalf("Failed to decode pub key : %s", err)
+	// }
+
+}
+
+func TestSigHashBytes(t *testing.T) {
+	tx := NewTxBuilder(0.5, 0.25)
+
+	ad, err := bitcoin.DecodeAddress("12QTzHPj6vLPzsfcjZVtrPad5wiQ6TDvFV")
+	if err != nil {
+		t.Fatalf("Failed to decode address : %s", err)
+	}
+	ra := bitcoin.NewRawAddressFromAddress(ad)
+
+	utxo := bitcoin.UTXO{
+		Index:         1,
+		Value:         10000,
+		LockingScript: []byte{0},
+	}
+
+	rand.Read(utxo.Hash[:])
+
+	tx.AddPaymentOutput(ra, 2000, false)
+	tx.AddInputUTXO(utxo)
+
+	buf := &bytes.Buffer{}
+	if err := tx.MsgTx.Serialize(buf); err != nil {
+		t.Fatalf("Failed to serialize tx : %s", err)
+	}
+
+	t.Logf("Tx : %x", buf.Bytes())
+
+	buf = &bytes.Buffer{}
+	if err := tx.MsgTx.TxOut[0].Serialize(buf, 0, 0); err != nil {
+		t.Fatalf("Failed to serialize tx output : %s", err)
+	}
+
+	t.Logf("Outputs : %x", buf.Bytes())
+
+	b, err := SignatureHashPreimageBytes(tx.MsgTx, 0, []byte{0}, 10000, SigHashAll|SigHashForkID,
+		&SigHashCache{})
+	if err != nil {
+		t.Fatalf("Failed to get sig hash preimage bytes : %s", err)
+	}
+
+	t.Logf("Sig Hash Preimage : %x", b)
 }

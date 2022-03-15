@@ -42,6 +42,34 @@ func (tx *TxBuilder) AddInputUTXO(utxo bitcoin.UTXO) error {
 	return nil
 }
 
+func (tx *TxBuilder) UpdateInputUTXO(index int, utxo bitcoin.UTXO) error {
+	if index > len(tx.MsgTx.TxIn) {
+		return errors.New("Input index out of range")
+	}
+
+	// Check that utxo isn't already an input.
+	for i, input := range tx.MsgTx.TxIn {
+		if i == index {
+			continue
+		}
+
+		if input.PreviousOutPoint.Hash.Equal(&utxo.Hash) &&
+			input.PreviousOutPoint.Index == utxo.Index {
+			return errors.Wrap(ErrDuplicateInput, "")
+		}
+	}
+
+	input := tx.Inputs[index]
+	input.LockingScript = utxo.LockingScript
+	input.Value = utxo.Value
+	input.KeyID = utxo.KeyID
+
+	tx.MsgTx.TxIn[index].PreviousOutPoint.Hash = utxo.Hash
+	tx.MsgTx.TxIn[index].PreviousOutPoint.Index = utxo.Index
+
+	return nil
+}
+
 // InsertInput inserts an input into TxBuilder at the specified index.
 func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) error {
 	if index > len(tx.MsgTx.TxIn) {
@@ -74,9 +102,9 @@ func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) 
 
 // AddInput adds an input to TxBuilder.
 //   outpoint reference the output being spent.
-//   lockScript is the script from the output being spent.
+//   lockingScript is the script from the output being spent.
 //   value is the number of satoshis from the output being spent.
-func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value uint64) error {
+func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockingScript bitcoin.Script, value uint64) error {
 	// Check that outpoint isn't already an input.
 	for _, input := range tx.MsgTx.TxIn {
 		if input.PreviousOutPoint.Hash.Equal(&outpoint.Hash) &&
@@ -86,7 +114,7 @@ func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockScript []byte, value u
 	}
 
 	input := InputSupplement{
-		LockingScript: lockScript,
+		LockingScript: lockingScript,
 		Value:         value,
 	}
 	tx.Inputs = append(tx.Inputs, &input)
@@ -141,16 +169,9 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 			break
 		}
 	}
-	if changeDustLimit == 0 && !tx.ChangeAddress.IsEmpty() {
-		var err error
-		changeOutputFee, err = AddressOutputFee(tx.ChangeAddress, tx.DustFeeRate)
-		if err != nil {
-			return errors.Wrap(err, "address output fee")
-		}
-		addressChangeDustLimit, err := DustLimitForAddress(tx.ChangeAddress, tx.DustFeeRate)
-		if err == nil {
-			changeDustLimit = addressChangeDustLimit
-		}
+	if changeDustLimit == 0 && len(tx.ChangeScript) > 0 {
+		changeOutputFee, changeDustLimit = OutputFeeAndDustForLockingScript(tx.ChangeScript,
+			tx.DustFeeRate, tx.FeeRate)
 	}
 	if changeDustLimit == 0 {
 		// Use P2PKH dust limit
@@ -192,12 +213,12 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 				if change > changeDustLimit+changeOutputFee {
 					// Add new change output
 					change -= changeOutputFee
-					if tx.ChangeAddress.IsEmpty() {
+					if len(tx.ChangeScript) == 0 {
 						return errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
 							change))
 					}
 
-					if err := tx.AddPaymentOutput(tx.ChangeAddress, change, true); err != nil {
+					if err := tx.AddOutput(tx.ChangeScript, change, true, false); err != nil {
 						return errors.Wrap(err, "adding change")
 					}
 					tx.Outputs[len(tx.Outputs)-1].KeyID = tx.ChangeKeyID
@@ -230,7 +251,7 @@ func (tx *TxBuilder) AddFunding(utxos []bitcoin.UTXO) error {
 // If SendMax is set then all UTXOs are added as inputs.
 // If there is already an IsRemainder output, then it will get all of the "change" and it won't be
 // broken up.
-// tx.ChangeAddress is ignored.
+// tx.ChangeScript is ignored.
 // breakValue should be a fairly low value that is the smallest UTXO you want created other than
 // the remainder.
 // It is recommended to provide at least 5 change addresses. More addresses means more privacy, but
@@ -327,7 +348,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 			} else {
 				// Break change between supplied addresses.
 				outputs, err := BreakValue(changeValue, breakValue, changeAddresses, tx.DustFeeRate,
-					tx.FeeRate, true)
+					tx.FeeRate, true, true)
 				if err != nil {
 					return errors.Wrap(err, "break change")
 				}
@@ -356,7 +377,16 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 // UTXOFee calculates the tx fee for the input to spend the UTXO.
 func UTXOFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
-	size, err := lockingScriptUnlockSize(utxo.LockingScript)
+	size, err := InputSize(utxo.LockingScript)
+	if err != nil {
+		return 0, errors.Wrap(err, "unlock size")
+	}
+	return uint64(float32(size) * feeRate), nil
+}
+
+// LockingScriptInputFee returns the tx fee to include an locking script as an output in a tx.
+func LockingScriptInputFee(lockingScript bitcoin.Script, feeRate float32) (uint64, error) {
+	size, err := InputSize(lockingScript)
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
 	}
@@ -370,6 +400,11 @@ func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 		return 0, errors.Wrap(err, "locking script")
 	}
 
-	txout := wire.TxOut{PkScript: lockingScript}
-	return uint64(txout.SerializeSize()), nil
+	return LockingScriptOutputFee(lockingScript, feeRate), nil
+}
+
+// LockingScriptOutputFee returns the tx fee to include an locking script as an output in a tx.
+func LockingScriptOutputFee(lockingScript bitcoin.Script, feeRate float32) uint64 {
+	txout := wire.TxOut{LockingScript: lockingScript}
+	return uint64(float32(txout.SerializeSize()) * feeRate)
 }
