@@ -67,6 +67,16 @@ func (p *MerkleProof) AddDuplicate(newRoot bitcoin.Hash32) {
 	p.root = newRoot
 }
 
+func (p MerkleProof) GetBlockHash() *bitcoin.Hash32 {
+	if p.BlockHash != nil {
+		return p.BlockHash
+	}
+	if p.BlockHeader != nil {
+		return p.BlockHeader.BlockHash()
+	}
+	return nil
+}
+
 func (p MerkleProof) Print() {
 	fmt.Printf("Index : %d\n", p.Index)
 	if p.TxID != nil {

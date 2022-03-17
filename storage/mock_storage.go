@@ -3,11 +3,14 @@ package storage
 import (
 	"context"
 	"strings"
+	"sync"
 )
 
 // MockStorage implements the Storage interface for but just holds the data in memory.
 type MockStorage struct {
 	Data map[string][]byte
+
+	sync.Mutex
 }
 
 // MockStorage creates a new mock storage.
@@ -19,12 +22,18 @@ func NewMockStorage() *MockStorage {
 
 // Write will write the data to the key in the S3 Bucket.
 func (s *MockStorage) Write(ctx context.Context, key string, body []byte, options *Options) error {
+	s.Lock()
+	defer s.Unlock()
+
 	s.Data[key] = body
 	return nil
 }
 
 // Read reads the data from a file on the local filesystem.
 func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	result, exists := s.Data[key]
 	if !exists {
 		return nil, ErrNotFound
@@ -34,6 +43,9 @@ func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 
 // Remove removes the object stored at key, in the S3 Bucket.
 func (s *MockStorage) Remove(ctx context.Context, key string) error {
+	s.Lock()
+	defer s.Unlock()
+
 	_, exists := s.Data[key]
 	if !exists {
 		return ErrNotFound
@@ -46,6 +58,9 @@ func (s *MockStorage) Remove(ctx context.Context, key string) error {
 //
 // The path can be empty.
 func (s *MockStorage) Search(ctx context.Context, query map[string]string) ([][]byte, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	result := make([][]byte, 0)
 	path := query["path"]
 
@@ -61,6 +76,9 @@ func (s *MockStorage) Search(ctx context.Context, query map[string]string) ([][]
 }
 
 func (s *MockStorage) Clear(ctx context.Context, query map[string]string) error {
+	s.Lock()
+	defer s.Unlock()
+
 	path := query["path"]
 
 	toRemove := make([]string, 0)
@@ -80,6 +98,9 @@ func (s *MockStorage) Clear(ctx context.Context, query map[string]string) error 
 }
 
 func (s *MockStorage) List(ctx context.Context, path string) ([]string, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	result := make([]string, 0)
 
 	for key, _ := range s.Data {
