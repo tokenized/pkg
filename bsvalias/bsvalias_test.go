@@ -10,11 +10,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Keep commented so we don't hit moneybutton.com on every test run.
+// Keep commented so we don't hit on every test run.
 var (
 	handles = []string{
 		// "test@localhost:8080",
 		// "loosethinker@moneybutton.com",
+		// "karltheprogrammer@handcash.io",
 	}
 )
 
@@ -195,14 +196,42 @@ func TestInstrumentAlias(t *testing.T) {
 		request, err := id.ListTokenizedInstruments(ctx)
 		if err != nil {
 			if errors.Cause(err) == ErrNotCapable {
-				t.Logf("Payment Request Not Supported")
+				t.Logf("Instrument Alias Not Supported")
 				continue
 			}
-			t.Fatalf("Failed to get payment request : %s", err)
+			t.Fatalf("Failed to get instrument alias : %s", err)
 		}
 
 		for _, instrument := range request {
 			t.Logf("Instrument alias %s : %s", instrument.InstrumentAlias, instrument.InstrumentID)
+		}
+	}
+}
+
+func Test_PublicProfile(t *testing.T) {
+	ctx := context.Background()
+
+	for _, handle := range handles {
+		id, err := NewHTTPClient(ctx, handle)
+		if err != nil {
+			t.Fatalf("Failed to get identity : %s", err)
+		}
+
+		request, err := id.GetPublicProfile(ctx)
+		if err != nil {
+			if errors.Cause(err) == ErrNotCapable {
+				t.Logf("Public Profile Not Supported")
+				continue
+			}
+			t.Fatalf("Failed to get Public Profile : %s", err)
+		}
+
+		if request.Name != nil {
+			t.Logf("Name : %s", *request.Name)
+		}
+
+		if request.AvatarURL != nil {
+			t.Logf("AvatarURL : %s", *request.AvatarURL)
 		}
 	}
 }
@@ -243,6 +272,18 @@ func TestBRFCID(t *testing.T) {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "e243785d1f17")
 	}
 	t.Logf("List Instrument Alias BRFC ID : %s", hash.String()[:12])
+
+	// Public Profile BRFC ID
+	title = "Public Profile (Name & Avatar)"
+	author = "Ryan X. Charles (Money Button)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "f12f968c92d6" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f12f968c92d6")
+	}
+	t.Logf("Public Profile BRFC ID : %s", hash.String()[:12])
 }
 
 func TestMessageSignature(t *testing.T) {

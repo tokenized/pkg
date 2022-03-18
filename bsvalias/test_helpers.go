@@ -218,3 +218,7 @@ func (c *MockClient) CheckP2PTx(txid bitcoin.Hash32) error {
 func (c *MockClient) ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error) {
 	return c.user.instrumentAliases, nil
 }
+
+func (c *MockClient) GetPublicProfile(ctx context.Context) (*PublicProfile, error) {
+	return nil, errors.New("Not implemented")
+}

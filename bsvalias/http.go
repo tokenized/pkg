@@ -315,6 +315,25 @@ func (c *HTTPClient) ListTokenizedInstruments(ctx context.Context) ([]Instrument
 	return response.InstrumentAliases, nil
 }
 
+// GetPublicProfile returns the public profile for this paymail handle.
+func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, error) {
+	url, err := c.Site.Capabilities.GetURL(URLNamePublicProfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	response := &PublicProfile{}
+	if err := get(ctx, url, response); err != nil {
+		return nil, errors.Wrap(err, "http get")
+	}
+
+	return response, nil
+
+}
+
 // post sends a request to the HTTP server using the POST method.
 func post(ctx context.Context, url string, request, response interface{}) error {
 	var transport = &http.Transport{

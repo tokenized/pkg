@@ -38,6 +38,10 @@ const (
 	// URLNameListTokenizedInstrumentAlias is the name used to identify the list Tokenized instrument alias
 	// URL and capability.
 	URLNameListTokenizedInstrumentAlias = "e243785d1f17"
+
+	// URLNamePublicProfile is the name used to identify the URL used to fetch public profile
+	// information.
+	URLNamePublicProfile = "f12f968c92d6"
 )
 
 var (
@@ -96,4 +100,7 @@ type Client interface {
 
 	// ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
 	ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error)
+
+	// GetPublicProfile returns the public profile for this paymail handle.
+	GetPublicProfile(ctx context.Context) (*PublicProfile, error)
 }

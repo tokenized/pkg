@@ -228,3 +228,12 @@ type InstrumentAlias struct {
 	InstrumentAlias string `json:"instrument_alias"`
 	InstrumentID    string `json:"instrument_id"`
 }
+
+type PublicProfile struct {
+	// Name is the name of the owner of the paymail (person, business). Max 100 characters
+	Name *string `json:"name,omitempty"`
+
+	// AvatarURL is a URL that returns a 180 by 180 image. It can accept an optional parameter `s`
+	// to return an image of width and height `s`
+	AvatarURL *string `json:"avatar,omitempty"`
+}
