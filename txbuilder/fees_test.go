@@ -3,10 +3,150 @@ package txbuilder
 import (
 	"bytes"
 	"encoding/hex"
+	"math/rand"
 	"testing"
 
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 )
+
+func Test_InputSize(t *testing.T) {
+	var hash bitcoin.Hash32
+	rand.Read(hash[:])
+	key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+
+	txin := wire.NewTxIn(wire.NewOutPoint(&hash, uint32(rand.Intn(1000))),
+		make([]byte, MaximumP2PKHSigScriptSize))
+	if txin.SerializeSize() != MaximumP2PKHInputSize {
+		t.Errorf("Wrong P2PKH input size : got %d, want %d", txin.SerializeSize(),
+			MaximumP2PKHInputSize)
+	}
+
+	p2pkhAddress, err := bitcoin.NewRawAddressPKH(bitcoin.Hash160(key.PublicKey().Bytes()))
+	if err != nil {
+		t.Fatalf("Failed to create PKH address : %s", err)
+	}
+	p2pkhLockingScript, err := p2pkhAddress.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create PKH locking script : %s", err)
+	}
+
+	inputScriptSize, err := UnlockingScriptSize(p2pkhLockingScript)
+	if err != nil {
+		t.Fatalf("Failed to calculate P2PKH unlocking script size : %s", err)
+	}
+	if inputScriptSize != MaximumP2PKHSigScriptSize {
+		t.Errorf("Wrong P2PKH input script size : got %d, want %d", inputScriptSize,
+			MaximumP2PKHSigScriptSize)
+	}
+
+	inputSize, err := InputSize(p2pkhLockingScript)
+	if err != nil {
+		t.Fatalf("Failed to calculate input size : %s", err)
+	}
+	if inputSize != MaximumP2PKHInputSize {
+		t.Errorf("Wrong P2PKH input size : got %d, want %d", inputSize, MaximumP2PKHInputSize)
+	}
+
+	t.Logf("Maximum P2PKH Input Size : %d", MaximumP2PKHInputSize)
+
+	txin = wire.NewTxIn(wire.NewOutPoint(&hash, uint32(rand.Intn(1000))),
+		make([]byte, MaximumP2PKSigScriptSize))
+	if txin.SerializeSize() != MaximumP2PKInputSize {
+		t.Errorf("Wrong P2PK input size : got %d, want %d", txin.SerializeSize(),
+			MaximumP2PKInputSize)
+	}
+
+	p2pkAddress, err := bitcoin.NewRawAddressPublicKey(key.PublicKey())
+	if err != nil {
+		t.Fatalf("Failed to create PKH address : %s", err)
+	}
+	p2pkLockingScript, err := p2pkAddress.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create PKH locking script : %s", err)
+	}
+
+	inputScriptSize, err = UnlockingScriptSize(p2pkLockingScript)
+	if err != nil {
+		t.Fatalf("Failed to calculate P2PK unlocking script size : %s", err)
+	}
+	if inputScriptSize != MaximumP2PKSigScriptSize {
+		t.Errorf("Wrong P2PK input script size : got %d, want %d", inputScriptSize,
+			MaximumP2PKSigScriptSize)
+	}
+
+	inputSize, err = InputSize(p2pkLockingScript)
+	if err != nil {
+		t.Fatalf("Failed to calculate input size : %s", err)
+	}
+	if inputSize != MaximumP2PKInputSize {
+		t.Errorf("Wrong P2PK input size : got %d, want %d", inputSize, MaximumP2PKInputSize)
+	}
+
+	t.Logf("Maximum P2PK Input Size : %d", MaximumP2PKInputSize)
+}
+
+func Test_OutputSize(t *testing.T) {
+	key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+
+	txout := wire.NewTxOut(uint64(rand.Intn(100000)), make([]byte, P2PKHOutputScriptSize))
+	if txout.SerializeSize() != P2PKHOutputSize {
+		t.Errorf("Wrong P2PKH output size : got %d, want %d", txout.SerializeSize(),
+			P2PKHOutputSize)
+	}
+
+	p2pkhAddress, err := bitcoin.NewRawAddressPKH(bitcoin.Hash160(key.PublicKey().Bytes()))
+	if err != nil {
+		t.Fatalf("Failed to create PKH address : %s", err)
+	}
+	p2pkhLockingScript, err := p2pkhAddress.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create PKH locking script : %s", err)
+	}
+	if len(p2pkhLockingScript) != P2PKHOutputScriptSize {
+		t.Errorf("Wrong P2PKH output script size : got %d, want %d", len(p2pkhLockingScript),
+			P2PKHOutputScriptSize)
+	}
+
+	outputSize := OutputSize(p2pkhLockingScript)
+	if outputSize != P2PKHOutputSize {
+		t.Errorf("Wrong P2PK output size : got %d, want %d", outputSize, P2PKHOutputSize)
+	}
+
+	t.Logf("P2PKH Output Size : %d", P2PKHOutputSize)
+
+	txout = wire.NewTxOut(uint64(rand.Intn(100000)), make([]byte, P2PKOutputScriptSize))
+	if txout.SerializeSize() != P2PKOutputSize {
+		t.Errorf("Wrong P2PK output size : got %d, want %d", txout.SerializeSize(),
+			P2PKOutputSize)
+	}
+
+	p2pkAddress, err := bitcoin.NewRawAddressPublicKey(key.PublicKey())
+	if err != nil {
+		t.Fatalf("Failed to create PKH address : %s", err)
+	}
+	p2pkLockingScript, err := p2pkAddress.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create PKH locking script : %s", err)
+	}
+	if len(p2pkLockingScript) != P2PKOutputScriptSize {
+		t.Errorf("Wrong P2PK output script size : got %d, want %d", len(p2pkLockingScript),
+			P2PKOutputScriptSize)
+	}
+
+	outputSize = OutputSize(p2pkLockingScript)
+	if outputSize != P2PKOutputSize {
+		t.Errorf("Wrong P2PK output size : got %d, want %d", outputSize, P2PKOutputSize)
+	}
+
+	t.Logf("P2PK Output Size : %d", P2PKOutputSize)
+}
 
 func Test_MultiPKH_EstimatedSize(t *testing.T) {
 	h := `0100000002aa8e2fb1f15ab879870d1c6dc03026728832195a876ba0f920f8424ce713a4d208000000d8483045022100d36703dc712ab29583710e0081335a8bc05b486d5af7eac785ee5f4f29ec3b5802202a904ccc84d70ee1f13b5f8de9f707efcc26eb1bf79554a40a43adffa5d317bd4121034408301bf102018c5415a054887c06d4b27aedfc1df9df00ad74d0ed56d2ce2751483045022100fb3f3d87167f60b5eb0d564b57c815c01996c5f0cc9dc22841cee1a486b8544e02205a5b656cae72c46d5a2e6ec1c2884a4dae56959db7bdff10854f15fa5ed7b6b24121034bb34e72cf04af301e077af747ab8981bc14851f74030bb66064413a19ce181051ffffffff6c38425894b907ca666b449b2ee3bf8a8d0ebe56b3c5b131f8824b911e47f35900000000d64730440220187604c2ef20ff8ad449523d78b2becae5aad8bd41a866dc8260fbbc006146cd022020e02c2c99c4e418d27d8024448e1d6d298f0e52237312ab2ddf91ff785ab9a841210313d7863b0e3ee9f155f483948aa7dbb5f48fcf9d7a6483552d48043e4b047bbf51473044022004e9b02481e53e61212d5b23fdb67aac9f717f024362a37b05a9d17974b2492b022054baf2e2299484be340dbdccbb5356739165ca2689e069ecfba7b98236a9d08f412102efe6e5edd29dbe5ff33b29f50b38f6ff17aa77bfc54b156c99d768ce4a49936a51ffffffff047f0d0000000000001976a9140e045746a5ed34dc71b44f5c21278da509399ad888ac0000000000000000fd1c01006a02bd0008746573742e544b4e041a0254314d06010a83021203434f551a144d86521e2d83b2cd547670002dbde5bf257f5cca220210642a2f0a2b220202ac474c9dfa06820b3d40adc0d2e17dd3e99467b986849b901dfea21ff37e0cedc0c2dc58e0c060dd102e2a2f0a2b220202fcf73dcb8cb32e17b33018e40f37d45733ad28e00057e4594dba21cb2d16e9402217719b94108c3810022a2f0a2b220202b99e42408959135cc6e323e8c2010d6de347444bc9b97b2fd96a293e840f3ba98c021a185702e6ec102f2a190a152081b85ffc7a2ae7c146b8135460ff06b8b639808010012a190a1520454637daf88055c4dc5aa0352abcb3efc01d3c3410022a190a1520d525f083554a57b05386465d4c6c7ca1eb9df22d100200000000000000003b006a02bd0008746573742e544b4e041a024d312718ec0722220a20496e206f72646572207369676e6174757265732073686f756c6420776f726b3f583f00000000000041006b6376a914ee3cac0497094c4c26a20d972af784e60b59b88588ad6c8b6b686376a914cc7b57c2b3fc09d0a7388aa3b220c9aed24544c088ad6c8b6b68526ca100000000`

@@ -11,10 +11,21 @@ import (
 )
 
 const (
+	// BaseTxSize is the size of the tx not including inputs and outputs.
+	//   Version = 4 bytes
+	//   LockTime = 4 bytes
+	BaseTxSize = 8
+
+	PublicKeyHashPushDataSize = 21                   // 1 byte push op code + 33 byte public key
+	PublicKeyPushDataSize     = 34                   // 1 byte push op code + 33 byte public key
+	MaxSignatureSize          = 73                   // 72 byte sig + 1 byte sig hash type
+	MaxSignaturesPushDataSize = 1 + MaxSignatureSize // 1 byte push op code + 72 byte sig + 1 byte sig hash type
+
 	// InputBaseSize is the size of a tx input not including script
 	//   Previous Transaction ID = 32 bytes
 	//   Previous Transaction Output Index = 4 bytes
-	InputBaseSize = 32 + 4
+	//   Sequence = 4 bytes
+	InputBaseSize = bitcoin.Hash32Size + 4 + 4
 
 	// MaximumP2PKHInputSize is the maximum serialized size of a P2PKH tx input based on all of the
 	// variable sized data.
@@ -30,8 +41,8 @@ const (
 	//       push size = 1 byte
 	//       public key size = 33 bytes
 	//   Sequence number = 4
-	MaximumP2PKHSigScriptSize = 1 + 74 + 34
-	MaximumP2PKHInputSize     = InputBaseSize + MaximumP2PKHSigScriptSize + 4
+	MaximumP2PKHSigScriptSize = MaxSignaturesPushDataSize + PublicKeyPushDataSize
+	MaximumP2PKHInputSize     = InputBaseSize + 1 + MaximumP2PKHSigScriptSize
 
 	// MaximumP2RPHInputSize is the maximum serialized size of a P2RPH tx input based on all of the
 	// variable sized data.
@@ -47,8 +58,8 @@ const (
 	//       signature up to = 72 bytes
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
-	MaximumP2RPHSigScriptSize = 1 + 34 + 74
-	MaximumP2RPHInputSize     = InputBaseSize + MaximumP2RPHSigScriptSize + 4
+	MaximumP2RPHSigScriptSize = PublicKeyPushDataSize + MaxSignaturesPushDataSize
+	MaximumP2RPHInputSize     = InputBaseSize + 1 + MaximumP2RPHSigScriptSize
 
 	// MaximumP2PKInputSize is the maximium serialized size of a P2PK tx input based on all of the
 	// variable sized data.
@@ -61,8 +72,8 @@ const (
 	//       signature up to = 72 bytes
 	//       signature hash type = 1 byte
 	//   Sequence number = 4
-	MaximumP2PKSigScriptSize = 1 + 74
-	MaximumP2PKInputSize     = InputBaseSize + MaximumP2PKSigScriptSize + 4
+	MaximumP2PKSigScriptSize = MaxSignaturesPushDataSize
+	MaximumP2PKInputSize     = InputBaseSize + 1 + MaximumP2PKSigScriptSize
 
 	// OutputBaseSize is the size of a tx output not including script
 	OutputBaseSize = 8
@@ -73,8 +84,8 @@ const (
 	//   script size = 1 byte
 	//   Script (25 bytes) OP_DUP OP_HASH160 <Push Data byte, PUB KEY/SCRIPT HASH (20 bytes)> OP_EQUALVERIFY
 	//     OP_CHECKSIG
-	P2PKHOutputScriptSize = 26
-	P2PKHOutputSize       = OutputBaseSize + P2PKHOutputScriptSize
+	P2PKHOutputScriptSize = PublicKeyHashPushDataSize + 4
+	P2PKHOutputSize       = OutputBaseSize + 1 + P2PKHOutputScriptSize
 
 	// P2PKOutputSize is the serialized size of a P2PK tx output.
 	// P2PK output size 44
@@ -85,21 +96,13 @@ const (
 	//         push size = 1 byte
 	//         public key size = 33 bytes
 	//       OP_CHECKSIG = 1 byte
-	P2PKOutputScriptSize = 36
-	P2PKOutputSize       = OutputBaseSize + P2PKOutputScriptSize
-
-	PublicKeyPushDataSize     = 34 // 1 byte push op code + 33 byte public key
-	MaxSignaturesPushDataSize = 74 // 1 byte push op code + 72 byte sig + 1 byte sig hash type
+	P2PKOutputScriptSize = PublicKeyPushDataSize + 1
+	P2PKOutputSize       = OutputBaseSize + 1 + P2PKOutputScriptSize
 
 	// DustInputSize is the fixed size of an input used in the calculation of the dust limit.
 	// This is actually the estimated size of a P2PKH input, but is used for dust calculation of all
 	//   locking scripts.
 	DustInputSize = 148
-
-	// BaseTxSize is the size of the tx not included in inputs and outputs.
-	//   Version = 4 bytes
-	//   LockTime = 4 bytes
-	BaseTxSize = 8
 )
 
 // UnlockingScriptSize calculates the length of the unlocking script needed to unlock the specified
@@ -137,7 +140,7 @@ func InputSize(lockingScript bitcoin.Script) (int, error) {
 		return 0, err
 	}
 
-	return InputBaseSize + 4 + // outpoint + sequence
+	return InputBaseSize + // outpoint + sequence
 		VarIntSerializeSize(uint64(scriptSize)) + scriptSize, nil // unlocking script
 }
 
