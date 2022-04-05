@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcutil"
+	"github.com/tokenized/config"
 )
 
 func TestKey(t *testing.T) {
@@ -67,5 +68,30 @@ func TestKey(t *testing.T) {
 				t.Errorf("WIF decode: got %x, want %x", reverseKey, key)
 			}
 		})
+	}
+}
+
+type MaskedKeyStruct struct {
+	Key Key `json:"key" masked:"true"`
+}
+
+func Test_Key_MarshalJSONMasked(t *testing.T) {
+	for i := 0; i < 5; i++ {
+		key, err := GenerateKey(MainNet)
+		if err != nil {
+			continue
+		}
+
+		object := &MaskedKeyStruct{
+			Key: key,
+		}
+		js, err := config.MarshalJSONMasked(object)
+		if err != nil {
+			t.Fatalf("Failed to marshal JSON masked : %s", err)
+		}
+
+		t.Logf("Key : %s", key)
+		t.Logf("Public Key : %s", key.PublicKey())
+		t.Logf("Masked JSON : %s", string(js))
 	}
 }

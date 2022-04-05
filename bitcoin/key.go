@@ -245,6 +245,12 @@ func (k Key) Sign(hash Hash32) (Signature, error) {
 	return signRFC6979(k.value, hash[:])
 }
 
+// MarshalJSONMasked outputs "masked" data that is safe for "masked" configs that are output to logs
+// and shouldn't contain any private data.
+func (k Key) MarshalJSONMasked() ([]byte, error) {
+	return []byte("\"Public:" + k.PublicKey().String() + "\""), nil
+}
+
 // MarshalJSON converts to json.
 func (k Key) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + k.String() + "\""), nil
