@@ -23,6 +23,7 @@ var (
 	AlreadyInMempool  = errors.New("Already In Mempool")
 	ErrHTTPNotFound   = errors.New("HTTP Not Found")
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
+	ErrTimeout        = errors.New("Timeout")
 )
 
 const (
@@ -300,6 +301,9 @@ func post(ctx context.Context, url string, request, response interface{}) error 
 
 	httpResponse, err := client.Post(url, "application/json", bytes.NewReader(b))
 	if err != nil {
+		if errors.Cause(err) == context.DeadlineExceeded {
+			return errors.Wrap(ErrTimeout, errors.Wrap(err, "http post").Error())
+		}
 		return err
 	}
 
@@ -344,6 +348,9 @@ func get(ctx context.Context, url string, response interface{}) error {
 
 	httpResponse, err := client.Get(url)
 	if err != nil {
+		if errors.Cause(err) == context.DeadlineExceeded {
+			return errors.Wrap(ErrTimeout, errors.Wrap(err, "http get").Error())
+		}
 		return err
 	}
 
