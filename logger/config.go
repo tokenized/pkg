@@ -38,6 +38,23 @@ func NewConfig(isDevelopment, isText bool, filePath string) Config {
 	return result
 }
 
+// NewConfigFromSetup creates a new config from a setup config.
+func NewConfigFromSetup(setup SetupConfig) Config {
+	result := Config{
+		IncludedSubSystems: make(map[string]bool),
+		SubSystems:         make(map[string]systemConfig),
+	}
+
+	var err error
+	result.Main, err = newSystemConfigFromSetup(setup)
+	if err != nil {
+		return result
+	}
+
+	result.Active = result.Main.Copy()
+	return result
+}
+
 // NewEmptyConfig creates a new config that doesn't log.
 func NewEmptyConfig() Config {
 	return Config{

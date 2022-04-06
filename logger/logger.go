@@ -38,6 +38,7 @@ const (
 )
 
 type Level int
+type Format int
 
 const (
 	LevelDebug   Level = -2
@@ -47,6 +48,9 @@ const (
 	LevelError   Level = 2
 	LevelFatal   Level = 3 // Calls exit
 	LevelPanic   Level = 4 // Calls panic
+
+	FormatJSON Format = 0
+	FormatText Format = 1
 )
 
 // Log entry formatting (which prefix fields to include)
@@ -58,6 +62,18 @@ const (
 	IncludeMicro     = 0x10 // microseconds .123123
 	IncludeTimeStamp = 0x20 // unix timestamp with microseconds
 )
+
+type SetupConfig struct {
+	Level  Level  `default:"info" json:"level" envconfig:"LOG_LEVEL"` // Minimum level to log
+	Format Format `default:"json" json:"format" envconfig:"LOG_FORMAT"`
+	Path   string `json:"path" envconfig:"LOG_PATH"` // File path to write log, otherwise stderr
+}
+
+// ContextWithLogSetup returns a context with the specified logging config attached.
+func ContextWithLogSetup(ctx context.Context, setup SetupConfig) context.Context {
+	config := NewConfigFromSetup(setup)
+	return context.WithValue(ctx, key, config)
+}
 
 // ContextWithLogConfig returns a context with the specified logging config attached.
 func ContextWithLogConfig(ctx context.Context, config Config) context.Context {
@@ -334,4 +350,172 @@ func LogDepthWithFields(ctx context.Context, level Level, caller string, fields 
 	}
 
 	return config.writeEntry(level, caller, fields, format, values...)
+}
+
+func (v *Level) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 {
+		return fmt.Errorf("Too short for level : %d", len(data))
+	}
+
+	value := string(data[1 : len(data)-1])
+	switch value {
+	case "debug":
+		*v = LevelDebug
+	case "verbose":
+		*v = LevelVerbose
+	case "info":
+		*v = LevelInfo
+	case "warn":
+		*v = LevelWarn
+	case "error":
+		*v = LevelError
+	case "fatal":
+		*v = LevelFatal
+	case "panic":
+		*v = LevelPanic
+
+	default:
+		return fmt.Errorf("Unknown level value \"%s\"", value)
+	}
+
+	return nil
+}
+
+func (v Level) MarshalJSON() ([]byte, error) {
+	s := v.String()
+	if len(s) == 0 {
+		return []byte("null"), nil
+	}
+
+	return []byte(fmt.Sprintf("\"%s\"", s)), nil
+}
+
+func (v Level) MarshalText() ([]byte, error) {
+	switch v {
+	case LevelDebug:
+		return []byte("debug"), nil
+	case LevelVerbose:
+		return []byte("verbose"), nil
+	case LevelInfo:
+		return []byte("info"), nil
+	case LevelWarn:
+		return []byte("warn"), nil
+	case LevelError:
+		return []byte("error"), nil
+	case LevelFatal:
+		return []byte("fatal"), nil
+	case LevelPanic:
+		return []byte("panic"), nil
+	}
+
+	return nil, fmt.Errorf("Unknown level value \"%d\"", int(v))
+}
+
+func (v *Level) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "debug":
+		*v = LevelDebug
+	case "verbose":
+		*v = LevelVerbose
+	case "info":
+		*v = LevelInfo
+	case "warn":
+		*v = LevelWarn
+	case "error":
+		*v = LevelError
+	case "fatal":
+		*v = LevelFatal
+	case "panic":
+		*v = LevelPanic
+
+	default:
+		return fmt.Errorf("Unknown level value \"%s\"", string(text))
+	}
+
+	return nil
+}
+
+func (v Level) String() string {
+	switch v {
+	case LevelDebug:
+		return "debug"
+	case LevelVerbose:
+		return "verbose"
+	case LevelInfo:
+		return "info"
+	case LevelWarn:
+		return "warn"
+	case LevelError:
+		return "error"
+	case LevelFatal:
+		return "fatal"
+	case LevelPanic:
+		return "panic"
+	}
+
+	return ""
+}
+
+func (v *Format) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 {
+		return fmt.Errorf("Too short for format : %d", len(data))
+	}
+
+	value := string(data[1 : len(data)-1])
+	switch value {
+	case "json":
+		*v = FormatJSON
+	case "text":
+		*v = FormatText
+
+	default:
+		return fmt.Errorf("Unknown format value \"%s\"", value)
+	}
+
+	return nil
+}
+
+func (v Format) MarshalJSON() ([]byte, error) {
+	s := v.String()
+	if len(s) == 0 {
+		return []byte("null"), nil
+	}
+
+	return []byte(fmt.Sprintf("\"%s\"", s)), nil
+}
+
+func (v Format) MarshalText() ([]byte, error) {
+	switch v {
+	case FormatJSON:
+		return []byte("json"), nil
+	case FormatText:
+		return []byte("text"), nil
+	}
+
+	return nil, fmt.Errorf("Unknown format value \"%d\"", int(v))
+}
+
+func (v *Format) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "json":
+		*v = FormatJSON
+	case "text":
+		*v = FormatText
+
+	default:
+		return fmt.Errorf("Unknown format value \"%s\"", string(text))
+	}
+
+	return nil
+}
+
+func (v Format) String() string {
+	switch v {
+	case FormatJSON:
+		return "json"
+	case FormatText:
+		return "text"
+	}
+
+	return ""
 }

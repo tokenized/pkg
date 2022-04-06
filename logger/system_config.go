@@ -62,7 +62,6 @@ func (config systemConfig) Copy() systemConfig {
 }
 
 // newSystemConfig creates a new logger system config.
-// NOTE: isText doesn't work yet, but is meant to change from JSON to tab delimited.
 func newSystemConfig(isDevelopment, isText bool, filePath string) (systemConfig, error) {
 	result := systemConfig{
 		isText:     isText,
@@ -86,6 +85,42 @@ func newSystemConfig(isDevelopment, isText bool, filePath string) (systemConfig,
 			result.output = &dummyWriter{}
 		} else {
 			file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				panic(errors.Wrap(err, "open file"))
+				return result, errors.Wrap(err, "open file")
+			}
+
+			result.output = &fileWriter{file: file}
+		}
+	} else {
+		result.output = &printer{}
+	}
+
+	return result, nil
+}
+
+// newSystemConfigFromSetup creates a new logger system config.
+func newSystemConfigFromSetup(setup SetupConfig) (systemConfig, error) {
+	result := systemConfig{
+		isText:     setup.Format == FormatText,
+		stackLevel: LevelError,
+		minLevel:   LevelInfo,
+		format:     IncludeCaller | IncludeLevel,
+	}
+
+	if setup.Format == FormatText {
+		result.format |= IncludeDate | IncludeTime | IncludeMicro
+	} else {
+		result.format |= IncludeTimeStamp
+	}
+
+	result.minLevel = setup.Level
+
+	if len(setup.Path) > 0 {
+		if setup.Path == "dummy" { // for benchmarking
+			result.output = &dummyWriter{}
+		} else {
+			file, err := os.OpenFile(setup.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				panic(errors.Wrap(err, "open file"))
 				return result, errors.Wrap(err, "open file")
