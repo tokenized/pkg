@@ -30,6 +30,7 @@ type Thread struct {
 
 	noStopFunction TaskFunction
 
+	onComplete ThreadCompleteFunction
 	complete   *chan interface{}
 	wait       *sync.WaitGroup
 	err        error
@@ -47,6 +48,10 @@ type ThreadInterruptFunction func(ctx context.Context, interrupt <-chan interfac
 // ThreadStopFunction should periodically check if stop.IsSet and end the function when it is if not
 // before.
 type ThreadStopFunction func(ctx context.Context, stop *AtomicFlag) error
+
+// ThreadCompleteFunction can be configured to be called when a thread completes. It passes the
+// result error of the thread to the function.
+type ThreadCompleteFunction func(ctx context.Context, err error)
 
 // TaskFunction is a function that performs a task. It is used to perform tasks periodically.
 type TaskFunction func(ctx context.Context) error
@@ -143,6 +148,13 @@ func (t *Thread) GetCompleteChannel() <-chan interface{} {
 	return complete
 }
 
+func (t *Thread) SetOnComplete(onComplete ThreadCompleteFunction) {
+	t.Lock()
+	defer t.Unlock()
+
+	t.onComplete = onComplete
+}
+
 func (t *Thread) Start(ctx context.Context) {
 	if t.wait != nil {
 		t.wait.Add(1)
@@ -155,7 +167,7 @@ func (t *Thread) Start(ctx context.Context) {
 	t.Unlock()
 
 	go func() {
-		logger.LogDepthWithFields(ctx, logger.LevelVerbose, caller, nil, "Starting: %s", name)
+		logger.LogDepthWithFields(ctx, logger.LevelDebug, caller, nil, "Starting: %s", name)
 		var err error
 		if t.interruptFunction != nil {
 			err = t.interruptFunction(ctx, t.interrupt)
@@ -168,9 +180,9 @@ func (t *Thread) Start(ctx context.Context) {
 		}
 
 		if err == nil {
-			logger.LogDepthWithFields(ctx, logger.LevelVerbose, caller, nil, "Finished: %s", name)
+			logger.LogDepthWithFields(ctx, logger.LevelDebug, caller, nil, "Finished: %s", name)
 		} else if errors.Cause(err) == Interrupted {
-			logger.LogDepthWithFields(ctx, logger.LevelVerbose, caller, nil, "Finished: %s : %s",
+			logger.LogDepthWithFields(ctx, logger.LevelDebug, caller, nil, "Finished: %s : %s",
 				name, err)
 		} else {
 			logger.LogDepthWithFields(ctx, logger.LevelWarn, caller, nil, "Finished: %s: %s", name,
@@ -179,6 +191,9 @@ func (t *Thread) Start(ctx context.Context) {
 
 		t.Lock()
 		t.err = err
+		if t.onComplete != nil {
+			t.onComplete(ctx, err)
+		}
 		if t.complete != nil {
 			close(*t.complete)
 		}
