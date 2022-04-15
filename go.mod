@@ -13,7 +13,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/pkg/errors v0.9.1
 	github.com/scottjbarr/redis v0.0.1
-	github.com/tokenized/config v0.2.1-0.20220405021836-1fcb33762cb5
+	github.com/tokenized/config v0.2.1
 	github.com/tyler-smith/go-bip32 v0.0.0-20170922074101-2c9cfd177564
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/text v0.3.2 // indirect

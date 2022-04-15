@@ -86,12 +86,13 @@ const (
 var (
 	endian = binary.LittleEndian
 
-	ErrInvalidScript       = errors.New("Invalid Script")
-	ErrNotP2PKH            = errors.New("Not P2PKH")
-	ErrWrongScriptTemplate = errors.New("Wrong Script Template")
-	ErrNotPushOp           = errors.New("Not Push Op")
-	ErrUnknownScriptNumber = errors.New("Unknown Script Number")
-	ErrWrongOpCode         = errors.New("Wrong Op Code")
+	ErrInvalidScript         = errors.New("Invalid Script")
+	ErrNotP2PKH              = errors.New("Not P2PKH")
+	ErrWrongScriptTemplate   = errors.New("Wrong Script Template")
+	ErrNotPushOp             = errors.New("Not Push Op")
+	ErrUnknownScriptNumber   = errors.New("Unknown Script Number")
+	ErrWrongOpCode           = errors.New("Wrong Op Code")
+	ErrInvalidScriptItemType = errors.New("Invalid Script Item Type")
 
 	byteToNames = map[byte]string{
 		OP_FALSE:              "OP_FALSE",
@@ -183,7 +184,7 @@ type ScriptItemType uint8
 type ScriptItem struct {
 	Type   ScriptItemType
 	OpCode byte
-	Data   []byte
+	Data   Hex
 }
 
 type Script []byte
@@ -567,6 +568,20 @@ func WritePushDataScript(buf *bytes.Buffer, data []byte) error {
 	return err
 }
 
+func (s *ScriptItem) Write(buf *bytes.Buffer) error {
+	switch s.Type {
+	case ScriptItemTypeOpCode:
+		_, err := buf.Write([]byte{s.OpCode})
+		return err
+
+	case ScriptItemTypePushData:
+		return WritePushDataScript(buf, s.Data)
+
+	default:
+		return errors.Wrapf(ErrInvalidScriptItemType, "%d", s.Type)
+	}
+}
+
 // ParseScript will parse the next item of a bitcoin script.
 // A bytes.Reader object is needed to check the size against the remaining length before allocating
 // the memory to store the push.
@@ -784,20 +799,20 @@ func ParsePushDataScript(buf *bytes.Reader) (uint8, []byte, error) {
 //    -32767 -> [0xff 0xff]
 //     32768 -> [0x00 0x80 0x00]
 //    -32768 -> [0x00 0x80 0x80]
-func PushNumberScript(n int64) []byte {
+func PushNumberScript(n int64) Script {
 	// OP_FALSE, OP_0
 	if n == 0 {
-		return []byte{0x00}
+		return Script{0x00}
 	}
 
 	// OP_1NEGATE
 	if n == -1 {
-		return []byte{0x4f}
+		return Script{0x4f}
 	}
 
 	// Single byte number push op codes
 	if n > 0 && n <= 16 {
-		return []byte{0x50 + byte(n)}
+		return Script{0x50 + byte(n)}
 	}
 
 	// Take the absolute value and keep track of whether it was originally
@@ -809,7 +824,7 @@ func PushNumberScript(n int64) []byte {
 
 	// Encode to little endian.  The maximum number of encoded bytes is 9
 	// (8 bytes for max int64 plus a potential byte for sign extension).
-	result := make([]byte, 0, 10)
+	result := make(Script, 0, 10)
 	for n > 0 {
 		result = append(result, byte(n&0xff))
 		n >>= 8
@@ -834,7 +849,7 @@ func PushNumberScript(n int64) []byte {
 	}
 
 	// Push this value onto the stack (single byte push op)
-	return append([]byte{byte(len(result))}, result...)
+	return append(Script{byte(len(result))}, result...)
 }
 
 // ScriptNumberValue returns the number value given the op code or push data returned from

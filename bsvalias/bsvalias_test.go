@@ -2,6 +2,7 @@ package bsvalias
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -60,6 +61,9 @@ func TestCapabilities(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get site : %s", err)
 		}
+
+		js, _ := json.MarshalIndent(site, "", "  ")
+		t.Logf("Site %s : %s", handle, js)
 
 		t.Logf("%s Site : %+v", fields[1], site)
 	}
@@ -212,6 +216,8 @@ func Test_PublicProfile(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Testing : %s", handle)
+
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
@@ -225,6 +231,9 @@ func Test_PublicProfile(t *testing.T) {
 			}
 			t.Fatalf("Failed to get Public Profile : %s", err)
 		}
+
+		js, _ := json.MarshalIndent(request, "", "  ")
+		t.Logf("Response : %s", js)
 
 		if request.Name != nil {
 			t.Logf("Name : %s", *request.Name)

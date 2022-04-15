@@ -42,6 +42,10 @@ const (
 	// URLNamePublicProfile is the name used to identify the URL used to fetch public profile
 	// information.
 	URLNamePublicProfile = "f12f968c92d6"
+
+	// https://github.com/bitcoin-sv-specs/brfc-paymail/blob/master/src/05-verify-public-key-owner.md
+	// (Not Implemented) URLNameVerifyPublicKey = "a9f510c16bde"
+	// :https://test.com/api/bsvalias/verifypubkey/{alias}@{domain.tld}/{pubkey}
 )
 
 var (
