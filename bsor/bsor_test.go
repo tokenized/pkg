@@ -8,15 +8,19 @@ import (
 )
 
 type TestStruct1 struct {
-	IntField        int             `bsor:"1"`
-	StringField     string          `bsor:"2"`
-	SubStruct       TestSubStruct1  `bsor:"3"`
-	SubStructPtr    *TestSubStruct1 `bsor:"4"`
-	BytesField      []byte          `bsor:"5"`
-	FixedBytesField [4]byte         `bsor:"6"`
-	PointerField    *string         `bsor:"7"`
-	SliceField      []string        `bsor:"8"`
-	ArrayField      [2]int          `bsor:"9"`
+	IntField                 int               `bsor:"1"`
+	StringField              string            `bsor:"2"`
+	SubStruct                TestSubStruct1    `bsor:"3"`
+	SubStructPtr             *TestSubStruct1   `bsor:"4"`
+	BinaryField              []byte            `bsor:"5"`
+	FixedBinaryField         [4]byte           `bsor:"6"`
+	PointerField             *string           `bsor:"7"`
+	ArrayPrimitiveField      []string          `bsor:"8"`
+	FixedArrayPrimitiveField [2]int            `bsor:"9"`
+	ArrayObjectField         []TestSubStruct1  `bsor:"10"`
+	FixedArrayObjectField    [2]TestSubStruct1 `bsor:"11"`
+	ArrayObjectPtrField      []*TestSubStruct1 `bsor:"12"`
+	ArrayStringPtrField      []*string         `bsor:"13"`
 }
 
 type TestSubStruct1 struct {
@@ -25,7 +29,7 @@ type TestSubStruct1 struct {
 }
 
 func Test_Marshal_TestStruct1(t *testing.T) {
-	stringValue := "string"
+	stringValue := "string value"
 
 	tests := []struct {
 		value TestStruct1
@@ -35,17 +39,44 @@ func Test_Marshal_TestStruct1(t *testing.T) {
 				IntField:    10,
 				StringField: "test",
 				SubStruct: TestSubStruct1{
-					SubIntField:    8,
+					SubIntField:    20,
 					SubStringField: "sub_string",
 				},
 				SubStructPtr: &TestSubStruct1{
-					SubIntField: 9,
+					SubIntField: 21,
 				},
-				BytesField:      []byte{0x45, 0xcd},
-				FixedBytesField: [4]byte{0x10, 0x11, 0x12, 0x13},
-				PointerField:    &stringValue,
-				SliceField:      []string{"string1", "string2"},
-				ArrayField:      [2]int{4, 5},
+				BinaryField:              []byte{0x45, 0xcd},
+				FixedBinaryField:         [4]byte{0x10, 0x11, 0x12, 0x13},
+				PointerField:             &stringValue,
+				ArrayPrimitiveField:      []string{"string1", "string2"},
+				FixedArrayPrimitiveField: [2]int{4, 5},
+				ArrayObjectField: []TestSubStruct1{
+					{
+						SubIntField:    22,
+						SubStringField: "sub_string_array",
+					},
+				},
+				FixedArrayObjectField: [2]TestSubStruct1{
+					{
+						SubIntField:    23,
+						SubStringField: "sub_string_array2",
+					},
+					{
+						SubIntField:    24,
+						SubStringField: "sub_string_array3",
+					},
+				},
+				ArrayObjectPtrField: []*TestSubStruct1{
+					nil,
+					{
+						SubIntField:    25,
+						SubStringField: "sub_string_array4",
+					},
+				},
+				ArrayStringPtrField: []*string{
+					nil,
+					&stringValue,
+				},
 			},
 		},
 	}

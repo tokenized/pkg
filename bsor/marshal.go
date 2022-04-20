@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/binary"
-	"fmt"
 	"reflect"
 	"strconv"
 
@@ -14,23 +13,41 @@ import (
 )
 
 func marshalObject(buf *bytes.Buffer, object interface{}) error {
-	objectType := reflect.TypeOf(object)
-	if objectType.Kind() != reflect.Struct {
-		return fmt.Errorf("Marshal object is not a struct: %s", objectType.Name())
+	value := reflect.ValueOf(object)
+	typ := value.Type()
+	kind := typ.Kind()
+	if kind == reflect.Ptr {
+		if value.IsNil() {
+			if err := writeOpCode(buf, bitcoin.OP_FALSE); err != nil {
+				return errors.Wrap(err, "is nil")
+			}
+
+			return nil
+		} else {
+			if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
+				return errors.Wrap(err, "is not nil")
+			}
+		}
+
+		value = value.Elem()
+		typ = typ.Elem()
+		kind = typ.Kind()
 	}
 
-	objectValue := reflect.ValueOf(object)
-	objectFieldCount := objectType.NumField()
+	if kind != reflect.Struct {
+		return marshalPrimitive(buf, kind, value.Interface())
+	}
+
+	objectFieldCount := typ.NumField()
 
 	var fieldCount int64 // number of fields marshalled into the script
 	fieldBuf := &bytes.Buffer{}
 	for i := 0; i < objectFieldCount; i++ {
-		field := objectType.Field(i)
-		fieldValue := objectValue.Field(i)
+		field := typ.Field(i)
+		fieldValue := value.Field(i)
 
 		if wasAdded, err := marshalField(fieldBuf, field, fieldValue); err != nil {
-			return errors.Wrapf(err, "marshal field %d: %s (type %s)", i, field.Name,
-				field.Type.Name())
+			return errors.Wrapf(err, "marshal field: %s (type %s)", field.Name, field.Type.Name())
 		} else if wasAdded {
 			fieldCount++
 		}
@@ -66,7 +83,11 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 
 	id, err := strconv.ParseUint(idString, 10, 64)
 	if err != nil {
-		return false, errors.Wrapf(ErrInvalidID, "bsor tag: \"%s\"", idString)
+		return false, errors.Wrapf(ErrInvalidID, "bsor tag invalid integer: \"%s\"", idString)
+	}
+
+	if id == 0 {
+		return false, errors.Wrapf(ErrInvalidID, "bsor tag can't be zero: \"%s\"", idString)
 	}
 
 	if fieldValue.IsZero() {
@@ -102,7 +123,21 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 		}
 
 		if elem.Kind() != reflect.Struct {
-			return true, marshalPrimative(buf, id, elem.Kind(), elem.Interface())
+			if err := writeID(buf, id); err != nil {
+				return false, errors.Wrap(err, "id")
+			}
+
+			if fieldValue.IsNil() {
+				if err := writeOpCode(buf, bitcoin.OP_FALSE); err != nil {
+					return false, errors.Wrap(err, "nil")
+				}
+			} else {
+				if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
+					return false, errors.Wrap(err, "not nil")
+				}
+			}
+
+			return true, marshalPrimitive(buf, elem.Kind(), elem.Interface())
 		}
 
 		if _, err := buf.Write(bitcoin.PushNumberScript(int64(id))); err != nil {
@@ -127,24 +162,39 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 		return true, nil
 
 	case reflect.Array:
+		if err := writeID(buf, id); err != nil {
+			return false, errors.Wrap(err, "id")
+		}
+
 		elem := field.Type.Elem()
 		switch elem.Kind() {
-		case reflect.Uint8: // byte array
+		case reflect.Uint8: // byte array (Binary Data)
 			// Convert to byte slice
 			l := fieldValue.Len()
 			b := make([]byte, l)
 			for i := 0; i < l; i++ {
 				index := fieldValue.Index(i)
+
+				if index.Kind() == reflect.Ptr {
+					if index.IsNil() {
+						if err := writeOpCode(buf, bitcoin.OP_FALSE); err != nil {
+							return false, errors.Wrap(err, "nil")
+						}
+
+						continue
+					} else {
+						if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
+							return false, errors.Wrap(err, "not nil")
+						}
+					}
+				}
+
 				indexInterface := index.Interface()
 				val, ok := indexInterface.(byte)
 				if !ok {
 					return false, errors.Wrap(ErrValueConversion, "byte array index")
 				}
 				b[i] = val
-			}
-
-			if err := writeID(buf, id); err != nil {
-				return false, errors.Wrap(err, "id")
 			}
 
 			if err := writeBytes(buf, b); err != nil {
@@ -154,18 +204,26 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 			return true, nil
 		}
 
-		// TODO Add support for arrays of structs and other primative types. --ce
+		// Fixed Size Array encoding
+		// Count does not need to be encoded as it is fixed.
+		l := fieldValue.Len()
+		for i := 0; i < l; i++ {
+			index := fieldValue.Index(i)
+			if err := marshalObject(buf, index.Interface()); err != nil {
+				return false, errors.Wrapf(err, "write item %d", i)
+			}
+		}
 
-		return false, fmt.Errorf("Field type not implemented: Array: %s", elem.Name())
+		return true, nil
 
 	case reflect.Slice:
+		if err := writeID(buf, id); err != nil {
+			return false, errors.Wrap(err, "id")
+		}
+
 		elem := field.Type.Elem()
 		switch elem.Kind() {
-		case reflect.Uint8: // byte slice
-			if err := writeID(buf, id); err != nil {
-				return false, errors.Wrap(err, "id")
-			}
-
+		case reflect.Uint8: // byte slice (Binary Data)
 			if err := writeBytes(buf, fieldValue.Bytes()); err != nil {
 				return false, errors.Wrap(err, "bytes")
 			}
@@ -173,10 +231,7 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 			return true, nil
 		}
 
-		if err := writeID(buf, id); err != nil {
-			return false, errors.Wrap(err, "id")
-		}
-
+		// Array encoding
 		if err := writeCount(buf, uint64(fieldValue.Len())); err != nil {
 			return false, errors.Wrap(err, "write count")
 		}
@@ -184,7 +239,7 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 		l := fieldValue.Len()
 		for i := 0; i < l; i++ {
 			index := fieldValue.Index(i)
-			if err := writePrimative(buf, elem.Kind(), index.Interface()); err != nil {
+			if err := marshalObject(buf, index.Interface()); err != nil {
 				return false, errors.Wrapf(err, "write item %d", i)
 			}
 		}
@@ -192,26 +247,22 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 		return true, nil
 
 	default:
-		return true, marshalPrimative(buf, id, field.Type.Kind(), iface)
+		if err := writeID(buf, id); err != nil {
+			return false, errors.Wrap(err, "id")
+		}
+
+		return true, marshalPrimitive(buf, field.Type.Kind(), iface)
 	}
 }
 
-func marshalPrimative(buf *bytes.Buffer, id uint64, kind reflect.Kind, iface interface{}) error {
-	if err := writeID(buf, id); err != nil {
-		return errors.Wrap(err, "id")
-	}
-
-	if err := writePrimative(buf, kind, iface); err != nil {
-		return errors.Wrap(err, "primative")
-	}
-
-	return nil
-}
-
-func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) error {
+func marshalPrimitive(buf *bytes.Buffer, kind reflect.Kind, object interface{}) error {
 	switch kind {
+	case reflect.Ptr:
+		typ := reflect.TypeOf(object)
+		return marshalPrimitive(buf, typ.Elem().Kind(), object)
+
 	case reflect.String:
-		value, ok := iface.(string)
+		value, ok := object.(string)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -231,7 +282,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Int:
-		value, ok := iface.(int)
+		value, ok := object.(int)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -243,7 +294,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Int8:
-		value, ok := iface.(int8)
+		value, ok := object.(int8)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -255,7 +306,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Int16:
-		value, ok := iface.(int16)
+		value, ok := object.(int16)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -267,7 +318,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Int32:
-		value, ok := iface.(int32)
+		value, ok := object.(int32)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -279,7 +330,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Int64:
-		value, ok := iface.(int64)
+		value, ok := object.(int64)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -291,7 +342,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Uint:
-		value, ok := iface.(uint)
+		value, ok := object.(uint)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -303,7 +354,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Uint8:
-		value, ok := iface.(uint8)
+		value, ok := object.(uint8)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -315,7 +366,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Uint16:
-		value, ok := iface.(uint16)
+		value, ok := object.(uint16)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -327,7 +378,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Uint32:
-		value, ok := iface.(uint32)
+		value, ok := object.(uint32)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -339,7 +390,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Uint64:
-		value, ok := iface.(uint64)
+		value, ok := object.(uint64)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -351,7 +402,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Float32:
-		value, ok := iface.(float32)
+		value, ok := object.(float32)
 		if !ok {
 			return ErrValueConversion
 		}
@@ -363,7 +414,7 @@ func writePrimative(buf *bytes.Buffer, kind reflect.Kind, iface interface{}) err
 		return nil
 
 	case reflect.Float64:
-		value, ok := iface.(float64)
+		value, ok := object.(float64)
 		if !ok {
 			return ErrValueConversion
 		}

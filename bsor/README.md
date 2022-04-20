@@ -17,7 +17,7 @@ Each field is self encapsulated and the exact format depends on the type of the 
 
 #### Field Identifier
 
-The first value of each field is the identifier for the field. The identifier is an integer that is unique to the object. The identifiers are Bitcoin script numbers.
+The first value of each field is the identifier for the field. The identifier is a non-zero integer that is unique to the object. The identifiers are Bitcoin script numbers.
 
 The remaining encoding for the field is specific to the data type of the field.
 
@@ -28,6 +28,10 @@ Field types are boolean, integer, string, binary, float, array, or another objec
 Field types are defined in advance and the type is determined by knowing the object definition and using the field identifier.
 
 Fields that are the "zero" value are excluded from encoding to save space. For example an empty array, false boolean, or zero integer will not be encoded.
+
+##### Nil/Null
+
+If the field is a pointer then the value can be represented a a nil with a zero. If it is a struct then the field count is just set to zero. If it is a primitive then each pointer value is preceded by a push op of 1 and a nil is represented by a push op of zero.
 
 ##### Boolean
 
@@ -53,9 +57,13 @@ Floats are either 32 or 64 bit. 32 bit floats are encoded as a 4 byte push data 
 
 An array can contain any of the other field types and that type is fixed and must be defined in advance.
 
-The first value, after the field identifier, of an array is the number of items in the array encoded as a Bitcoin script number.
+The first value of an array, after the field identifier, is the number of items in the array encoded as a Bitcoin script number.
 
 Then the specified number of items encoded as defined in advance.
+
+##### Fixed Size Array
+
+A fixed size array is the same as an array except the number of items is not encoded as it is predefined by the structure definition.
 
 ##### Object
 

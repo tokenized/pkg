@@ -33,28 +33,23 @@ func (f FieldIndexes) find(id uint64) *int {
 	return &index
 }
 
-func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
-	if value.Type().Kind() != reflect.Struct {
-		return unmarshalPrimative(buf, value)
-	}
-
-	objectFieldCount := value.Type().NumField()
+func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, error) {
+	fieldCount := typ.NumField()
 
 	fields := make(FieldIndexes)
-	for i := 0; i < objectFieldCount; i++ {
-		field := value.Type().Field(i)
-		fieldValue := value.Field(i)
-
+	for i := 0; i < fieldCount; i++ {
+		field := typ.Field(i)
 		idString := field.Tag.Get("bsor")
+		fieldValue := value.Field(i)
 		if !fieldValue.CanInterface() {
 			if len(idString) > 0 {
-				return errors.Wrap(ErrInvalidID, "\"bsor\" tag on unexported field")
+				return nil, errors.Wrap(ErrInvalidID, "\"bsor\" tag on unexported field")
 			}
 			continue // not exported, "private" lower case field name
 		}
 
 		if len(idString) == 0 {
-			return errors.Wrap(ErrInvalidID, "missing \"bsor\" tag")
+			return nil, errors.Wrap(ErrInvalidID, "missing \"bsor\" tag")
 		}
 
 		if idString == "-" {
@@ -63,17 +58,65 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 
 		id, err := strconv.ParseUint(idString, 10, 64)
 		if err != nil {
-			return errors.Wrapf(ErrInvalidID, "bsor tag: \"%s\"", idString)
+			return nil, errors.Wrapf(ErrInvalidID, "bsor tag invalid integer: \"%s\"", idString)
+		}
+
+		if id == 0 {
+			return nil, errors.Wrapf(ErrInvalidID, "bsor tag can't be zero: \"%s\"", idString)
 		}
 
 		if err := fields.add(id, i); err != nil {
-			return errors.Wrap(err, field.Name)
+			return nil, errors.Wrap(err, field.Name)
 		}
+	}
+
+	return &fields, nil
+}
+
+func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
+	typ := value.Type()
+	kind := typ.Kind()
+	var valuePtr reflect.Value
+	newValue := value
+	isPtr := false
+	if kind == reflect.Ptr {
+		notNil, err := readInteger(buf)
+		if err != nil {
+			return errors.Wrap(err, "nil")
+		}
+
+		if notNil == 0 {
+			return nil
+		}
+
+		newValue = newValue.Elem()
+		typ = typ.Elem()
+		kind = typ.Kind()
+		isPtr = true
+	}
+
+	if kind != reflect.Struct {
+		return unmarshalPrimitive(buf, value)
+	}
+
+	if isPtr {
+		// Special handling is required to create the object for pointer types.
+		valuePtr = reflect.New(typ)
+		newValue = valuePtr.Elem()
 	}
 
 	fieldCount, err := readCount(buf)
 	if err != nil {
 		return errors.Wrap(err, "field count")
+	}
+
+	if fieldCount == 0 {
+		return nil
+	}
+
+	fields, err := NewFieldIndexes(typ, newValue)
+	if err != nil {
+		return errors.Wrap(err, "field indexes")
 	}
 
 	for i := 0; i < int(fieldCount); i++ {
@@ -89,15 +132,20 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 
 		fieldIndex := fields.find(uint64(id))
 		if fieldIndex == nil {
-			return fmt.Errorf("Field %d not found in object", id)
+			return fmt.Errorf("Field %d not found in %s", id, typ.Name())
 		}
 
-		field := value.Type().Field(*fieldIndex)
-		fieldValue := value.Field(*fieldIndex)
+		field := typ.Field(*fieldIndex)
+		fieldValue := reflect.New(field.Type).Elem()
 		if err := unmarshalField(buf, field, fieldValue); err != nil {
 			return errors.Wrapf(err, "unmarshal field: %s (id %d) (type %s)", field.Name, id,
 				field.Type.Name())
 		}
+		newValue.Field(*fieldIndex).Set(fieldValue)
+	}
+
+	if isPtr {
+		value.Set(valuePtr)
 	}
 
 	return nil
@@ -109,7 +157,9 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 	}
 	iface := fieldValue.Interface()
 
+	kind := field.Type.Kind()
 	if binaryMarshaler, ok := iface.(encoding.BinaryUnmarshaler); ok {
+		// TODO Handle pointers --ce
 		b, err := readBytes(buf)
 		if err != nil {
 			return errors.Wrapf(err, "bytes")
@@ -122,14 +172,23 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 		return nil
 	}
 
-	switch field.Type.Kind() {
+	switch kind {
 	case reflect.Ptr:
 		elem := field.Type.Elem()
 		value := reflect.New(field.Type.Elem())
 
 		if elem.Kind() != reflect.Struct {
-			if err := unmarshalPrimative(buf, value.Elem()); err != nil {
-				return errors.Wrap(err, "primative")
+			notNil, err := readInteger(buf)
+			if err != nil {
+				return errors.Wrap(err, "nil")
+			}
+
+			if notNil == 0 {
+				return nil
+			}
+
+			if err := unmarshalPrimitive(buf, value.Elem()); err != nil {
+				return errors.Wrap(err, "primitive")
 			}
 
 			fieldValue.Set(value)
@@ -153,7 +212,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 	case reflect.Array:
 		elem := field.Type.Elem()
 		switch elem.Kind() {
-		case reflect.Uint8:
+		case reflect.Uint8: // byte array (Binary Data)
 			b, err := readBytes(buf)
 			if err != nil {
 				return errors.Wrap(err, "bytes")
@@ -163,14 +222,22 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 			return nil
 		}
 
-		// TODO Add support for arrays of structs and other primative types. --ce
+		// Fixed Size Array encoding
+		ptr := reflect.New(field.Type)
+		array := ptr.Elem()
+		for i := 0; i < fieldValue.Len(); i++ {
+			if err := unmarshalObject(buf, array.Index(int(i))); err != nil {
+				return errors.Wrapf(err, "item %d", i)
+			}
+		}
 
-		return fmt.Errorf("Field type not implemented: Array: %s", elem.Name())
+		fieldValue.Set(array)
+		return nil
 
 	case reflect.Slice:
 		elem := field.Type.Elem()
 		switch elem.Kind() {
-		case reflect.Uint8:
+		case reflect.Uint8: // byte slice (Binary Data)
 			b, err := readBytes(buf)
 			if err != nil {
 				return errors.Wrap(err, "bytes")
@@ -180,6 +247,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 			return nil
 		}
 
+		// Array encoding
 		count, err := readCount(buf)
 		if err != nil {
 			return errors.Wrap(err, "count")
@@ -190,19 +258,19 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 			if err := unmarshalObject(buf, slice.Index(int(i))); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
-
 		}
 
 		fieldValue.Set(slice)
 		return nil
 
 	default:
-		return unmarshalPrimative(buf, fieldValue)
+		return unmarshalPrimitive(buf, fieldValue)
 	}
 }
 
-func unmarshalPrimative(buf *bytes.Reader, value reflect.Value) error {
-	switch value.Type().Kind() {
+func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
+	typ := value.Type()
+	switch typ.Kind() {
 	case reflect.String:
 		b, err := readBytes(buf)
 		if err != nil {
@@ -234,7 +302,7 @@ func unmarshalPrimative(buf *bytes.Reader, value reflect.Value) error {
 	case reflect.Float32:
 		val, err := readFloat32(buf)
 		if err != nil {
-			return errors.Wrap(err, "read float32")
+			return errors.Wrap(err, "float32")
 		}
 
 		value.SetFloat(float64(val))
@@ -243,14 +311,23 @@ func unmarshalPrimative(buf *bytes.Reader, value reflect.Value) error {
 	case reflect.Float64:
 		val, err := readFloat64(buf)
 		if err != nil {
-			return errors.Wrap(err, "read float64")
+			return errors.Wrap(err, "float64")
 		}
 
 		value.SetFloat(val)
 		return nil
 
 	case reflect.Ptr:
-		return errors.Wrap(ErrValueConversion, "pointer")
+		// Special handling is required to create the object for pointer types.
+		valuePtr := reflect.New(typ.Elem())
+		newValue := valuePtr.Elem()
+
+		if err := unmarshalObject(buf, newValue); err != nil {
+			return errors.Wrap(err, "pointer")
+		}
+
+		value.Set(valuePtr)
+		return nil
 
 	case reflect.Struct:
 		return errors.Wrap(ErrValueConversion, "struct")
