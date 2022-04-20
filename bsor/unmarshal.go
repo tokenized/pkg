@@ -43,13 +43,14 @@ func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, erro
 		fieldValue := value.Field(i)
 		if !fieldValue.CanInterface() {
 			if len(idString) > 0 {
-				return nil, errors.Wrap(ErrInvalidID, "\"bsor\" tag on unexported field")
+				return nil, errors.Wrapf(ErrInvalidID, "\"bsor\" tag on unexported field: %s",
+					field.Name)
 			}
 			continue // not exported, "private" lower case field name
 		}
 
 		if len(idString) == 0 {
-			return nil, errors.Wrap(ErrInvalidID, "missing \"bsor\" tag")
+			return nil, errors.Wrapf(ErrInvalidID, "missing \"bsor\" tag: %s", field.Name)
 		}
 
 		if idString == "-" {
@@ -58,11 +59,13 @@ func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, erro
 
 		id, err := strconv.ParseUint(idString, 10, 64)
 		if err != nil {
-			return nil, errors.Wrapf(ErrInvalidID, "bsor tag invalid integer: \"%s\"", idString)
+			return nil, errors.Wrapf(ErrInvalidID, "bsor tag invalid integer: \"%s\": %s", idString,
+				field.Name)
 		}
 
 		if id == 0 {
-			return nil, errors.Wrapf(ErrInvalidID, "bsor tag can't be zero: \"%s\"", idString)
+			return nil, errors.Wrapf(ErrInvalidID, "bsor tag can't be zero: \"%s\": %s", idString,
+				field.Name)
 		}
 
 		if err := fields.add(id, i); err != nil {
@@ -97,6 +100,28 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 
 	if kind != reflect.Struct {
 		return unmarshalPrimitive(buf, value)
+	}
+
+	// Check for pointer unmarshaller
+	val := reflect.New(typ)
+	ifacePtr := val.Interface()
+	if binaryUnmarshaler, ok := ifacePtr.(encoding.BinaryUnmarshaler); ok {
+		fmt.Printf("Using pointer binary unmarshaller\n")
+		b, err := readBytes(buf)
+		if err != nil {
+			return errors.Wrapf(err, "bytes")
+		}
+
+		if err := binaryUnmarshaler.UnmarshalBinary(b); err != nil {
+			return errors.Wrapf(err, "binary unmarshal")
+		}
+
+		if isPtr {
+			value.Set(val)
+		} else {
+			value.Set(val.Elem())
+		}
+		return nil
 	}
 
 	if isPtr {
@@ -136,12 +161,14 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 		}
 
 		field := typ.Field(*fieldIndex)
-		fieldValue := reflect.New(field.Type).Elem()
-		if err := unmarshalField(buf, field, fieldValue); err != nil {
-			return errors.Wrapf(err, "unmarshal field: %s (id %d) (type %s)", field.Name, id,
-				field.Type.Name())
+		fmt.Printf("Unmarshalling %s (%s)\n", field.Name, typeName(field.Type))
+		fieldValue := reflect.New(field.Type) // must use elem to be "assignable"
+
+		if err := unmarshalField(buf, field, fieldValue.Elem()); err != nil {
+			return errors.Wrapf(err, "unmarshal field: %s (id %d) (%s)", field.Name, id,
+				typeName(field.Type))
 		}
-		newValue.Field(*fieldIndex).Set(fieldValue)
+		newValue.Field(*fieldIndex).Set(fieldValue.Elem())
 	}
 
 	if isPtr {
@@ -155,27 +182,13 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 	if !fieldValue.CanInterface() {
 		return nil // not exported, "private" lower case field name
 	}
-	iface := fieldValue.Interface()
 
 	kind := field.Type.Kind()
-	if binaryMarshaler, ok := iface.(encoding.BinaryUnmarshaler); ok {
-		// TODO Handle pointers --ce
-		b, err := readBytes(buf)
-		if err != nil {
-			return errors.Wrapf(err, "bytes")
-		}
+	if kind == reflect.Ptr {
+		fmt.Printf("Dereferencing pointer\n")
 
-		if err := binaryMarshaler.UnmarshalBinary(b); err != nil {
-			return errors.Wrapf(err, "binary marshal")
-		}
-
-		return nil
-	}
-
-	switch kind {
-	case reflect.Ptr:
 		elem := field.Type.Elem()
-		value := reflect.New(field.Type.Elem())
+		value := reflect.New(elem)
 
 		if elem.Kind() != reflect.Struct {
 			notNil, err := readInteger(buf)
@@ -201,8 +214,13 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 
 		fieldValue.Set(value)
 		return nil
+	}
+
+	switch kind {
+	// case reflect.Map: // TODO Add map support --ce
 
 	case reflect.Struct:
+		fmt.Printf("Using struct unmarshaller : %s\n", field.Name)
 		if err := unmarshalObject(buf, fieldValue); err != nil {
 			return errors.Wrap(err, "object")
 		}

@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	ErrInvalidID       = errors.New("Invalid Element ID")
-	ErrDuplicateID     = errors.New("Duplicate Element ID")
+	ErrInvalidID       = errors.New("Invalid Field ID")
+	ErrDuplicateID     = errors.New("Duplicate Field ID")
 	ErrValueConversion = errors.New("Value Conversion")
 )
 

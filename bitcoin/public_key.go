@@ -159,6 +159,9 @@ func (k PublicKey) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary parses a binary encoded public key and sets the value of this object.
 // Implements encoding.BinaryUnmarshaler interface.
 func (k *PublicKey) UnmarshalBinary(data []byte) error {
+	if k == nil {
+		print("public key is nil\n")
+	}
 	return k.SetBytes(data)
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/binary"
+	"fmt"
 	"reflect"
 	"strconv"
 
@@ -38,6 +39,24 @@ func marshalObject(buf *bytes.Buffer, object interface{}) error {
 		return marshalPrimitive(buf, kind, value.Interface())
 	}
 
+	if binaryMarshaler, ok := object.(encoding.BinaryMarshaler); ok {
+		fmt.Printf("Using binary marshaller\n")
+		b, err := binaryMarshaler.MarshalBinary()
+		if err != nil {
+			return errors.Wrapf(err, "binary marshal")
+		}
+
+		if len(b) == 0 {
+			return nil
+		}
+
+		if err := writeBytes(buf, b); err != nil {
+			return errors.Wrap(err, "bytes")
+		}
+
+		return nil
+	}
+
 	objectFieldCount := typ.NumField()
 
 	var fieldCount int64 // number of fields marshalled into the script
@@ -47,7 +66,8 @@ func marshalObject(buf *bytes.Buffer, object interface{}) error {
 		fieldValue := value.Field(i)
 
 		if wasAdded, err := marshalField(fieldBuf, field, fieldValue); err != nil {
-			return errors.Wrapf(err, "marshal field: %s (type %s)", field.Name, field.Type.Name())
+			return errors.Wrapf(err, "marshal field: %s (%s)", field.Name,
+				typeName(field.Type))
 		} else if wasAdded {
 			fieldCount++
 		}
@@ -62,6 +82,18 @@ func marshalObject(buf *bytes.Buffer, object interface{}) error {
 	}
 
 	return nil
+}
+
+func typeName(typ reflect.Type) string {
+	kind := typ.Kind()
+	switch kind {
+	case reflect.Ptr, reflect.Slice, reflect.Array:
+		return fmt.Sprintf("%s:%s", kind, typeName(typ.Elem()))
+	case reflect.Struct:
+		return typ.Name()
+	default:
+		return kind.String()
+	}
 }
 
 func marshalField(buf *bytes.Buffer, field reflect.StructField,
@@ -92,27 +124,6 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 
 	if fieldValue.IsZero() {
 		return false, nil // zero value / empty field
-	}
-
-	if binaryMarshaler, ok := iface.(encoding.BinaryMarshaler); ok {
-		b, err := binaryMarshaler.MarshalBinary()
-		if err != nil {
-			return false, errors.Wrapf(err, "binary marshal")
-		}
-
-		if len(b) == 0 {
-			return false, nil
-		}
-
-		if err := writeID(buf, id); err != nil {
-			return false, errors.Wrap(err, "id")
-		}
-
-		if err := writeBytes(buf, b); err != nil {
-			return false, errors.Wrap(err, "bytes")
-		}
-
-		return true, nil
 	}
 
 	switch field.Type.Kind() {
@@ -149,6 +160,8 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 		}
 
 		return true, nil
+
+	// case reflect.Map: // TODO Add map support --ce
 
 	case reflect.Struct:
 		if _, err := buf.Write(bitcoin.PushNumberScript(int64(id))); err != nil {

@@ -5,22 +5,31 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/tokenized/pkg/bitcoin"
 )
 
 type TestStruct1 struct {
-	IntField                 int               `bsor:"1"`
-	StringField              string            `bsor:"2"`
-	SubStruct                TestSubStruct1    `bsor:"3"`
-	SubStructPtr             *TestSubStruct1   `bsor:"4"`
-	BinaryField              []byte            `bsor:"5"`
-	FixedBinaryField         [4]byte           `bsor:"6"`
-	PointerField             *string           `bsor:"7"`
-	ArrayPrimitiveField      []string          `bsor:"8"`
-	FixedArrayPrimitiveField [2]int            `bsor:"9"`
-	ArrayObjectField         []TestSubStruct1  `bsor:"10"`
-	FixedArrayObjectField    [2]TestSubStruct1 `bsor:"11"`
-	ArrayObjectPtrField      []*TestSubStruct1 `bsor:"12"`
-	ArrayStringPtrField      []*string         `bsor:"13"`
+	IntField                    int                   `bsor:"1"`
+	StringField                 string                `bsor:"2"`
+	SubStruct                   TestSubStruct1        `bsor:"3"`
+	SubStructPtr                *TestSubStruct1       `bsor:"4"`
+	BinaryField                 []byte                `bsor:"5"`
+	FixedBinaryField            [4]byte               `bsor:"6"`
+	PointerField                *string               `bsor:"7"`
+	ArrayPrimitiveField         []string              `bsor:"8"`
+	FixedArrayPrimitiveField    [2]int                `bsor:"9"`
+	ArrayObjectField            []TestSubStruct1      `bsor:"10"`
+	FixedArrayObjectField       [2]TestSubStruct1     `bsor:"11"`
+	ArrayObjectPtrField         []*TestSubStruct1     `bsor:"12"`
+	ArrayStringPtrField         []*string             `bsor:"13"`
+	PublicKeyField              bitcoin.PublicKey     `bsor:"14"`
+	PublicKeyPtrField           *bitcoin.PublicKey    `bsor:"15"`
+	PublicKeyPtrField2          *bitcoin.PublicKey    `bsor:"16"`
+	PublicKeyArrayField         []bitcoin.PublicKey   `bsor:"17"`
+	PublicKeyFixedArrayField    [2]bitcoin.PublicKey  `bsor:"18"`
+	PublicKeyPtrArrayField      []*bitcoin.PublicKey  `bsor:"19"`
+	PublicKeyPtrFixedArrayField [2]*bitcoin.PublicKey `bsor:"20"`
 }
 
 type TestSubStruct1 struct {
@@ -30,6 +39,10 @@ type TestSubStruct1 struct {
 
 func Test_Marshal_TestStruct1(t *testing.T) {
 	stringValue := "string value"
+	key, _ := bitcoin.GenerateKey(bitcoin.MainNet)
+	pubKey := key.PublicKey()
+	key2, _ := bitcoin.GenerateKey(bitcoin.MainNet)
+	pubKey2 := key2.PublicKey()
 
 	tests := []struct {
 		value TestStruct1
@@ -76,6 +89,24 @@ func Test_Marshal_TestStruct1(t *testing.T) {
 				ArrayStringPtrField: []*string{
 					nil,
 					&stringValue,
+				},
+				PublicKeyField:    key.PublicKey(),
+				PublicKeyPtrField: &pubKey,
+				PublicKeyArrayField: []bitcoin.PublicKey{
+					key.PublicKey(),
+					key2.PublicKey(),
+				},
+				PublicKeyFixedArrayField: [2]bitcoin.PublicKey{
+					key.PublicKey(),
+					key2.PublicKey(),
+				},
+				PublicKeyPtrArrayField: []*bitcoin.PublicKey{
+					nil,
+					&pubKey2,
+				},
+				PublicKeyPtrFixedArrayField: [2]*bitcoin.PublicKey{
+					nil,
+					&pubKey2,
 				},
 			},
 		},
