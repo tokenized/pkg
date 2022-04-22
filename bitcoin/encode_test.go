@@ -3,7 +3,6 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"testing"
 )
 
@@ -108,7 +107,7 @@ func TestBase128Signed(t *testing.T) {
 				t.Fatalf("Failed to write : %s", err)
 			}
 
-			fmt.Printf("Bytes : %x\n", w.Bytes())
+			t.Logf("Bytes : %x\n", w.Bytes())
 
 			value, err := ReadBase128VarSignedInt(&w)
 			if err != nil {

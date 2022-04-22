@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 
@@ -76,38 +77,48 @@ func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, erro
 	return &fields, nil
 }
 
-func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
+func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value) error {
 	typ := value.Type()
 	kind := typ.Kind()
 	var valuePtr reflect.Value
 	newValue := value
 	isPtr := false
 	if kind == reflect.Ptr {
-		notNil, err := readInteger(buf)
-		if err != nil {
-			return errors.Wrap(err, "nil")
-		}
-
-		if notNil == 0 {
-			return nil
-		}
-
+		isPtr = true
 		newValue = newValue.Elem()
 		typ = typ.Elem()
 		kind = typ.Kind()
-		isPtr = true
+
+		val := reflect.New(typ)
+		ifacePtr := val.Interface()
+		_, isBinaryUnmarshaler := ifacePtr.(encoding.BinaryUnmarshaler)
+
+		if needsNilIndicator(typ.Kind()) || isBinaryUnmarshaler {
+			nextScriptItem, err := nextScriptItem(scriptItems)
+			if err != nil {
+				return errors.Wrap(err, "number")
+			}
+
+			notNil, err := bitcoin.ScriptNumberValue(nextScriptItem)
+			if err != nil {
+				return errors.Wrap(err, "number")
+			}
+
+			if notNil == 0 {
+				return nil
+			}
+		}
 	}
 
 	if kind != reflect.Struct {
-		return unmarshalPrimitive(buf, value)
+		return unmarshalPrimitive(scriptItems, value)
 	}
 
 	// Check for pointer unmarshaller
 	val := reflect.New(typ)
 	ifacePtr := val.Interface()
 	if binaryUnmarshaler, ok := ifacePtr.(encoding.BinaryUnmarshaler); ok {
-		fmt.Printf("Using pointer binary unmarshaller\n")
-		b, err := readBytes(buf)
+		b, err := readBytes(scriptItems)
 		if err != nil {
 			return errors.Wrapf(err, "bytes")
 		}
@@ -124,13 +135,7 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 		return nil
 	}
 
-	if isPtr {
-		// Special handling is required to create the object for pointer types.
-		valuePtr = reflect.New(typ)
-		newValue = valuePtr.Elem()
-	}
-
-	fieldCount, err := readCount(buf)
+	fieldCount, err := readCount(scriptItems)
 	if err != nil {
 		return errors.Wrap(err, "field count")
 	}
@@ -139,18 +144,24 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 		return nil
 	}
 
+	if isPtr {
+		// Special handling is required to create the object for pointer types.
+		valuePtr = reflect.New(typ)
+		newValue = valuePtr.Elem()
+	}
+
 	fields, err := NewFieldIndexes(typ, newValue)
 	if err != nil {
 		return errors.Wrap(err, "field indexes")
 	}
 
 	for i := 0; i < int(fieldCount); i++ {
-		idItem, err := bitcoin.ParseScript(buf)
+		nextScriptItem, err := nextScriptItem(scriptItems)
 		if err != nil {
-			return errors.Wrap(err, "parse field id")
+			return errors.Wrap(err, "number")
 		}
 
-		id, err := bitcoin.ScriptNumberValue(idItem)
+		id, err := bitcoin.ScriptNumberValue(nextScriptItem)
 		if err != nil {
 			return errors.Wrap(err, "field id number")
 		}
@@ -161,10 +172,9 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 		}
 
 		field := typ.Field(*fieldIndex)
-		fmt.Printf("Unmarshalling %s (%s)\n", field.Name, typeName(field.Type))
 		fieldValue := reflect.New(field.Type) // must use elem to be "assignable"
 
-		if err := unmarshalField(buf, field, fieldValue.Elem()); err != nil {
+		if err := unmarshalField(scriptItems, field, fieldValue.Elem()); err != nil {
 			return errors.Wrapf(err, "unmarshal field: %s (id %d) (%s)", field.Name, id,
 				typeName(field.Type))
 		}
@@ -178,20 +188,20 @@ func unmarshalObject(buf *bytes.Reader, value reflect.Value) error {
 	return nil
 }
 
-func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue reflect.Value) error {
+func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
+	fieldValue reflect.Value) error {
+
 	if !fieldValue.CanInterface() {
 		return nil // not exported, "private" lower case field name
 	}
 
 	kind := field.Type.Kind()
 	if kind == reflect.Ptr {
-		fmt.Printf("Dereferencing pointer\n")
-
 		elem := field.Type.Elem()
 		value := reflect.New(elem)
 
 		if elem.Kind() != reflect.Struct {
-			notNil, err := readInteger(buf)
+			notNil, err := readInteger(scriptItems)
 			if err != nil {
 				return errors.Wrap(err, "nil")
 			}
@@ -200,7 +210,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 				return nil
 			}
 
-			if err := unmarshalPrimitive(buf, value.Elem()); err != nil {
+			if err := unmarshalPrimitive(scriptItems, value.Elem()); err != nil {
 				return errors.Wrap(err, "primitive")
 			}
 
@@ -208,7 +218,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 			return nil
 		}
 
-		if err := unmarshalObject(buf, value.Elem()); err != nil {
+		if err := unmarshalObject(scriptItems, value.Elem()); err != nil {
 			return errors.Wrap(err, "object")
 		}
 
@@ -220,8 +230,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 	// case reflect.Map: // TODO Add map support --ce
 
 	case reflect.Struct:
-		fmt.Printf("Using struct unmarshaller : %s\n", field.Name)
-		if err := unmarshalObject(buf, fieldValue); err != nil {
+		if err := unmarshalObject(scriptItems, fieldValue); err != nil {
 			return errors.Wrap(err, "object")
 		}
 
@@ -231,7 +240,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 		elem := field.Type.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte array (Binary Data)
-			b, err := readBytes(buf)
+			b, err := readBytes(scriptItems)
 			if err != nil {
 				return errors.Wrap(err, "bytes")
 			}
@@ -244,7 +253,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 		ptr := reflect.New(field.Type)
 		array := ptr.Elem()
 		for i := 0; i < fieldValue.Len(); i++ {
-			if err := unmarshalObject(buf, array.Index(int(i))); err != nil {
+			if err := unmarshalObject(scriptItems, array.Index(int(i))); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
 		}
@@ -256,7 +265,7 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 		elem := field.Type.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte slice (Binary Data)
-			b, err := readBytes(buf)
+			b, err := readBytes(scriptItems)
 			if err != nil {
 				return errors.Wrap(err, "bytes")
 			}
@@ -266,14 +275,14 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 		}
 
 		// Array encoding
-		count, err := readCount(buf)
+		count, err := readCount(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "count")
 		}
 
 		slice := reflect.MakeSlice(field.Type, int(count), int(count))
 		for i := uint64(0); i < count; i++ {
-			if err := unmarshalObject(buf, slice.Index(int(i))); err != nil {
+			if err := unmarshalObject(scriptItems, slice.Index(int(i))); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
 		}
@@ -282,15 +291,15 @@ func unmarshalField(buf *bytes.Reader, field reflect.StructField, fieldValue ref
 		return nil
 
 	default:
-		return unmarshalPrimitive(buf, fieldValue)
+		return unmarshalPrimitive(scriptItems, fieldValue)
 	}
 }
 
-func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
+func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value) error {
 	typ := value.Type()
 	switch typ.Kind() {
 	case reflect.String:
-		b, err := readBytes(buf)
+		b, err := readBytes(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "bytes")
 		}
@@ -299,7 +308,7 @@ func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
 		return nil
 
 	case reflect.Bool:
-		v, err := readInteger(buf)
+		v, err := readInteger(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "bool")
 		}
@@ -307,9 +316,8 @@ func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
 		value.SetBool(v != 0)
 		return nil
 
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint,
-		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := readInteger(buf)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v, err := readInteger(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "integer")
 		}
@@ -317,8 +325,17 @@ func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
 		value.SetInt(int64(v))
 		return nil
 
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		v, err := readInteger(scriptItems)
+		if err != nil {
+			return errors.Wrap(err, "integer")
+		}
+
+		value.SetUint(v)
+		return nil
+
 	case reflect.Float32:
-		val, err := readFloat32(buf)
+		val, err := readFloat32(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "float32")
 		}
@@ -327,7 +344,7 @@ func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
 		return nil
 
 	case reflect.Float64:
-		val, err := readFloat64(buf)
+		val, err := readFloat64(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "float64")
 		}
@@ -340,7 +357,7 @@ func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
 		valuePtr := reflect.New(typ.Elem())
 		newValue := valuePtr.Elem()
 
-		if err := unmarshalObject(buf, newValue); err != nil {
+		if err := unmarshalObject(scriptItems, newValue); err != nil {
 			return errors.Wrap(err, "pointer")
 		}
 
@@ -361,24 +378,20 @@ func unmarshalPrimitive(buf *bytes.Reader, value reflect.Value) error {
 	}
 }
 
-func readID(buf *bytes.Reader) (uint64, error) {
-	item, err := bitcoin.ParseScript(buf)
-	if err != nil {
-		return 0, errors.Wrap(err, "parse")
+func nextScriptItem(scriptItems *bitcoin.ScriptItems) (*bitcoin.ScriptItem, error) {
+	if len(*scriptItems) == 0 {
+		return nil, io.EOF
 	}
 
-	id, err := bitcoin.ScriptNumberValue(item)
-	if err != nil {
-		return 0, errors.Wrap(err, "number")
-	}
-
-	return uint64(id), nil
+	result := (*scriptItems)[0]
+	*scriptItems = (*scriptItems)[1:]
+	return result, nil
 }
 
-func readCount(buf *bytes.Reader) (uint64, error) {
-	item, err := bitcoin.ParseScript(buf)
+func readCount(scriptItems *bitcoin.ScriptItems) (uint64, error) {
+	item, err := nextScriptItem(scriptItems)
 	if err != nil {
-		return 0, errors.Wrap(err, "parse")
+		return 0, err
 	}
 
 	count, err := bitcoin.ScriptNumberValue(item)
@@ -389,10 +402,10 @@ func readCount(buf *bytes.Reader) (uint64, error) {
 	return uint64(count), nil
 }
 
-func readBytes(buf *bytes.Reader) ([]byte, error) {
-	item, err := bitcoin.ParseScript(buf)
+func readBytes(scriptItems *bitcoin.ScriptItems) ([]byte, error) {
+	item, err := nextScriptItem(scriptItems)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse script")
+		return nil, err
 	}
 
 	switch item.Type {
@@ -407,10 +420,10 @@ func readBytes(buf *bytes.Reader) ([]byte, error) {
 	}
 }
 
-func readInteger(buf *bytes.Reader) (uint64, error) {
-	item, err := bitcoin.ParseScript(buf)
+func readInteger(scriptItems *bitcoin.ScriptItems) (uint64, error) {
+	item, err := nextScriptItem(scriptItems)
 	if err != nil {
-		return 0, errors.Wrap(err, "parse script")
+		return 0, err
 	}
 
 	value, err := bitcoin.ScriptNumberValue(item)
@@ -421,8 +434,8 @@ func readInteger(buf *bytes.Reader) (uint64, error) {
 	return uint64(value), nil
 }
 
-func readFloat32(buf *bytes.Reader) (float32, error) {
-	b, err := readBytes(buf)
+func readFloat32(scriptItems *bitcoin.ScriptItems) (float32, error) {
+	b, err := readBytes(scriptItems)
 	if err != nil {
 		return 0.0, errors.Wrap(err, "bytes")
 	}
@@ -435,8 +448,8 @@ func readFloat32(buf *bytes.Reader) (float32, error) {
 	return val, nil
 }
 
-func readFloat64(buf *bytes.Reader) (float64, error) {
-	b, err := readBytes(buf)
+func readFloat64(scriptItems *bitcoin.ScriptItems) (float64, error) {
+	b, err := readBytes(scriptItems)
 	if err != nil {
 		return 0.0, errors.Wrap(err, "bytes")
 	}

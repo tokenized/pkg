@@ -13,75 +13,70 @@ import (
 	"github.com/pkg/errors"
 )
 
-func marshalObject(buf *bytes.Buffer, object interface{}) error {
+func marshalObject(object interface{}) (bitcoin.ScriptItems, error) {
+	binaryMarshaler, isBinaryMarshaler := object.(encoding.BinaryMarshaler)
 	value := reflect.ValueOf(object)
 	typ := value.Type()
 	kind := typ.Kind()
+	var result bitcoin.ScriptItems
 	if kind == reflect.Ptr {
-		if value.IsNil() {
-			if err := writeOpCode(buf, bitcoin.OP_FALSE); err != nil {
-				return errors.Wrap(err, "is nil")
-			}
+		typ = typ.Elem()
+		kind = typ.Kind()
 
-			return nil
-		} else {
-			if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
-				return errors.Wrap(err, "is not nil")
-			}
+		if value.IsNil() {
+			return bitcoin.ScriptItems{bitcoin.NewOpCodeScriptItem(bitcoin.OP_FALSE)}, nil
+		}
+
+		if needsNilIndicator(kind) || isBinaryMarshaler {
+			result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
 		}
 
 		value = value.Elem()
-		typ = typ.Elem()
-		kind = typ.Kind()
 	}
 
 	if kind != reflect.Struct {
-		return marshalPrimitive(buf, kind, value.Interface())
+		primitiveScriptItems, err := marshalPrimitive(kind, value.Interface())
+		if err != nil {
+			return nil, errors.Wrap(err, "primitive")
+		}
+
+		return append(result, primitiveScriptItems...), nil
 	}
 
-	if binaryMarshaler, ok := object.(encoding.BinaryMarshaler); ok {
-		fmt.Printf("Using binary marshaller\n")
+	if isBinaryMarshaler {
 		b, err := binaryMarshaler.MarshalBinary()
 		if err != nil {
-			return errors.Wrapf(err, "binary marshal")
+			return nil, errors.Wrapf(err, "binary marshal")
 		}
 
-		if len(b) == 0 {
-			return nil
-		}
+		// if len(b) == 0 {
+		// 	return pushOpCount, nil
+		// }
 
-		if err := writeBytes(buf, b); err != nil {
-			return errors.Wrap(err, "bytes")
-		}
-
-		return nil
+		return append(result, bitcoin.NewPushDataScriptItem(b)), nil
 	}
 
 	objectFieldCount := typ.NumField()
 
 	var fieldCount int64 // number of fields marshalled into the script
-	fieldBuf := &bytes.Buffer{}
+	var fieldsScriptItems bitcoin.ScriptItems
 	for i := 0; i < objectFieldCount; i++ {
 		field := typ.Field(i)
 		fieldValue := value.Field(i)
 
-		if wasAdded, err := marshalField(fieldBuf, field, fieldValue); err != nil {
-			return errors.Wrapf(err, "marshal field: %s (%s)", field.Name,
+		fieldScriptItems, err := marshalField(field, fieldValue)
+		if err != nil {
+			return nil, errors.Wrapf(err, "marshal field: %s (%s)", field.Name,
 				typeName(field.Type))
-		} else if wasAdded {
+		} else if len(fieldScriptItems) > 0 {
 			fieldCount++
+			fieldsScriptItems = append(fieldsScriptItems, fieldScriptItems...)
 		}
 	}
 
-	if _, err := buf.Write(bitcoin.PushNumberScript(fieldCount)); err != nil {
-		return errors.Wrap(err, "write field count")
-	}
-
-	if _, err := buf.Write(fieldBuf.Bytes()); err != nil {
-		return errors.Wrap(err, "write fields")
-	}
-
-	return nil
+	result = append(result, bitcoin.PushNumberScriptItem(fieldCount))
+	result = append(result, fieldsScriptItems...)
+	return result, nil
 }
 
 func typeName(typ reflect.Type) string {
@@ -96,88 +91,93 @@ func typeName(typ reflect.Type) string {
 	}
 }
 
-func marshalField(buf *bytes.Buffer, field reflect.StructField,
-	fieldValue reflect.Value) (bool, error) {
+func needsNilIndicator(kind reflect.Kind) bool {
+	switch kind {
+	case reflect.Slice, reflect.Struct:
+		return false
+	default:
+		return true
+	}
+}
+
+func marshalField(field reflect.StructField,
+	fieldValue reflect.Value) (bitcoin.ScriptItems, error) {
 
 	if !fieldValue.CanInterface() {
-		return false, nil // not exported, "private" lower case field name
+		return nil, nil // not exported, "private" lower case field name
 	}
 	iface := fieldValue.Interface()
 
 	idString := field.Tag.Get("bsor")
 	if len(idString) == 0 {
-		return false, errors.Wrap(ErrInvalidID, "missing \"bsor\" tag")
+		return nil, errors.Wrap(ErrInvalidID, "missing \"bsor\" tag")
 	}
 
 	if idString == "-" {
-		return false, nil // this field was explicitly excluded from BSOR data
+		return nil, nil // this field was explicitly excluded from BSOR data
 	}
 
 	id, err := strconv.ParseUint(idString, 10, 64)
 	if err != nil {
-		return false, errors.Wrapf(ErrInvalidID, "bsor tag invalid integer: \"%s\"", idString)
+		return nil, errors.Wrapf(ErrInvalidID, "bsor tag invalid integer: \"%s\"", idString)
 	}
 
 	if id == 0 {
-		return false, errors.Wrapf(ErrInvalidID, "bsor tag can't be zero: \"%s\"", idString)
+		return nil, errors.Wrapf(ErrInvalidID, "bsor tag can't be zero: \"%s\"", idString)
 	}
 
 	if fieldValue.IsZero() {
-		return false, nil // zero value / empty field
+		return nil, nil // zero value / empty field
 	}
 
 	switch field.Type.Kind() {
 	case reflect.Ptr:
 		elem := fieldValue.Elem()
 		if !elem.CanInterface() {
-			return false, nil // not exported, "private" lower case field name
+			return nil, nil // not exported, "private" lower case field name
 		}
+
+		if fieldValue.IsNil() {
+			return nil, nil // null
+		}
+
+		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
 		if elem.Kind() != reflect.Struct {
-			if err := writeID(buf, id); err != nil {
-				return false, errors.Wrap(err, "id")
-			}
-
 			if fieldValue.IsNil() {
-				if err := writeOpCode(buf, bitcoin.OP_FALSE); err != nil {
-					return false, errors.Wrap(err, "nil")
-				}
+				result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_FALSE))
 			} else {
-				if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
-					return false, errors.Wrap(err, "not nil")
-				}
+				result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
 			}
 
-			return true, marshalPrimitive(buf, elem.Kind(), elem.Interface())
+			primitiveScriptItems, err := marshalPrimitive(elem.Kind(), elem.Interface())
+			if err != nil {
+				return nil, errors.Wrap(err, "primitive")
+			}
+
+			return append(result, primitiveScriptItems...), nil
 		}
 
-		if _, err := buf.Write(bitcoin.PushNumberScript(int64(id))); err != nil {
-			return false, errors.Wrap(err, "id")
+		objectScriptItems, err := marshalObject(elem.Interface())
+		if err != nil {
+			return nil, errors.Wrap(err, "struct")
 		}
 
-		if err := marshalObject(buf, elem.Interface()); err != nil {
-			return false, errors.Wrap(err, "marshal struct")
-		}
-
-		return true, nil
+		return append(result, objectScriptItems...), nil
 
 	// case reflect.Map: // TODO Add map support --ce
 
 	case reflect.Struct:
-		if _, err := buf.Write(bitcoin.PushNumberScript(int64(id))); err != nil {
-			return false, errors.Wrap(err, "id")
+		objectScriptItems, err := marshalObject(iface)
+		if err != nil {
+			return nil, errors.Wrap(err, "struct")
 		}
 
-		if err := marshalObject(buf, iface); err != nil {
-			return false, errors.Wrap(err, "marshal struct")
-		}
-
-		return true, nil
+		return append(bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))},
+			objectScriptItems...), nil
 
 	case reflect.Array:
-		if err := writeID(buf, id); err != nil {
-			return false, errors.Wrap(err, "id")
-		}
+		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
 		elem := field.Type.Elem()
 		switch elem.Kind() {
@@ -187,34 +187,15 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 			b := make([]byte, l)
 			for i := 0; i < l; i++ {
 				index := fieldValue.Index(i)
-
-				if index.Kind() == reflect.Ptr {
-					if index.IsNil() {
-						if err := writeOpCode(buf, bitcoin.OP_FALSE); err != nil {
-							return false, errors.Wrap(err, "nil")
-						}
-
-						continue
-					} else {
-						if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
-							return false, errors.Wrap(err, "not nil")
-						}
-					}
-				}
-
 				indexInterface := index.Interface()
 				val, ok := indexInterface.(byte)
 				if !ok {
-					return false, errors.Wrap(ErrValueConversion, "byte array index")
+					return nil, errors.Wrap(ErrValueConversion, "byte array index")
 				}
 				b[i] = val
 			}
 
-			if err := writeBytes(buf, b); err != nil {
-				return false, errors.Wrap(err, "bytes")
-			}
-
-			return true, nil
+			return append(result, bitcoin.NewPushDataScriptItem(b)), nil
 		}
 
 		// Fixed Size Array encoding
@@ -222,283 +203,192 @@ func marshalField(buf *bytes.Buffer, field reflect.StructField,
 		l := fieldValue.Len()
 		for i := 0; i < l; i++ {
 			index := fieldValue.Index(i)
-			if err := marshalObject(buf, index.Interface()); err != nil {
-				return false, errors.Wrapf(err, "write item %d", i)
+			objectScriptItems, err := marshalObject(index.Interface())
+			if err != nil {
+				return nil, errors.Wrapf(err, "write item %d", i)
 			}
+
+			result = append(result, objectScriptItems...)
 		}
 
-		return true, nil
+		return result, nil
 
 	case reflect.Slice:
-		if err := writeID(buf, id); err != nil {
-			return false, errors.Wrap(err, "id")
-		}
+		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
 		elem := field.Type.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte slice (Binary Data)
-			if err := writeBytes(buf, fieldValue.Bytes()); err != nil {
-				return false, errors.Wrap(err, "bytes")
-			}
-
-			return true, nil
+			return append(result, bitcoin.NewPushDataScriptItem(fieldValue.Bytes())), nil
 		}
 
 		// Array encoding
-		if err := writeCount(buf, uint64(fieldValue.Len())); err != nil {
-			return false, errors.Wrap(err, "write count")
-		}
+		result = append(result, bitcoin.PushNumberScriptItem(int64(fieldValue.Len())))
 
 		l := fieldValue.Len()
 		for i := 0; i < l; i++ {
 			index := fieldValue.Index(i)
-			if err := marshalObject(buf, index.Interface()); err != nil {
-				return false, errors.Wrapf(err, "write item %d", i)
+			objectScriptItems, err := marshalObject(index.Interface())
+			if err != nil {
+				return nil, errors.Wrapf(err, "write item %d", i)
 			}
+
+			result = append(result, objectScriptItems...)
 		}
 
-		return true, nil
+		return result, nil
 
 	default:
-		if err := writeID(buf, id); err != nil {
-			return false, errors.Wrap(err, "id")
+		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
+
+		primitiveScriptItems, err := marshalPrimitive(field.Type.Kind(), iface)
+		if err != nil {
+			return nil, errors.Wrap(err, "primitive")
 		}
 
-		return true, marshalPrimitive(buf, field.Type.Kind(), iface)
+		return append(result, primitiveScriptItems...), nil
 	}
 }
 
-func marshalPrimitive(buf *bytes.Buffer, kind reflect.Kind, object interface{}) error {
+func marshalPrimitive(kind reflect.Kind, object interface{}) (bitcoin.ScriptItems, error) {
+	var result bitcoin.ScriptItems
 	switch kind {
 	case reflect.Ptr:
 		typ := reflect.TypeOf(object)
-		return marshalPrimitive(buf, typ.Elem().Kind(), object)
+		value := reflect.ValueOf(object)
+		elemKind := typ.Elem().Kind()
+		if !value.IsNil() && needsNilIndicator(elemKind) {
+			result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
+		}
+
+		primitiveScriptItems, err := marshalPrimitive(elemKind, object)
+		if err != nil {
+			return nil, errors.Wrap(err, "ptr")
+		}
+
+		return append(result, primitiveScriptItems...), err
 
 	case reflect.String:
 		value, ok := object.(string)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeBytes(buf, []byte(value)); err != nil {
-			return errors.Wrap(err, "bytes")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.NewPushDataScriptItem([]byte(value))}, nil
 
 	case reflect.Bool:
 		// IsZero was already checked above so we know it is a true boolean value.
-		if err := writeOpCode(buf, bitcoin.OP_TRUE); err != nil {
-			return errors.Wrap(err, "op code")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE)}, nil
 
 	case reflect.Int:
 		value, ok := object.(int)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Int8:
 		value, ok := object.(int8)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Int16:
 		value, ok := object.(int16)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Int32:
 		value, ok := object.(int32)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Int64:
 		value, ok := object.(int64)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, value); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Uint:
 		value, ok := object.(uint)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Uint8:
 		value, ok := object.(uint8)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Uint16:
 		value, ok := object.(uint16)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Uint32:
 		value, ok := object.(uint32)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Uint64:
 		value, ok := object.(uint64)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeInteger(buf, int64(value)); err != nil {
-			return errors.Wrap(err, "integer")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
 
 	case reflect.Float32:
 		value, ok := object.(float32)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeFloat32(buf, value); err != nil {
-			return errors.Wrap(err, "float32")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{float32ScriptItem(value)}, nil
 
 	case reflect.Float64:
 		value, ok := object.(float64)
 		if !ok {
-			return ErrValueConversion
+			return nil, ErrValueConversion
 		}
 
-		if err := writeFloat64(buf, value); err != nil {
-			return errors.Wrap(err, "float64")
-		}
-
-		return nil
+		return bitcoin.ScriptItems{float64ScriptItem(value)}, nil
 
 	default:
-		return errors.Wrap(ErrValueConversion, "unknown type")
+		return nil, errors.Wrap(ErrValueConversion, "unknown type")
 	}
 }
 
-func writeID(buf *bytes.Buffer, id uint64) error {
-	_, err := buf.Write(bitcoin.PushNumberScript(int64(id)))
-	return err
+func float32ScriptItem(value float32) *bitcoin.ScriptItem {
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.LittleEndian, value)
+	return bitcoin.NewPushDataScriptItem(buf.Bytes())
 }
 
-func writeCount(buf *bytes.Buffer, count uint64) error {
-	_, err := buf.Write(bitcoin.PushNumberScript(int64(count)))
-	return err
-}
-
-func writeOpCode(buf *bytes.Buffer, value byte) error {
-	if _, err := buf.Write([]byte{value}); err != nil {
-		return errors.Wrap(err, "value")
-	}
-
-	return nil
-}
-
-func writeBytes(buf *bytes.Buffer, value []byte) error {
-	if err := bitcoin.WritePushDataScript(buf, value); err != nil {
-		return errors.Wrap(err, "value")
-	}
-
-	return nil
-}
-
-func writeInteger(buf *bytes.Buffer, value int64) error {
-	if _, err := buf.Write(bitcoin.PushNumberScript(value)); err != nil {
-		return errors.Wrap(err, "value")
-	}
-
-	return nil
-}
-
-func writeFloat32(buf *bytes.Buffer, value float32) error {
-	dataBuf := &bytes.Buffer{}
-	if err := binary.Write(dataBuf, binary.LittleEndian, value); err != nil {
-		return errors.Wrap(err, "binary")
-	}
-
-	if err := bitcoin.WritePushDataScript(buf, dataBuf.Bytes()); err != nil {
-		return errors.Wrap(err, "value")
-	}
-
-	return nil
-}
-
-func writeFloat64(buf *bytes.Buffer, value float64) error {
-	dataBuf := &bytes.Buffer{}
-	if err := binary.Write(dataBuf, binary.LittleEndian, value); err != nil {
-		return errors.Wrap(err, "binary")
-	}
-
-	if err := bitcoin.WritePushDataScript(buf, dataBuf.Bytes()); err != nil {
-		return errors.Wrap(err, "value")
-	}
-
-	return nil
+func float64ScriptItem(value float64) *bitcoin.ScriptItem {
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.LittleEndian, value)
+	return bitcoin.NewPushDataScriptItem(buf.Bytes())
 }

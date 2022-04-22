@@ -8,6 +8,7 @@ require (
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e // indirect
 	github.com/davecgh/go-spew v1.1.1
+	github.com/go-test/deep v1.0.8
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/websocket v1.4.2

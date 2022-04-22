@@ -72,7 +72,8 @@ func (k *PublicKey) SetString(s string) error {
 // SetBytes decodes the key from bytes.
 func (k *PublicKey) SetBytes(b []byte) error {
 	if len(b) != PublicKeyCompressedLength {
-		return errors.New("Invalid public key length")
+		return fmt.Errorf("Invalid public key length : got %d, want %d", len(b),
+			PublicKeyCompressedLength)
 	}
 
 	x, y := expandPublicKey(b)

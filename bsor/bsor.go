@@ -1,7 +1,6 @@
 package bsor
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 
@@ -16,30 +15,31 @@ var (
 	ErrValueConversion = errors.New("Value Conversion")
 )
 
-func Marshal(object interface{}) (bitcoin.Script, error) {
-	buf := &bytes.Buffer{}
-	if err := marshalObject(buf, object); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+func Marshal(object interface{}) (bitcoin.ScriptItems, error) {
+	return marshalObject(object)
 }
 
-func Unmarshal(script bitcoin.Script, object interface{}) error {
+// Unmarshal reads the object from the scrip items and returns any script items remaining after the
+// object has been parsed.
+func Unmarshal(scriptItems bitcoin.ScriptItems, object interface{}) (bitcoin.ScriptItems, error) {
 	objectType := reflect.TypeOf(object)
 	objectValue := reflect.ValueOf(object)
 	if objectType.Kind() != reflect.Ptr {
-		return fmt.Errorf("Unmarshal object is not a ptr: %s", objectType.Name())
+		return nil, fmt.Errorf("Unmarshal object is not a ptr: %s", objectType.Name())
 	}
 	if objectValue.IsNil() {
-		return errors.New("Unmarshal object is nil")
+		return nil, errors.New("Unmarshal object is nil")
 	}
 
 	objectType = objectType.Elem()
 	objectValue = objectValue.Elem()
 	if objectType.Kind() != reflect.Struct {
-		return fmt.Errorf("Unmarshal object is not a struct: %s", objectType.Kind())
+		return nil, fmt.Errorf("Unmarshal object is not a struct: %s", objectType.Kind())
 	}
 
-	return unmarshalObject(bytes.NewReader(script), objectValue)
+	if err := unmarshalObject(&scriptItems, objectValue); err != nil {
+		return nil, errors.Wrap(err, "object")
+	}
+
+	return scriptItems, nil
 }

@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
+
+	"github.com/go-test/deep"
 )
 
 type TestStruct1 struct {
@@ -117,23 +119,34 @@ func Test_Marshal_TestStruct1(t *testing.T) {
 			js, _ := json.MarshalIndent(tt.value, "", "  ")
 			t.Logf("Struct : %s", js)
 
-			script, err := Marshal(tt.value)
+			scriptItems, err := Marshal(tt.value)
 			if err != nil {
 				t.Fatalf("Failed to marshal struct : %s", err)
 			}
 
+			script, err := scriptItems.Script()
+			if err != nil {
+				t.Fatalf("Failed to create script : %s", err)
+			}
+
 			t.Logf("Script : %s", script)
+			t.Logf("Created push ops : %d", len(scriptItems))
 
 			read := &TestStruct1{}
-			if err := Unmarshal(script, read); err != nil {
+			scriptItems, err = Unmarshal(scriptItems, read)
+			if err != nil {
 				t.Fatalf("Failed to unmarshal script : %s", err)
+			}
+
+			if len(scriptItems) != 0 {
+				t.Errorf("No script items should be remaining : %d", len(scriptItems))
 			}
 
 			js, _ = json.MarshalIndent(read, "", "  ")
 			t.Logf("Unmarshalled Struct : %s", js)
 
 			if !reflect.DeepEqual(tt.value, *read) {
-				t.Errorf("Unmarshalled value not equal")
+				t.Errorf("Unmarshalled value not equal : %v", deep.Equal(*read, tt.value))
 			}
 		})
 	}

@@ -484,7 +484,6 @@ func signRFC6979(pk big.Int, hash []byte) (Signature, error) {
 // nonceRFC6979 generates an ECDSA nonce (`k`) deterministically according to RFC 6979.
 // It takes a 32-byte hash as an input and returns 32-byte nonce to be used in ECDSA algorithm.
 func nonceRFC6979(pk big.Int, hash []byte) *big.Int {
-
 	q := curveS256Params.N
 	alg := sha256.New
 

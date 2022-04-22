@@ -95,7 +95,7 @@ var (
 	ErrInvalidScriptItemType = errors.New("Invalid Script Item Type")
 
 	byteToNames = map[byte]string{
-		OP_FALSE:              "OP_FALSE",
+		OP_0:                  "OP_0",
 		OP_1NEGATE:            "OP_1NEGATE",
 		OP_1:                  "OP_1",
 		OP_2:                  "OP_2",
@@ -187,6 +187,8 @@ type ScriptItem struct {
 	Data   Hex
 }
 
+type ScriptItems []*ScriptItem
+
 type Script []byte
 
 func (item ScriptItem) String() string {
@@ -202,6 +204,133 @@ func (item ScriptItem) String() string {
 
 	// Undefined op code
 	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode}))
+}
+
+func ParseScriptItems(buf *bytes.Reader, count int) (ScriptItems, error) {
+	if count == -1 {
+		// Read all
+		var result ScriptItems
+		i := 0
+		for buf.Len() > 0 {
+			item, err := ParseScript(buf)
+			if err != nil {
+				return nil, errors.Wrapf(err, "item %d", i)
+			}
+
+			result = append(result, item)
+			i++
+		}
+
+		return result, nil
+	}
+
+	result := make(ScriptItems, count)
+	for i := range result {
+		item, err := ParseScript(buf)
+		if err != nil {
+			return nil, errors.Wrapf(err, "item %d", i)
+		}
+
+		result[i] = item
+	}
+
+	return result, nil
+}
+
+func NewOpCodeScriptItem(opCode byte) *ScriptItem {
+	return &ScriptItem{
+		Type:   ScriptItemTypeOpCode,
+		OpCode: opCode,
+	}
+}
+
+func NewPushDataScriptItem(b []byte) *ScriptItem {
+	return &ScriptItem{
+		Type: ScriptItemTypePushData,
+		Data: b,
+	}
+}
+
+func (item ScriptItem) Script() (Script, error) {
+	buf := &bytes.Buffer{}
+	switch item.Type {
+	case ScriptItemTypeOpCode:
+		if _, err := buf.Write([]byte{item.OpCode}); err != nil {
+			return nil, errors.Wrap(err, "op code")
+		}
+
+	case ScriptItemTypePushData:
+		if err := WritePushDataScript(buf, item.Data); err != nil {
+			return nil, errors.Wrap(err, "data")
+		}
+
+	default:
+		return nil, errors.Wrapf(ErrInvalidScriptItemType, "%d", item.Type)
+	}
+
+	return Script(buf.Bytes()), nil
+}
+
+func (item ScriptItem) Write(w io.Writer) error {
+	switch item.Type {
+	case ScriptItemTypeOpCode:
+		if _, err := w.Write([]byte{item.OpCode}); err != nil {
+			return errors.Wrap(err, "op code")
+		}
+
+	case ScriptItemTypePushData:
+		if err := WritePushDataScript(w, item.Data); err != nil {
+			return errors.Wrap(err, "data")
+		}
+
+	default:
+		return errors.Wrapf(ErrInvalidScriptItemType, "%d", item.Type)
+	}
+
+	return nil
+}
+
+func (items ScriptItems) Script() (Script, error) {
+	buf := &bytes.Buffer{}
+	for i, item := range items {
+		switch item.Type {
+		case ScriptItemTypeOpCode:
+			if _, err := buf.Write([]byte{item.OpCode}); err != nil {
+				return nil, errors.Wrapf(err, "item %d: op code", i)
+			}
+
+		case ScriptItemTypePushData:
+			if err := WritePushDataScript(buf, item.Data); err != nil {
+				return nil, errors.Wrapf(err, "item %d: data", i)
+			}
+
+		default:
+			return nil, errors.Wrapf(ErrInvalidScriptItemType, "item %d: data", i)
+		}
+	}
+
+	return Script(buf.Bytes()), nil
+}
+
+func (items ScriptItems) Write(w io.Writer) error {
+	for i, item := range items {
+		switch item.Type {
+		case ScriptItemTypeOpCode:
+			if _, err := w.Write([]byte{item.OpCode}); err != nil {
+				return errors.Wrapf(err, "item %d: op code", i)
+			}
+
+		case ScriptItemTypePushData:
+			if err := WritePushDataScript(w, item.Data); err != nil {
+				return errors.Wrapf(err, "item %d: data", i)
+			}
+
+		default:
+			return errors.Wrapf(ErrInvalidScriptItemType, "item %d: data", i)
+		}
+	}
+
+	return nil
 }
 
 func NewScript(b []byte) Script {
@@ -540,46 +669,32 @@ func PushDataScriptSize(size uint64) []byte {
 }
 
 // PushDataScript writes a push data bitcoin script including the encoded size preceding it.
-func WritePushDataScript(buf *bytes.Buffer, data []byte) error {
+func WritePushDataScript(w io.Writer, data []byte) error {
 	size := len(data)
 	var err error
 	if size <= int(OP_MAX_SINGLE_BYTE_PUSH_DATA) {
-		_, err = buf.Write([]byte{byte(size)}) // Single byte push
+		_, err = w.Write([]byte{byte(size)}) // Single byte push
 	} else if size < int(OP_PUSH_DATA_1_MAX) {
-		_, err = buf.Write([]byte{OP_PUSH_DATA_1, byte(size)})
+		_, err = w.Write([]byte{OP_PUSH_DATA_1, byte(size)})
 	} else if size < int(OP_PUSH_DATA_2_MAX) {
-		_, err = buf.Write([]byte{OP_PUSH_DATA_2})
+		_, err = w.Write([]byte{OP_PUSH_DATA_2})
 		if err != nil {
 			return err
 		}
-		err = binary.Write(buf, endian, uint16(size))
+		err = binary.Write(w, endian, uint16(size))
 	} else {
-		_, err = buf.Write([]byte{OP_PUSH_DATA_4})
+		_, err = w.Write([]byte{OP_PUSH_DATA_4})
 		if err != nil {
 			return err
 		}
-		err = binary.Write(buf, endian, uint32(size))
+		err = binary.Write(w, endian, uint32(size))
 	}
 	if err != nil {
 		return err
 	}
 
-	_, err = buf.Write(data)
+	_, err = w.Write(data)
 	return err
-}
-
-func (s *ScriptItem) Write(buf *bytes.Buffer) error {
-	switch s.Type {
-	case ScriptItemTypeOpCode:
-		_, err := buf.Write([]byte{s.OpCode})
-		return err
-
-	case ScriptItemTypePushData:
-		return WritePushDataScript(buf, s.Data)
-
-	default:
-		return errors.Wrapf(ErrInvalidScriptItemType, "%d", s.Type)
-	}
 }
 
 // ParseScript will parse the next item of a bitcoin script.
@@ -799,20 +914,20 @@ func ParsePushDataScript(buf *bytes.Reader) (uint8, []byte, error) {
 //    -32767 -> [0xff 0xff]
 //     32768 -> [0x00 0x80 0x00]
 //    -32768 -> [0x00 0x80 0x80]
-func PushNumberScript(n int64) Script {
+func PushNumberScriptItem(n int64) *ScriptItem {
 	// OP_FALSE, OP_0
 	if n == 0 {
-		return Script{0x00}
+		return NewOpCodeScriptItem(OP_0)
 	}
 
 	// OP_1NEGATE
 	if n == -1 {
-		return Script{0x4f}
+		return NewOpCodeScriptItem(OP_1NEGATE)
 	}
 
 	// Single byte number push op codes
 	if n > 0 && n <= 16 {
-		return Script{0x50 + byte(n)}
+		return NewOpCodeScriptItem(0x50 + byte(n))
 	}
 
 	// Take the absolute value and keep track of whether it was originally
@@ -848,8 +963,13 @@ func PushNumberScript(n int64) Script {
 		result[len(result)-1] |= 0x80
 	}
 
-	// Push this value onto the stack (single byte push op)
-	return append(Script{byte(len(result))}, result...)
+	return NewPushDataScriptItem(result)
+}
+
+func PushNumberScript(n int64) Script {
+	item := PushNumberScriptItem(n)
+	script, _ := item.Script()
+	return script
 }
 
 // ScriptNumberValue returns the number value given the op code or push data returned from
