@@ -16,7 +16,7 @@ var (
 )
 
 func Marshal(object interface{}) (bitcoin.ScriptItems, error) {
-	return marshalObject(object)
+	return marshalObject(object, false)
 }
 
 // Unmarshal reads the object from the scrip items and returns any script items remaining after the
@@ -37,7 +37,7 @@ func Unmarshal(scriptItems bitcoin.ScriptItems, object interface{}) (bitcoin.Scr
 		return nil, fmt.Errorf("Unmarshal object is not a struct: %s", objectType.Kind())
 	}
 
-	if err := unmarshalObject(&scriptItems, objectValue); err != nil {
+	if err := unmarshalObject(&scriptItems, objectValue, false); err != nil {
 		return nil, errors.Wrap(err, "object")
 	}
 

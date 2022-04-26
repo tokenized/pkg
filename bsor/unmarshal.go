@@ -77,7 +77,7 @@ func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, erro
 	return &fields, nil
 }
 
-func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value) error {
+func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inArray bool) error {
 	typ := value.Type()
 	kind := typ.Kind()
 	var valuePtr reflect.Value
@@ -93,13 +93,8 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value) erro
 		ifacePtr := val.Interface()
 		_, isBinaryUnmarshaler := ifacePtr.(encoding.BinaryUnmarshaler)
 
-		if needsNilIndicator(typ.Kind()) || isBinaryUnmarshaler {
-			nextScriptItem, err := nextScriptItem(scriptItems)
-			if err != nil {
-				return errors.Wrap(err, "number")
-			}
-
-			notNil, err := bitcoin.ScriptNumberValue(nextScriptItem)
+		if inArray || isBinaryUnmarshaler {
+			notNil, err := readInteger(scriptItems)
 			if err != nil {
 				return errors.Wrap(err, "number")
 			}
@@ -111,7 +106,7 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value) erro
 	}
 
 	if kind != reflect.Struct {
-		return unmarshalPrimitive(scriptItems, value)
+		return unmarshalPrimitive(scriptItems, value, inArray)
 	}
 
 	// Check for pointer unmarshaller
@@ -201,16 +196,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		value := reflect.New(elem)
 
 		if elem.Kind() != reflect.Struct {
-			notNil, err := readInteger(scriptItems)
-			if err != nil {
-				return errors.Wrap(err, "nil")
-			}
-
-			if notNil == 0 {
-				return nil
-			}
-
-			if err := unmarshalPrimitive(scriptItems, value.Elem()); err != nil {
+			if err := unmarshalPrimitive(scriptItems, value.Elem(), false); err != nil {
 				return errors.Wrap(err, "primitive")
 			}
 
@@ -218,7 +204,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 			return nil
 		}
 
-		if err := unmarshalObject(scriptItems, value.Elem()); err != nil {
+		if err := unmarshalObject(scriptItems, value.Elem(), false); err != nil {
 			return errors.Wrap(err, "object")
 		}
 
@@ -230,7 +216,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 	// case reflect.Map: // TODO Add map support --ce
 
 	case reflect.Struct:
-		if err := unmarshalObject(scriptItems, fieldValue); err != nil {
+		if err := unmarshalObject(scriptItems, fieldValue, false); err != nil {
 			return errors.Wrap(err, "object")
 		}
 
@@ -253,7 +239,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		ptr := reflect.New(field.Type)
 		array := ptr.Elem()
 		for i := 0; i < fieldValue.Len(); i++ {
-			if err := unmarshalObject(scriptItems, array.Index(int(i))); err != nil {
+			if err := unmarshalObject(scriptItems, array.Index(int(i)), true); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
 		}
@@ -282,7 +268,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 
 		slice := reflect.MakeSlice(field.Type, int(count), int(count))
 		for i := uint64(0); i < count; i++ {
-			if err := unmarshalObject(scriptItems, slice.Index(int(i))); err != nil {
+			if err := unmarshalObject(scriptItems, slice.Index(int(i)), true); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
 		}
@@ -291,11 +277,11 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		return nil
 
 	default:
-		return unmarshalPrimitive(scriptItems, fieldValue)
+		return unmarshalPrimitive(scriptItems, fieldValue, false)
 	}
 }
 
-func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value) error {
+func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, inArray bool) error {
 	typ := value.Type()
 	switch typ.Kind() {
 	case reflect.String:
@@ -357,7 +343,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value) e
 		valuePtr := reflect.New(typ.Elem())
 		newValue := valuePtr.Elem()
 
-		if err := unmarshalObject(scriptItems, newValue); err != nil {
+		if err := unmarshalObject(scriptItems, newValue, inArray); err != nil {
 			return errors.Wrap(err, "pointer")
 		}
 
