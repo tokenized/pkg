@@ -77,7 +77,7 @@ func (k *PublicKey) SetBytes(b []byte) error {
 
 	x, y := expandPublicKey(b)
 	if err := publicKeyIsValid(x, y); err != nil {
-		return err
+		return errors.Wrapf(err, "%x", b)
 	}
 	k.X = x
 	k.Y = y

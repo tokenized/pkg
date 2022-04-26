@@ -41,6 +41,10 @@ type Key struct {
 	net   Network
 }
 
+func KeyFromValue(value big.Int, net Network) Key {
+	return Key{value: value, net: net}
+}
+
 // KeyFromStr converts WIF (Wallet Import Format) key text to a key.
 func KeyFromStr(s string) (Key, error) {
 	b, err := decodeAddress(s)
