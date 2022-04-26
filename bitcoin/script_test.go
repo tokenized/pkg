@@ -97,6 +97,11 @@ func TestScriptToString(t *testing.T) {
 			text: "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
 			hex:  "76a914999ac355257736dfa1ad9652fcb51c7136fc27f988ac",
 		},
+		{
+			name: "Text",
+			text: "OP_0 OP_RETURN \"test text\"",
+			hex:  "006a09746573742074657874",
+		},
 	}
 
 	for _, tt := range tests {
@@ -110,6 +115,7 @@ func TestScriptToString(t *testing.T) {
 			if str != tt.text {
 				t.Fatalf("Wrong text : \ngot  : %s\nwant : %s", str, tt.text)
 			}
+			t.Logf("String : %s", str)
 
 			scr, err := StringToScript(tt.text)
 			if err != nil {

@@ -193,6 +193,10 @@ type Script []byte
 
 func (item ScriptItem) String() string {
 	if item.Type == ScriptItemTypePushData {
+		if isText(item.Data) {
+			return fmt.Sprintf("\"%s\"", string(item.Data))
+		}
+
 		return fmt.Sprintf("0x%s", hex.EncodeToString(item.Data))
 	}
 
@@ -204,6 +208,20 @@ func (item ScriptItem) String() string {
 
 	// Undefined op code
 	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode}))
+}
+
+func isText(bs []byte) bool {
+	for _, b := range bs {
+		if b < 0x20 { // ' ' space character
+			return false
+		}
+
+		if b > 0x7e { // '~' tilde character
+			return false
+		}
+	}
+
+	return true
 }
 
 func ParseScriptItems(buf *bytes.Reader, count int) (ScriptItems, error) {
@@ -1189,8 +1207,29 @@ func ScriptToString(script Script) string {
 func StringToScript(text string) (Script, error) {
 	buf := &bytes.Buffer{}
 
+	var previousParts string
 	parts := strings.Fields(text)
 	for _, part := range parts {
+		firstChar := part[0]
+		lastChar := part[len(part)-1]
+
+		if len(previousParts) > 0 {
+			part = previousParts + " " + part
+			if lastChar != '"' {
+				previousParts = part
+				continue
+			}
+		}
+
+		if firstChar == '"' && lastChar != '"' {
+			previousParts = part
+			continue
+		}
+
+		fmt.Printf("Part : %s\n", part)
+		firstChar = part[0]
+		lastChar = part[len(part)-1]
+
 		opCode, exists := byteFromNames[part]
 		if exists {
 			buf.WriteByte(opCode)
@@ -1201,9 +1240,18 @@ func StringToScript(text string) (Script, error) {
 			return nil, fmt.Errorf("Invalid part : \"%s\"", part)
 		}
 
-		if part[0] == '{' && part[len(part)-1] == '}' {
+		if firstChar == '"' && lastChar == '"' {
+			// Text
+			if err := WritePushDataScript(buf, []byte(part[1:len(part)-1])); err != nil {
+				return nil, errors.Wrap(err, "write push data")
+			}
+
+			continue
+		}
+
+		if firstChar == '{' && lastChar == '}' {
 			// Undefined op code
-			b, err := hex.DecodeString(part)
+			b, err := hex.DecodeString(part[1 : len(part)-1])
 			if err != nil {
 				return nil, errors.Wrapf(err, "decode undefined op code hex: %s", part)
 			}

@@ -2,10 +2,11 @@
 
 Bitcoin script object representation is a method for encoding predefined objects in Bitcoin script. It is similar to [CBOR (Concise Binary Object Representation)](https://cbor.io/) and [Protocol Buffers](https://developers.google.com/protocol-buffers) in that it precedes each field with an identifier.
 
-
 ## Encoding
 
 Encoding depends on the fields being defined in advance. It is not possible to parse data without the field definitions. This is so that type information doesn't need to be encoded and the space can be saved.
+
+BSOR simply precedes each field with an integer ID and provides some field counts. That with a predefined structure and field identifiers allows very light weight and efficient data. CBOR does nearly the same thing, but not in Bitcoin script encoding. Using Bitcoin script provides many advantages, some probably not known yet. One of which is it makes it easier to filter for specific data. CBOR requires first decoding the CBOR push data before applying a filter.
 
 ### Field Count
 
@@ -27,7 +28,7 @@ Field types are boolean, integer, string, binary, float, array, or another objec
 
 Field types are defined in advance and the type is determined by knowing the object definition and using the field identifier.
 
-Fields that are the "zero" value are excluded from encoding to save space. For example an empty array, false boolean, or zero integer will not be encoded.
+Fields that are the "zero" value are excluded from encoding to save space. This includes nil/null pointers, false booleans, zero value numbers, empty strings or bytes, and empty arrays. When encoding those field identifiers are not included, so when decoding if they are missing then the field is defaulted to its "zero" value.
 
 ##### Nil/Null
 

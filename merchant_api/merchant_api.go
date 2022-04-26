@@ -57,7 +57,7 @@ type FeeQuoteResponse struct {
 	MinerID            bitcoin.PublicKey `json:"minerId"`
 	CurrentBlockHash   bitcoin.Hash32    `json:"currentHighestBlockHash"`
 	CurrentBlockHeight uint32            `json:"currentHighestBlockHeight"`
-	Fees               []*FeeQuote       `json:"fees"`
+	Fees               FeeQuotes         `json:"fees"`
 	CallBacks          []*FeeCallBack    `json:"callbacks"`
 	Policies           *FeePolicies      `json:"policies"`
 }
@@ -67,6 +67,8 @@ type FeeQuote struct {
 	MiningFee Fee    `json:"miningFee"`
 	RelayFee  Fee    `json:"relayFee"`
 }
+
+type FeeQuotes []*FeeQuote
 
 type Fee struct {
 	Satoshis uint64 `json:"satoshis"`
