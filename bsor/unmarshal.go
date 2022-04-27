@@ -92,7 +92,6 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 		val := reflect.New(typ)
 		ifacePtr := val.Interface()
 		_, isBinaryUnmarshaler := ifacePtr.(encoding.BinaryUnmarshaler)
-
 		if inArray || isBinaryUnmarshaler {
 			notNil, err := readInteger(scriptItems)
 			if err != nil {
@@ -103,10 +102,6 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 				return nil
 			}
 		}
-	}
-
-	if kind != reflect.Struct {
-		return unmarshalPrimitive(scriptItems, value, inArray)
 	}
 
 	// Check for pointer unmarshaller
@@ -127,7 +122,12 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 		} else {
 			value.Set(val.Elem())
 		}
+
 		return nil
+	}
+
+	if kind != reflect.Struct {
+		return unmarshalPrimitive(scriptItems, value, inArray)
 	}
 
 	fieldCount, err := readCount(scriptItems)
@@ -195,17 +195,17 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		elem := field.Type.Elem()
 		value := reflect.New(elem)
 
-		if elem.Kind() != reflect.Struct {
-			if err := unmarshalPrimitive(scriptItems, value.Elem(), false); err != nil {
-				return errors.Wrap(err, "primitive")
-			}
+		// if elem.Kind() != reflect.Struct {
+		// 	if err := unmarshalPrimitive(scriptItems, value.Elem(), false); err != nil {
+		// 		return errors.Wrap(err, "primitive")
+		// 	}
 
-			fieldValue.Set(value)
-			return nil
-		}
+		// 	fieldValue.Set(value)
+		// 	return nil
+		// }
 
 		if err := unmarshalObject(scriptItems, value.Elem(), false); err != nil {
-			return errors.Wrap(err, "object")
+			return errors.Wrap(err, "ptr object")
 		}
 
 		fieldValue.Set(value)
@@ -217,7 +217,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 
 	case reflect.Struct:
 		if err := unmarshalObject(scriptItems, fieldValue, false); err != nil {
-			return errors.Wrap(err, "object")
+			return errors.Wrap(err, "struct")
 		}
 
 		return nil
@@ -228,7 +228,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		case reflect.Uint8: // byte array (Binary Data)
 			b, err := readBytes(scriptItems)
 			if err != nil {
-				return errors.Wrap(err, "bytes")
+				return errors.Wrap(err, "fixed bytes")
 			}
 
 			reflect.Copy(fieldValue, reflect.ValueOf(b))

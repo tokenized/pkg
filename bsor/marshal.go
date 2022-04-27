@@ -34,15 +34,6 @@ func marshalObject(object interface{}, inArray bool) (bitcoin.ScriptItems, error
 		value = value.Elem()
 	}
 
-	if kind != reflect.Struct {
-		primitiveScriptItems, err := marshalPrimitive(kind, value.Interface(), inArray)
-		if err != nil {
-			return nil, errors.Wrap(err, "primitive")
-		}
-
-		return append(result, primitiveScriptItems...), nil
-	}
-
 	if isBinaryMarshaler {
 		b, err := binaryMarshaler.MarshalBinary()
 		if err != nil {
@@ -54,6 +45,15 @@ func marshalObject(object interface{}, inArray bool) (bitcoin.ScriptItems, error
 		// }
 
 		return append(result, bitcoin.NewPushDataScriptItem(b)), nil
+	}
+
+	if kind != reflect.Struct {
+		primitiveScriptItems, err := marshalPrimitive(kind, value.Interface(), inArray)
+		if err != nil {
+			return nil, errors.Wrap(err, "primitive")
+		}
+
+		return append(result, primitiveScriptItems...), nil
 	}
 
 	objectFieldCount := typ.NumField()
@@ -121,7 +121,8 @@ func marshalField(field reflect.StructField,
 		return nil, nil // zero value / empty field
 	}
 
-	switch field.Type.Kind() {
+	typ := fieldValue.Type()
+	switch typ.Kind() {
 	case reflect.Ptr:
 		elem := fieldValue.Elem()
 		if !elem.CanInterface() {
@@ -134,18 +135,18 @@ func marshalField(field reflect.StructField,
 
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		if elem.Kind() != reflect.Struct {
-			primitiveScriptItems, err := marshalPrimitive(elem.Kind(), elem.Interface(), false)
-			if err != nil {
-				return nil, errors.Wrap(err, "primitive")
-			}
+		// if elem.Kind() != reflect.Struct {
+		// 	primitiveScriptItems, err := marshalPrimitive(elem.Kind(), elem.Interface(), false)
+		// 	if err != nil {
+		// 		return nil, errors.Wrap(err, "ptr primitive")
+		// 	}
 
-			return append(result, primitiveScriptItems...), nil
-		}
+		// 	return append(result, primitiveScriptItems...), nil
+		// }
 
 		objectScriptItems, err := marshalObject(elem.Interface(), false)
 		if err != nil {
-			return nil, errors.Wrap(err, "struct")
+			return nil, errors.Wrap(err, "ptr object")
 		}
 
 		return append(result, objectScriptItems...), nil
@@ -164,7 +165,7 @@ func marshalField(field reflect.StructField,
 	case reflect.Array:
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		elem := field.Type.Elem()
+		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte array (Binary Data)
 			// Convert to byte slice
@@ -201,7 +202,7 @@ func marshalField(field reflect.StructField,
 	case reflect.Slice:
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		elem := field.Type.Elem()
+		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte slice (Binary Data)
 			return append(result, bitcoin.NewPushDataScriptItem(fieldValue.Bytes())), nil
@@ -226,7 +227,7 @@ func marshalField(field reflect.StructField,
 	default:
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		primitiveScriptItems, err := marshalPrimitive(field.Type.Kind(), iface, false)
+		primitiveScriptItems, err := marshalPrimitive(typ.Kind(), iface, false)
 		if err != nil {
 			return nil, errors.Wrap(err, "primitive")
 		}
