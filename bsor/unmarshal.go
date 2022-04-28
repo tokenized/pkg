@@ -93,7 +93,7 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 		ifacePtr := val.Interface()
 		_, isBinaryUnmarshaler := ifacePtr.(encoding.BinaryUnmarshaler)
 		if inArray || isBinaryUnmarshaler {
-			notNil, err := readInteger(scriptItems)
+			notNil, err := readUnsignedInteger(scriptItems)
 			if err != nil {
 				return errors.Wrap(err, "number")
 			}
@@ -195,15 +195,6 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		elem := field.Type.Elem()
 		value := reflect.New(elem)
 
-		// if elem.Kind() != reflect.Struct {
-		// 	if err := unmarshalPrimitive(scriptItems, value.Elem(), false); err != nil {
-		// 		return errors.Wrap(err, "primitive")
-		// 	}
-
-		// 	fieldValue.Set(value)
-		// 	return nil
-		// }
-
 		if err := unmarshalObject(scriptItems, value.Elem(), false); err != nil {
 			return errors.Wrap(err, "ptr object")
 		}
@@ -294,7 +285,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 		return nil
 
 	case reflect.Bool:
-		v, err := readInteger(scriptItems)
+		v, err := readUnsignedInteger(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "bool")
 		}
@@ -308,11 +299,11 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 			return errors.Wrap(err, "integer")
 		}
 
-		value.SetInt(int64(v))
+		value.SetInt(v)
 		return nil
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := readInteger(scriptItems)
+		v, err := readUnsignedInteger(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "integer")
 		}
@@ -406,7 +397,7 @@ func readBytes(scriptItems *bitcoin.ScriptItems) ([]byte, error) {
 	}
 }
 
-func readInteger(scriptItems *bitcoin.ScriptItems) (uint64, error) {
+func readInteger(scriptItems *bitcoin.ScriptItems) (int64, error) {
 	item, err := nextScriptItem(scriptItems)
 	if err != nil {
 		return 0, err
@@ -417,7 +408,21 @@ func readInteger(scriptItems *bitcoin.ScriptItems) (uint64, error) {
 		return 0, errors.Wrap(err, "number")
 	}
 
-	return uint64(value), nil
+	return value, nil
+}
+
+func readUnsignedInteger(scriptItems *bitcoin.ScriptItems) (uint64, error) {
+	item, err := nextScriptItem(scriptItems)
+	if err != nil {
+		return 0, err
+	}
+
+	value, err := bitcoin.ScriptNumberValueUnsigned(item)
+	if err != nil {
+		return 0, errors.Wrap(err, "number")
+	}
+
+	return value, nil
 }
 
 func readFloat32(scriptItems *bitcoin.ScriptItems) (float32, error) {

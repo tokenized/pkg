@@ -48,7 +48,7 @@ func marshalObject(object interface{}, inArray bool) (bitcoin.ScriptItems, error
 	}
 
 	if kind != reflect.Struct {
-		primitiveScriptItems, err := marshalPrimitive(kind, value.Interface(), inArray)
+		primitiveScriptItems, err := marshalPrimitive(value, inArray)
 		if err != nil {
 			return nil, errors.Wrap(err, "primitive")
 		}
@@ -135,15 +135,6 @@ func marshalField(field reflect.StructField,
 
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		// if elem.Kind() != reflect.Struct {
-		// 	primitiveScriptItems, err := marshalPrimitive(elem.Kind(), elem.Interface(), false)
-		// 	if err != nil {
-		// 		return nil, errors.Wrap(err, "ptr primitive")
-		// 	}
-
-		// 	return append(result, primitiveScriptItems...), nil
-		// }
-
 		objectScriptItems, err := marshalObject(elem.Interface(), false)
 		if err != nil {
 			return nil, errors.Wrap(err, "ptr object")
@@ -227,7 +218,7 @@ func marshalField(field reflect.StructField,
 	default:
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		primitiveScriptItems, err := marshalPrimitive(typ.Kind(), iface, false)
+		primitiveScriptItems, err := marshalPrimitive(fieldValue, false)
 		if err != nil {
 			return nil, errors.Wrap(err, "primitive")
 		}
@@ -236,20 +227,16 @@ func marshalField(field reflect.StructField,
 	}
 }
 
-func marshalPrimitive(kind reflect.Kind, object interface{},
-	inArray bool) (bitcoin.ScriptItems, error) {
+func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, error) {
 
 	var result bitcoin.ScriptItems
-	switch kind {
+	switch value.Type().Kind() {
 	case reflect.Ptr:
-		typ := reflect.TypeOf(object)
-		value := reflect.ValueOf(object)
-		elemKind := typ.Elem().Kind()
 		if !value.IsNil() && inArray {
 			result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
 		}
 
-		primitiveScriptItems, err := marshalPrimitive(elemKind, object, inArray)
+		primitiveScriptItems, err := marshalPrimitive(value, inArray)
 		if err != nil {
 			return nil, errors.Wrap(err, "ptr")
 		}
@@ -257,112 +244,23 @@ func marshalPrimitive(kind reflect.Kind, object interface{},
 		return append(result, primitiveScriptItems...), err
 
 	case reflect.String:
-		value, ok := object.(string)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.NewPushDataScriptItem([]byte(value))}, nil
+		return bitcoin.ScriptItems{bitcoin.NewPushDataScriptItem([]byte(value.String()))}, nil
 
 	case reflect.Bool:
 		// IsZero was already checked above so we know it is a true boolean value.
 		return bitcoin.ScriptItems{bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE)}, nil
 
-	case reflect.Int:
-		value, ok := object.(int)
-		if !ok {
-			return nil, ErrValueConversion
-		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(value.Int())}, nil
 
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Int8:
-		value, ok := object.(int8)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Int16:
-		value, ok := object.(int16)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Int32:
-		value, ok := object.(int32)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Int64:
-		value, ok := object.(int64)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Uint:
-		value, ok := object.(uint)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Uint8:
-		value, ok := object.(uint8)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Uint16:
-		value, ok := object.(uint16)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Uint32:
-		value, ok := object.(uint32)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
-
-	case reflect.Uint64:
-		value, ok := object.(uint64)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(value))}, nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return bitcoin.ScriptItems{bitcoin.PushNumberScriptItemUnsigned(value.Uint())}, nil
 
 	case reflect.Float32:
-		value, ok := object.(float32)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{float32ScriptItem(value)}, nil
+		return bitcoin.ScriptItems{float32ScriptItem(float32(value.Float()))}, nil
 
 	case reflect.Float64:
-		value, ok := object.(float64)
-		if !ok {
-			return nil, ErrValueConversion
-		}
-
-		return bitcoin.ScriptItems{float64ScriptItem(value)}, nil
+		return bitcoin.ScriptItems{float64ScriptItem(value.Float())}, nil
 
 	default:
 		return nil, errors.Wrap(ErrValueConversion, "unknown type")

@@ -93,6 +93,7 @@ var (
 	ErrUnknownScriptNumber   = errors.New("Unknown Script Number")
 	ErrWrongOpCode           = errors.New("Wrong Op Code")
 	ErrInvalidScriptItemType = errors.New("Invalid Script Item Type")
+	ErrNotUnsigned           = errors.New("Not unsigned")
 
 	byteToNames = map[byte]string{
 		OP_0:                  "OP_0",
@@ -984,6 +985,40 @@ func PushNumberScriptItem(n int64) *ScriptItem {
 	return NewPushDataScriptItem(result)
 }
 
+func PushNumberScriptItemUnsigned(n uint64) *ScriptItem {
+	// OP_FALSE, OP_0
+	if n == 0 {
+		return NewOpCodeScriptItem(OP_0)
+	}
+
+	// Single byte number push op codes
+	if n > 0 && n <= 16 {
+		return NewOpCodeScriptItem(0x50 + byte(n))
+	}
+
+	// Encode to little endian.  The maximum number of encoded bytes is 9
+	// (8 bytes for max int64 plus a potential byte for sign extension).
+	result := make(Script, 0, 10)
+	for n > 0 {
+		result = append(result, byte(n&0xff))
+		n >>= 8
+	}
+
+	// When the most significant byte already has the high bit set, an
+	// additional high byte is required to indicate whether the number is
+	// negative or positive.  The additional byte is removed when converting
+	// back to an integral and its high bit is used to denote the sign.
+	//
+	// Otherwise, when the most significant byte does not already have the
+	// high bit set, use it to indicate the value is negative, if needed.
+	if result[len(result)-1]&0x80 != 0 {
+		extraByte := byte(0x00)
+		result = append(result, extraByte)
+	}
+
+	return NewPushDataScriptItem(result)
+}
+
 func PushNumberScript(n int64) Script {
 	item := PushNumberScriptItem(n)
 	script, _ := item.Script()
@@ -1006,6 +1041,26 @@ func ScriptNumberValue(item *ScriptItem) (int64, error) {
 		return 0, nil
 	case OP_1NEGATE:
 		return -1, nil
+	}
+
+	return 0, errors.Wrapf(ErrUnknownScriptNumber, "op code : %s, data : %x",
+		OpCodeToString(item.OpCode), item.Data)
+}
+
+func ScriptNumberValueUnsigned(item *ScriptItem) (uint64, error) {
+	if item.Type == ScriptItemTypePushData {
+		return DecodeScriptLittleEndianUnsigned(item.Data)
+	}
+
+	if item.OpCode >= OP_1 && item.OpCode <= OP_16 {
+		return uint64(item.OpCode - 0x50), nil
+	}
+
+	switch item.OpCode {
+	case OP_FALSE:
+		return 0, nil
+	case OP_1NEGATE:
+		return 0, ErrNotUnsigned
 	}
 
 	return 0, errors.Wrapf(ErrUnknownScriptNumber, "op code : %s, data : %x",
@@ -1061,6 +1116,21 @@ func DecodeScriptLittleEndian(b []byte) int64 {
 	}
 
 	return result
+}
+
+func DecodeScriptLittleEndianUnsigned(b []byte) (uint64, error) {
+	var result uint64
+	for i, val := range b {
+		result |= uint64(val) << uint8(8*i)
+	}
+
+	// When the most significant byte of the input bytes has the sign bit set, the result is
+	// negative.  So, remove the sign bit from the result and make it negative.
+	if b[len(b)-1]&0x80 != 0 {
+		return 0, ErrNotUnsigned
+	}
+
+	return result, nil
 }
 
 func PubKeyFromP2PKHSigScript(script []byte) ([]byte, error) {
