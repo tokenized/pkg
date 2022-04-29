@@ -1,4 +1,4 @@
-package spv_channel
+package peer_channels
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 const rootURL = "http://localhost:8080"
 
-func TestCreateAccount(t *testing.T) {
+func Test_CreateAccount(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -23,7 +23,7 @@ func TestCreateAccount(t *testing.T) {
 	t.Logf("Account Token : %s", *accountToken)
 }
 
-func TestCreateChannel(t *testing.T) {
+func Test_CreateChannel(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -41,7 +41,7 @@ func TestCreateChannel(t *testing.T) {
 	t.Logf("Channel : %s", js)
 }
 
-func TestPostMessage(t *testing.T) {
+func Test_PostJSONMessage(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -51,7 +51,7 @@ func TestPostMessage(t *testing.T) {
 
 	messageData := MessageData{Data: "Some test data"}
 
-	message, err := PostMessage(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	message, err := PostJSONMessage(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"480bc60b-c779-450a-8c0b-854cbe856a92", messageData)
 	if err != nil {
 		t.Fatalf("Failed to post message : %s", err)
@@ -65,7 +65,7 @@ func TestPostMessage(t *testing.T) {
 	t.Logf("Message : %s", js)
 }
 
-func TestGetMessage(t *testing.T) {
+func Test_GetMessage(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -83,7 +83,7 @@ func TestGetMessage(t *testing.T) {
 	t.Logf("Messages : %s", js)
 }
 
-func TestGetMaxMessageSequence(t *testing.T) {
+func Test_GetMaxMessageSequence(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -96,7 +96,7 @@ func TestGetMaxMessageSequence(t *testing.T) {
 	t.Logf("Max Sequence : %d", max)
 }
 
-func TestMarkMessages(t *testing.T) {
+func Test_MarkMessages(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
@@ -106,11 +106,11 @@ func TestMarkMessages(t *testing.T) {
 	}
 }
 
-func TestListen(t *testing.T) {
+func Test_ChannelListen(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
-	incoming := make(chan SPVMessage)
+	incoming := make(chan Message)
 	interrupt := make(chan interface{})
 	complete := make(chan interface{})
 
@@ -138,7 +138,7 @@ func TestListen(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			time.Sleep(1 * time.Second)
 			t.Logf("Sending message %d", i)
-			_, err := PostMessage(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+			_, err := PostJSONMessage(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 				"480bc60b-c779-450a-8c0b-854cbe856a92", fmt.Sprintf("Test message %d", i))
 			if err != nil {
 				t.Fatalf("Failed to post message : %s", err)
@@ -146,7 +146,7 @@ func TestListen(t *testing.T) {
 		}
 	}()
 
-	if err := Listen(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	if err := ChannelListen(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", incoming, interrupt); err != nil {
 		t.Fatalf("Failed to notify messages : %s", err)
 	}

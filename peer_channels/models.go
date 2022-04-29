@@ -1,4 +1,4 @@
-package spv_channel
+package peer_channels
 
 type Channel struct {
 	ID           string        `json:"id"`
