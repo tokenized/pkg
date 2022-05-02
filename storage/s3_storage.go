@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"time"
 
@@ -55,7 +56,7 @@ func (s S3Storage) Write(ctx context.Context,
 
 	svc := s3.New(s.Session)
 
-	poi := s3.PutObjectInput{
+	input := &s3.PutObjectInput{
 		Bucket: aws.String(s.Config.Bucket),
 		Key:    aws.String(key),
 		Body:   bytes.NewReader(body),
@@ -70,40 +71,74 @@ func (s S3Storage) Write(ctx context.Context,
 		if options != nil {
 			if options.TTL > 0 {
 				expiry := time.Now().Add(time.Duration(options.TTL) * time.Second)
-				poi.Expires = &expiry
+				input.Expires = &expiry
 			}
 		}
 
-		_, err = svc.PutObject(&poi)
+		_, err = svc.PutObject(input)
 		if err == nil {
 			return nil
 		}
 
-		logger.Error(ctx, "S3CallFailed to write to %v : %v", key, err)
+		logger.Error(ctx, "S3CallFailed to write to %s : %s", key, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted write to %v : %v", key, err)
-		return errors.Wrap(err, fmt.Sprintf("Failed to write to %v", key))
+		logger.Error(ctx, "S3CallAborted write to %s : %s", key, err)
+		return errors.Wrapf(err, "key: %s", key)
 	}
+	return nil
+}
+
+func (s S3Storage) StreamWrite(ctx context.Context, key string, r io.ReadSeeker) error {
+	svc := s3.New(s.Session)
+
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(s.Config.Bucket),
+		Key:    aws.String(key),
+		Body:   r,
+	}
+
+	if _, err := svc.PutObject(input); err != nil {
+		logger.Error(ctx, "S3CallAborted to write to %s : %s", key, err)
+		return errors.Wrapf(err, "key: %s", key)
+	}
+
 	return nil
 }
 
 // Read will read the data from the S3 Bucket.
 func (s S3Storage) Read(ctx context.Context, key string) ([]byte, error) {
+	return s.ReadRange(ctx, key, 0, 0)
+}
+
+func (s S3Storage) ReadRange(ctx context.Context, key string, start, end int64) ([]byte, error) {
 	svc := s3.New(s.Session)
 
+	var getRange *string
+	if start != 0 && end != 0 {
+		r := fmt.Sprintf("%d-%d", start, end)
+		getRange = &r
+	} else if start != 0 {
+		r := fmt.Sprintf("%d-", start)
+		getRange = &r
+	} else if end != 0 {
+		r := fmt.Sprintf("%d-%d", start, end)
+		getRange = &r
+	}
+
 	var err error
-	var document *s3.GetObjectOutput
 	var b []byte
 	for i := 0; i <= s.Config.MaxRetries; i++ {
 		if i != 0 {
 			time.Sleep(time.Duration(s.Config.RetryDelay) * time.Millisecond)
 		}
 
+		var document *s3.GetObjectOutput
 		document, err = svc.GetObject(&s3.GetObjectInput{
 			Bucket: aws.String(s.Config.Bucket),
 			Key:    aws.String(key),
+			Range:  getRange,
 		})
 
 		if err != nil {
@@ -114,13 +149,13 @@ func (s S3Storage) Read(ctx context.Context, key string) ([]byte, error) {
 				}
 			}
 
-			logger.Error(ctx, "S3CallFailed to read from %v : %v", key, err)
+			logger.Error(ctx, "S3CallFailed to read from %s : %s", key, err)
 			continue
 		}
 
 		b, err = ioutil.ReadAll(document.Body)
 		if err != nil {
-			logger.Error(ctx, "S3CallFailed to read from %v : %v", key, err)
+			logger.Error(ctx, "S3CallFailed to read from %s : %s", key, err)
 			continue
 		}
 
@@ -128,10 +163,62 @@ func (s S3Storage) Read(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted read from %v : %v", key, err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to read from %v", key))
+		logger.Error(ctx, "S3CallAborted read from %s : %s", key, err)
+		return nil, errors.Wrapf(err, "key: %s", key)
 	}
 	return b, nil
+}
+
+func (s S3Storage) StreamRead(ctx context.Context, key string) (io.Reader, error) {
+	return s.StreamReadRange(ctx, key, 0, 0)
+}
+
+func (s S3Storage) StreamReadRange(ctx context.Context, key string,
+	start, end int64) (io.Reader, error) {
+
+	svc := s3.New(s.Session)
+
+	var getRange *string
+	if start != 0 && end != 0 {
+		r := fmt.Sprintf("%d-%d", start, end)
+		getRange = &r
+	} else if start != 0 {
+		r := fmt.Sprintf("%d-", start)
+		getRange = &r
+	} else if end != 0 {
+		r := fmt.Sprintf("%d-%d", start, end)
+		getRange = &r
+	}
+
+	getInput := &s3.GetObjectInput{
+		Bucket: aws.String(s.Config.Bucket),
+		Key:    aws.String(key),
+		Range:  getRange,
+	}
+
+	var lastErr error
+	for i := 0; i <= s.Config.MaxRetries; i++ {
+		if i != 0 {
+			time.Sleep(time.Duration(s.Config.RetryDelay) * time.Millisecond)
+		}
+
+		document, err := svc.GetObject(getInput)
+		if err == nil {
+			return document.Body, nil
+		}
+		lastErr = err
+
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == s3.ErrCodeNoSuchKey {
+				// specifically handle the "not found" case
+				return nil, ErrNotFound
+			}
+		}
+
+		logger.Error(ctx, "S3CallFailed to read from %s : %s", key, err)
+	}
+
+	return nil, errors.Wrapf(lastErr, "key: %s", key)
 }
 
 // Remove removes the object stored at key, in the S3 Bucket.

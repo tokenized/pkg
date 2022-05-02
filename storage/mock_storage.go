@@ -1,7 +1,10 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"strings"
 	"sync"
 )
@@ -29,6 +32,19 @@ func (s *MockStorage) Write(ctx context.Context, key string, body []byte, option
 	return nil
 }
 
+func (s *MockStorage) StreamWrite(ctx context.Context, key string, r io.ReadSeeker) error {
+	buf := &bytes.Buffer{}
+	if _, err := io.Copy(buf, r); err != nil {
+		return err
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.Data[key] = buf.Bytes()
+	return nil
+}
+
 // Read reads the data from a file on the local filesystem.
 func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 	s.Lock()
@@ -39,6 +55,45 @@ func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	return result, nil
+}
+
+func (s *MockStorage) ReadRange(ctx context.Context, key string, start, end int64) ([]byte, error) {
+	r, err := s.StreamReadRange(ctx, key, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := &bytes.Buffer{}
+	if _, err := io.Copy(buf, r); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (s *MockStorage) StreamRead(ctx context.Context, key string) (io.Reader, error) {
+	return s.StreamReadRange(ctx, key, 0, 0)
+}
+
+func (s *MockStorage) StreamReadRange(ctx context.Context, key string,
+	start, end int64) (io.Reader, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	result, exists := s.Data[key]
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	if start != 0 && start > int64(len(result)) {
+		return nil, fmt.Errorf("Start offset past end: offset: %d, end: %d", start, len(result))
+	}
+
+	if end != 0 && end > int64(len(result)) {
+		return nil, fmt.Errorf("End offset past end: offset: %d, end: %d", end, len(result))
+	}
+
+	return bytes.NewReader(result[start:end]), nil
 }
 
 // Remove removes the object stored at key, in the S3 Bucket.

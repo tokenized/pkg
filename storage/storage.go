@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 )
 
@@ -26,9 +27,26 @@ type Reader interface {
 	Read(context.Context, string) ([]byte, error)
 }
 
+type RangeReader interface {
+	ReadRange(ctx context.Context, key string, start, end int64) ([]byte, error)
+}
+
+type StreamReader interface {
+	StreamRead(ctx context.Context, key string) (io.Reader, error)
+}
+
+type StreamRangeReader interface {
+	StreamReadRange(ctx context.Context, key string, start, end int64) (io.Reader, error)
+}
+
 // Writer interface is for adding or updating an item to the store.
 type Writer interface {
 	Write(context.Context, string, []byte, *Options) error
+}
+
+type StreamWriter interface {
+	// ReadSeeker is required by AWS S3 stream writer
+	StreamWrite(ctx context.Context, key string, r io.ReadSeeker) error
 }
 
 // Remover interface is for removing an item from storage.
