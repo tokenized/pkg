@@ -32,6 +32,9 @@ type TestStruct struct {
 	PublicKeyFixedArrayField    [2]bitcoin.PublicKey  `bsor:"18"`
 	PublicKeyPtrArrayField      []*bitcoin.PublicKey  `bsor:"19"`
 	PublicKeyPtrFixedArrayField [2]*bitcoin.PublicKey `bsor:"20"`
+	IntPtrField                 *int                  `bsor:"21"`
+	IntPtrNilField              *int                  `bsor:"22"`
+	IntPtrZeroField             *int                  `bsor:"23"`
 }
 
 type TestSubStruct struct {
@@ -45,6 +48,8 @@ func Test_Marshal_TestStruct1(t *testing.T) {
 	pubKey := key.PublicKey()
 	key2, _ := bitcoin.GenerateKey(bitcoin.MainNet)
 	pubKey2 := key2.PublicKey()
+	intValue := 500
+	intZeroValue := 0
 
 	tests := []struct {
 		value TestStruct
@@ -110,6 +115,8 @@ func Test_Marshal_TestStruct1(t *testing.T) {
 					nil,
 					&pubKey2,
 				},
+				IntPtrField:     &intValue,
+				IntPtrZeroField: &intZeroValue,
 			},
 		},
 	}

@@ -164,7 +164,7 @@ func GetMaxMessageSequence(ctx context.Context, baseURL, channelID, token string
 	return max, nil
 }
 
-func MarkMessages(ctx context.Context, baseURL, channelID, token string, sequence int,
+func MarkMessages(ctx context.Context, baseURL, channelID, token string, sequence uint32,
 	read, older bool) error {
 
 	url := fmt.Sprintf("%s/api/v1/channel/%s/%d?older=%t", baseURL, channelID, sequence, older)

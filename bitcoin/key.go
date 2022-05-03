@@ -245,6 +245,14 @@ func (k Key) Sign(hash Hash32) (Signature, error) {
 	return signRFC6979(k.value, hash[:])
 }
 
+// AddHash implements the WP42 method of deriving a private key from a private key and a hash.
+func (k Key) AddHash(hash Hash32) (Key, error) {
+	// Add hash to key value
+	b := addPrivateKeys(k.value.Bytes(), hash.Bytes())
+
+	return KeyFromNumber(b, k.Network())
+}
+
 // MarshalJSONMasked outputs "masked" data that is safe for "masked" configs that are output to logs
 // and shouldn't contain any private data.
 func (k Key) MarshalJSONMasked() ([]byte, error) {

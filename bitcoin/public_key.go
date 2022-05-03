@@ -43,6 +43,27 @@ func PublicKeyFromBytes(b []byte) (PublicKey, error) {
 	return PublicKey{X: x, Y: y}, nil
 }
 
+// AddHash implements the WP42 method of deriving a public key from a public key and a hash.
+func (k PublicKey) AddHash(hash Hash32) (PublicKey, error) {
+	var result PublicKey
+
+	// Multiply hash by G
+	x, y := curveS256.ScalarBaseMult(hash.Bytes())
+
+	// Add to public key
+	x, y = curveS256.Add(&k.X, &k.Y, x, y)
+
+	// Check validity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return result, ErrOutOfRangeKey
+	}
+
+	result.X.Set(x)
+	result.Y.Set(y)
+
+	return result, nil
+}
+
 // RawAddress returns a raw address for this key.
 func (k PublicKey) RawAddress() (RawAddress, error) {
 	return NewRawAddressPKH(Hash160(k.Bytes()))

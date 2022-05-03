@@ -50,6 +50,28 @@ func NewMerkleProof(txid bitcoin.Hash32) *MerkleProof {
 	}
 }
 
+func (p MerkleProof) GetTxID() *bitcoin.Hash32 {
+	if p.TxID != nil {
+		return p.TxID
+	}
+
+	if p.Tx != nil {
+		return p.Tx.TxHash()
+	}
+
+	return nil
+}
+
+func (p MerkleProof) GetBlockHash() *bitcoin.Hash32 {
+	if p.BlockHash != nil {
+		return p.BlockHash
+	}
+	if p.BlockHeader != nil {
+		return p.BlockHeader.BlockHash()
+	}
+	return nil
+}
+
 // AddHash adds a new hash to complete a pair with the existing root at the next level in the merkle
 // tree. newRoot is the new parent hash after the new hash has been added. It must be equal to the
 // current root hashed with the new hash in the proper order.
@@ -65,16 +87,6 @@ func (p *MerkleProof) AddDuplicate(newRoot bitcoin.Hash32) {
 	p.DuplicatedIndexes = append(p.DuplicatedIndexes, p.depth)
 	p.depth++
 	p.root = newRoot
-}
-
-func (p MerkleProof) GetBlockHash() *bitcoin.Hash32 {
-	if p.BlockHash != nil {
-		return p.BlockHash
-	}
-	if p.BlockHeader != nil {
-		return p.BlockHeader.BlockHash()
-	}
-	return nil
 }
 
 func (p MerkleProof) Print() {

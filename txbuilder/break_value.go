@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -143,6 +144,132 @@ func BreakValue(value, breakValue uint64, addresses []AddressKeyID,
 				Supplement: OutputSupplement{
 					IsRemainder: lastIsRemainder,
 					KeyID:       addresses[nextIndex].KeyID,
+				},
+			})
+		} else if len(result) > 0 {
+			// Add to last output
+			result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
+			result[len(result)-1].TxOut.Value += remaining
+		}
+	}
+
+	// Random sort outputs
+	rand.Shuffle(len(result), func(i, j int) {
+		result[i], result[j] = result[j], result[i]
+	})
+
+	return result, nil
+}
+
+func BreakValueLockingScripts(value, breakValue uint64, lockingScripts []bitcoin.Script,
+	dustFeeRate, feeRate float32, lastIsRemainder bool, subtractFee bool) ([]*Output, error) {
+	// Choose random multiples of breakValue until the value is taken up.
+
+	// Find the average value to break the value into the provided lockingScripts
+	average := 2 * (value / uint64(len(lockingScripts)-1))
+
+	// Find the power to use for choosing random values
+	factor := average / breakValue
+	var exponent int
+	if factor >= 500 {
+		exponent = 4
+	} else if factor >= 50 {
+		exponent = 3
+	} else if factor >= 5 {
+		exponent = 2
+	} else {
+		exponent = 1
+	}
+
+	// Calculate some random values
+	remaining := value
+	rand.Seed(time.Now().UnixNano())
+	result := make([]*Output, 0, len(lockingScripts))
+	nextIndex := 0
+	for _, lockingScript := range lockingScripts[:len(lockingScripts)-1] {
+		outputFee, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate,
+			feeRate)
+
+		if subtractFee {
+			if remaining <= outputFee {
+				break // remaining amount is less than fee to include another output
+			}
+			remaining -= outputFee
+
+			if remaining <= dustLimit || remaining < breakValue {
+				remaining += outputFee // abort adding this output, so add the fee for it back in
+				break                  // remaining amount is less than dust required to include next address
+			}
+		} else if remaining <= dustLimit || remaining < breakValue {
+			break // remaining amount is less than dust required to include next address
+		}
+
+		inc := BreakIncrements[rand.Intn(len(BreakIncrements))]
+		outputValue := breakValue * inc
+		switch rand.Intn(exponent) {
+		case 0: // *= 1
+		case 1:
+			outputValue *= 10
+		case 2:
+			outputValue *= 100
+		case 3:
+			outputValue *= 1000
+		}
+
+		if rand.Intn(2) == 1 {
+			outputValue = outputValue - (outputValue / 10) +
+				uint64(rand.Int63n(int64(outputValue/5)))
+		}
+
+		if outputValue > remaining {
+			outputValue = remaining
+		}
+
+		remaining -= outputValue
+
+		result = append(result, &Output{
+			TxOut: wire.TxOut{
+				Value:         outputValue,
+				LockingScript: lockingScript,
+			},
+		})
+		nextIndex++
+	}
+
+	// Add any remainder to last output
+	lockingScript := lockingScripts[nextIndex]
+	if subtractFee {
+		outputFee, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate,
+			feeRate)
+
+		if remaining > outputFee+dustLimit {
+			remaining -= outputFee
+
+			result = append(result, &Output{
+				TxOut: wire.TxOut{
+					Value:         remaining,
+					LockingScript: lockingScript,
+				},
+				Supplement: OutputSupplement{
+					IsRemainder: lastIsRemainder,
+				},
+			})
+		} else if len(result) > 0 {
+			// Add to last output
+			result[len(result)-1].Supplement.IsRemainder = lastIsRemainder
+			result[len(result)-1].TxOut.Value += remaining
+		}
+	} else {
+		_, dustLimit := OutputFeeAndDustForLockingScript(lockingScript, dustFeeRate, feeRate)
+
+		if remaining > dustLimit {
+			result = append(result, &Output{
+				TxOut: wire.TxOut{
+					Value:         remaining,
+					LockingScript: lockingScript,
+				},
+				Supplement: OutputSupplement{
+					IsRemainder: lastIsRemainder,
 				},
 			})
 		} else if len(result) > 0 {

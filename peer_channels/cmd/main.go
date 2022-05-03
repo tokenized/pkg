@@ -175,18 +175,16 @@ func Listen(ctx context.Context, args []string) {
 
 	go func() {
 		for msg := range incoming {
-			fmt.Printf("Channel : %s\n", msg.ChannelID)
-			fmt.Printf("Sequence : %d\n", msg.Sequence)
-			fmt.Printf("Content Type : %s\n", msg.ContentType)
-			fmt.Printf("Received : %s\n", msg.Received)
-			buf := &bytes.Buffer{}
-			if err := json.Indent(buf, msg.Payload, "", "  "); err == nil {
-				fmt.Printf("Payload JSON (%d bytes): %s\n", len(msg.Payload), buf.Bytes())
-			} else {
-				fmt.Printf("Payload (%d bytes): %s\n", len(msg.Payload), msg.Payload)
-			}
+			js, _ := json.MarshalIndent(msg, "", "  ")
+			fmt.Printf("Received message : %s\n", js)
 
 			// processMessage(ctx, msg)
+
+			if err := peer_channels.MarkMessages(ctx, url, msg.ChannelID.String(), token,
+				msg.Sequence, true, true); err != nil {
+				fmt.Printf("Failed to mark message as read : %s", err)
+			}
+			fmt.Printf("Marked sequence %d as read\n", msg.Sequence)
 		}
 	}()
 
@@ -239,14 +237,16 @@ func ChannelListen(ctx context.Context, args []string) {
 
 	go func() {
 		for msg := range incoming {
-			fmt.Printf("Sequence : %d\n", msg.Sequence)
-			fmt.Printf("Content Type : %s\n", msg.ContentType)
-			fmt.Printf("Received : %s\n", msg.Received)
-			buf := &bytes.Buffer{}
-			json.Indent(buf, []byte(msg.Payload), "", "  ")
-			fmt.Printf("Payload (%d bytes): %s\n", len(buf.Bytes()), buf.Bytes())
+			js, _ := json.MarshalIndent(msg, "", "  ")
+			fmt.Printf("Received message : %s\n", js)
 
 			// processMessage(ctx, msg)
+
+			if err := peer_channels.MarkMessages(ctx, url, channelID, token, msg.Sequence, true,
+				true); err != nil {
+				fmt.Printf("Failed to mark message as read : %s", err)
+			}
+			fmt.Printf("Marked sequence %d as read\n", msg.Sequence)
 		}
 	}()
 
