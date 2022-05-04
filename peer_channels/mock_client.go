@@ -9,10 +9,15 @@ import (
 
 	"github.com/tokenized/pkg/bsor"
 	"github.com/tokenized/pkg/json"
+	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/threads"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+)
+
+const (
+	MockClientURL = "mock://mock_peer_channels"
 )
 
 type MockClient struct {
@@ -43,9 +48,9 @@ type mockChannel struct {
 	lock sync.Mutex
 }
 
-func NewMockClient() Client {
+func NewMockClient() *MockClient {
 	return &MockClient{
-		baseURL:  "mock://mock_peer_channels",
+		baseURL:  MockClientURL,
 		accounts: make(map[string]*mockAccount),
 		channels: make(map[string]*mockChannel),
 	}
@@ -60,6 +65,10 @@ func (c *MockClient) CreateAccount(ctx context.Context, token string) (*string, 
 		token: uuid.New().String(),
 	}
 	c.accounts[account.id] = account
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", account.id),
+	}, "Created peer channel account")
 
 	return &account.id, &account.token, nil
 }
@@ -88,6 +97,48 @@ func (c *MockClient) CreateChannel(ctx context.Context, accountID, token string)
 
 	c.channels[channel.id] = channel
 
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", account.id),
+		logger.String("channel_id", channel.id),
+	}, "Created peer channel")
+
+	return c.convertMockChannel(channel), nil
+}
+
+func (c *MockClient) CreatePublicChannel(ctx context.Context,
+	accountID, token string) (*Channel, error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	account, exists := c.accounts[accountID]
+	if !exists {
+		return nil, HTTPError{Status: http.StatusNotFound}
+	}
+
+	account.lock.Lock()
+	defer account.lock.Unlock()
+	if account.token != token {
+		return nil, HTTPError{Status: http.StatusForbidden}
+	}
+
+	channel := &mockChannel{
+		id:         uuid.New().String(),
+		accountID:  accountID,
+		readToken:  uuid.New().String(),
+		writeToken: "", // no write token means anyone can write
+	}
+
+	c.channels[channel.id] = channel
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", account.id),
+		logger.String("channel_id", channel.id),
+	}, "Created public peer channel")
+
+	return c.convertMockChannel(channel), nil
+}
+
+func (c *MockClient) convertMockChannel(channel *mockChannel) *Channel {
 	result := &Channel{
 		ID:          channel.id,
 		Path:        fmt.Sprintf("%s/api/v1/channel/%s/notify", c.baseURL, channel.id),
@@ -119,9 +170,11 @@ func (c *MockClient) CreateChannel(ctx context.Context, accountID, token string)
 			CanRead:  false,
 			CanWrite: true,
 		})
+	} else {
+		result.PublicWrite = true
 	}
 
-	return result, nil
+	return result
 }
 
 func (c *MockClient) addMessage(ctx context.Context, channelID, token string, contentType string,
@@ -149,6 +202,15 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 
 	message.Sequence = channel.nextSequence
 	channel.nextSequence++
+	channel.messages = append(channel.messages, message)
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", channel.accountID),
+		logger.String("channel_id", channel.id),
+		logger.String("content_type", contentType),
+		logger.Uint32("sequence", message.Sequence),
+		logger.Int("bytes", len(payload)),
+	}, "Added peer channel message")
 
 	return message, nil
 }
@@ -328,7 +390,7 @@ func (c *MockClient) AccountListen(ctx context.Context, accountID, token string,
 	wait.Add(1)
 	go func() {
 		defer close(done)
-		for {
+		for !stop.IsSet() {
 			account.lock.Lock()
 			newMessages := c.getUnreadMessagesForAccount(accountID)
 			account.lock.Unlock()
@@ -351,6 +413,10 @@ func (c *MockClient) AccountListen(ctx context.Context, accountID, token string,
 		}
 		wait.Done()
 	}()
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account", accountID),
+	}, "Listening to account")
 
 	wait.Wait()
 	return nil

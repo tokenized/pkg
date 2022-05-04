@@ -56,7 +56,12 @@ func CreateAccount(ctx context.Context, args []string) {
 	url := args[0]
 	token := args[1]
 
-	client := peer_channels.NewClient(url)
+	factory := peer_channels.NewFactory()
+	client, err := factory.NewClient(url)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s", err)
+		return
+	}
 	accountID, accessToken, err := client.CreateAccount(ctx, token)
 	if err != nil {
 		fmt.Printf("Failed to create account : %s\n", err)
@@ -76,7 +81,12 @@ func CreateChannel(ctx context.Context, args []string) {
 	accountID := args[1]
 	token := args[2]
 
-	client := peer_channels.NewClient(url)
+	factory := peer_channels.NewFactory()
+	client, err := factory.NewClient(url)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s", err)
+		return
+	}
 	channel, err := client.CreateChannel(ctx, accountID, token)
 	if err != nil {
 		fmt.Printf("Failed to create channel : %s\n", err)
@@ -97,7 +107,12 @@ func Post(ctx context.Context, args []string) {
 	token := args[2]
 	message := args[3]
 
-	client := peer_channels.NewClient(url)
+	factory := peer_channels.NewFactory()
+	client, err := factory.NewClient(url)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s", err)
+		return
+	}
 	logger.InfoWithFields(ctx, []logger.Field{
 		logger.String("url", url),
 		logger.String("channel", channelID),
@@ -139,7 +154,12 @@ func PostBinary(ctx context.Context, args []string) {
 		logger.String("channel", channelID),
 	}, "Posting message to peer channel")
 
-	client := peer_channels.NewClient(url)
+	factory := peer_channels.NewFactory()
+	client, err := factory.NewClient(url)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s", err)
+		return
+	}
 	msg, err := client.PostBinaryMessage(ctx, channelID, token, message)
 	if err != nil {
 		logger.Fatal(ctx, "Failed to post message : %s", err)
@@ -167,7 +187,12 @@ func Listen(ctx context.Context, args []string) {
 	listenComplete := make(chan interface{})
 	incoming := make(chan peer_channels.Message, 5)
 
-	client := peer_channels.NewClient(url)
+	factory := peer_channels.NewFactory()
+	client, err := factory.NewClient(url)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s", err)
+		return
+	}
 	go func() {
 		if err := client.AccountListen(ctx, accountID, token, incoming,
 			listenInterrupt); err != nil {
@@ -230,7 +255,12 @@ func ChannelListen(ctx context.Context, args []string) {
 	listenComplete := make(chan interface{})
 	incoming := make(chan peer_channels.Message, 5)
 
-	client := peer_channels.NewClient(url)
+	factory := peer_channels.NewFactory()
+	client, err := factory.NewClient(url)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s", err)
+		return
+	}
 	go func() {
 		if err := client.ChannelListen(ctx, channelID, token, incoming,
 			listenInterrupt); err != nil {

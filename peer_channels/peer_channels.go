@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -32,6 +33,7 @@ const (
 type Client interface {
 	CreateAccount(ctx context.Context, token string) (*string, *string, error)
 	CreateChannel(ctx context.Context, accountID, token string) (*Channel, error)
+	CreatePublicChannel(ctx context.Context, accountID, token string) (*Channel, error)
 	PostTextMessage(ctx context.Context, channelID, token string, message string) (*Message, error)
 	PostJSONMessage(ctx context.Context, channelID, token string,
 		message interface{}) (*Message, error)
@@ -81,7 +83,36 @@ type HTTPClient struct {
 	baseURL string
 }
 
-func NewClient(baseURL string) Client {
+type Factory struct {
+	mockClient *MockClient
+
+	lock sync.Mutex
+}
+
+func NewFactory() *Factory {
+	return &Factory{}
+}
+
+func (f *Factory) NewClient(baseURL string) (Client, error) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	if strings.HasPrefix(baseURL, "mock://") {
+		if f.mockClient == nil {
+			f.mockClient = NewMockClient()
+		}
+
+		return f.mockClient, nil
+	}
+
+	if !strings.HasPrefix(baseURL, "https://") {
+		return nil, errors.New("Unsupported URL protocol")
+	}
+
+	return NewHTTPClient(baseURL), nil
+}
+
+func NewHTTPClient(baseURL string) *HTTPClient {
 	return &HTTPClient{
 		baseURL: baseURL,
 	}
@@ -105,12 +136,32 @@ func (c *HTTPClient) CreateAccount(ctx context.Context, token string) (*string, 
 func (c *HTTPClient) CreateChannel(ctx context.Context, accountID, token string) (*Channel, error) {
 	url := fmt.Sprintf("%s/api/v1/account/%s/channel", c.baseURL, accountID)
 
-	var response Channel
-	if err := postJSONWithToken(ctx, url, token, nil, &response); err != nil {
+	response := &Channel{}
+	if err := postJSONWithToken(ctx, url, token, nil, response); err != nil {
 		return nil, err
 	}
 
-	return &response, nil
+	if response.PublicWrite {
+		return response, errors.New("Channel is public write")
+	}
+
+	return response, nil
+}
+
+func (c *HTTPClient) CreatePublicChannel(ctx context.Context,
+	accountID, token string) (*Channel, error) {
+	url := fmt.Sprintf("%s/api/v1/account/%s/channel?public", c.baseURL, accountID)
+
+	response := &Channel{}
+	if err := postJSONWithToken(ctx, url, token, nil, response); err != nil {
+		return nil, err
+	}
+
+	if !response.PublicWrite {
+		return response, errors.New("Channel is not public write")
+	}
+
+	return response, nil
 }
 
 func (c *HTTPClient) PostTextMessage(ctx context.Context, channelID, token string,
