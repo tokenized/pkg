@@ -8,13 +8,14 @@ import (
 	"time"
 )
 
-const rootURL = "http://localhost:8080"
+const testBaseURL = "http://localhost:8080"
 
 func Test_CreateAccount(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
-	accountID, accountToken, err := CreateAccount(ctx, rootURL, "<uuid>")
+	accountID, accountToken, err := client.CreateAccount(ctx, "<uuid>")
 	if err != nil {
 		t.Fatalf("Failed to create account : %s", err)
 	}
@@ -26,8 +27,9 @@ func Test_CreateAccount(t *testing.T) {
 func Test_CreateChannel(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
-	channel, err := CreateChannel(ctx, rootURL, "d695a715-e6c6-4ea1-a501-3eadc83055e0",
+	channel, err := client.CreateChannel(ctx, "d695a715-e6c6-4ea1-a501-3eadc83055e0",
 		"87b587e9-98cd-43d2-9e8d-fc85ee714177")
 	if err != nil {
 		t.Fatalf("Failed to create channel : %s", err)
@@ -44,6 +46,7 @@ func Test_CreateChannel(t *testing.T) {
 func Test_PostJSONMessage(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
 	type MessageData struct {
 		Data string `json:"data"`
@@ -51,7 +54,7 @@ func Test_PostJSONMessage(t *testing.T) {
 
 	messageData := MessageData{Data: "Some test data"}
 
-	message, err := PostJSONMessage(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	message, err := client.PostJSONMessage(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"480bc60b-c779-450a-8c0b-854cbe856a92", messageData)
 	if err != nil {
 		t.Fatalf("Failed to post message : %s", err)
@@ -68,8 +71,9 @@ func Test_PostJSONMessage(t *testing.T) {
 func Test_GetMessage(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
-	messages, err := GetMessages(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	messages, err := client.GetMessages(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", true)
 	if err != nil {
 		t.Fatalf("Failed to get messages : %s", err)
@@ -86,8 +90,9 @@ func Test_GetMessage(t *testing.T) {
 func Test_GetMaxMessageSequence(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
-	max, err := GetMaxMessageSequence(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	max, err := client.GetMaxMessageSequence(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd")
 	if err != nil {
 		t.Fatalf("Failed to get max message sequence : %s", err)
@@ -99,8 +104,9 @@ func Test_GetMaxMessageSequence(t *testing.T) {
 func Test_MarkMessages(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
-	if err := MarkMessages(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	if err := client.MarkMessages(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", 5, false, true); err != nil {
 		t.Fatalf("Failed to mark messages : %s", err)
 	}
@@ -109,6 +115,7 @@ func Test_MarkMessages(t *testing.T) {
 func Test_ChannelListen(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+	client := NewClient(testBaseURL)
 
 	incoming := make(chan Message)
 	interrupt := make(chan interface{})
@@ -138,7 +145,7 @@ func Test_ChannelListen(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			time.Sleep(1 * time.Second)
 			t.Logf("Sending message %d", i)
-			_, err := PostJSONMessage(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+			_, err := client.PostJSONMessage(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 				"480bc60b-c779-450a-8c0b-854cbe856a92", fmt.Sprintf("Test message %d", i))
 			if err != nil {
 				t.Fatalf("Failed to post message : %s", err)
@@ -146,7 +153,7 @@ func Test_ChannelListen(t *testing.T) {
 		}
 	}()
 
-	if err := ChannelListen(ctx, rootURL, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
+	if err := client.ChannelListen(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
 		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", incoming, interrupt); err != nil {
 		t.Fatalf("Failed to notify messages : %s", err)
 	}

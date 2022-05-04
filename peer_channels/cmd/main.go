@@ -56,14 +56,15 @@ func CreateAccount(ctx context.Context, args []string) {
 	url := args[0]
 	token := args[1]
 
-	accountID, accessToken, err := peer_channels.CreateAccount(ctx, url, token)
+	client := peer_channels.NewClient(url)
+	accountID, accessToken, err := client.CreateAccount(ctx, token)
 	if err != nil {
 		fmt.Printf("Failed to create account : %s\n", err)
 		return
 	}
 
-	fmt.Printf("Created Account : %s\n", accountID)
-	fmt.Printf("Access Token : %s\n", accessToken)
+	fmt.Printf("Created Account : %s\n", *accountID)
+	fmt.Printf("Access Token : %s\n", *accessToken)
 }
 
 func CreateChannel(ctx context.Context, args []string) {
@@ -75,7 +76,8 @@ func CreateChannel(ctx context.Context, args []string) {
 	accountID := args[1]
 	token := args[2]
 
-	channel, err := peer_channels.CreateChannel(ctx, url, accountID, token)
+	client := peer_channels.NewClient(url)
+	channel, err := client.CreateChannel(ctx, accountID, token)
 	if err != nil {
 		fmt.Printf("Failed to create channel : %s\n", err)
 		return
@@ -95,6 +97,7 @@ func Post(ctx context.Context, args []string) {
 	token := args[2]
 	message := args[3]
 
+	client := peer_channels.NewClient(url)
 	logger.InfoWithFields(ctx, []logger.Field{
 		logger.String("url", url),
 		logger.String("channel", channelID),
@@ -103,12 +106,12 @@ func Post(ctx context.Context, args []string) {
 	buf := &bytes.Buffer{}
 	var msg *peer_channels.Message
 	if err := json.Indent(buf, []byte(message), "", "  "); err == nil {
-		msg, err = peer_channels.PostJSONMessage(ctx, url, channelID, token, message)
+		msg, err = client.PostJSONMessage(ctx, channelID, token, message)
 		if err != nil {
 			logger.Fatal(ctx, "Failed to post message : %s", err)
 		}
 	} else {
-		msg, err = peer_channels.PostTextMessage(ctx, url, channelID, token, message)
+		msg, err = client.PostTextMessage(ctx, channelID, token, message)
 		if err != nil {
 			logger.Fatal(ctx, "Failed to post message : %s", err)
 		}
@@ -136,7 +139,8 @@ func PostBinary(ctx context.Context, args []string) {
 		logger.String("channel", channelID),
 	}, "Posting message to peer channel")
 
-	msg, err := peer_channels.PostBinaryMessage(ctx, url, channelID, token, message)
+	client := peer_channels.NewClient(url)
+	msg, err := client.PostBinaryMessage(ctx, channelID, token, message)
 	if err != nil {
 		logger.Fatal(ctx, "Failed to post message : %s", err)
 	}
@@ -163,8 +167,9 @@ func Listen(ctx context.Context, args []string) {
 	listenComplete := make(chan interface{})
 	incoming := make(chan peer_channels.Message, 5)
 
+	client := peer_channels.NewClient(url)
 	go func() {
-		if err := peer_channels.AccountListen(ctx, url, accountID, token, incoming,
+		if err := client.AccountListen(ctx, accountID, token, incoming,
 			listenInterrupt); err != nil {
 			logger.Error(ctx, "Failed to listen : %s", err)
 		}
@@ -180,8 +185,8 @@ func Listen(ctx context.Context, args []string) {
 
 			// processMessage(ctx, msg)
 
-			if err := peer_channels.MarkMessages(ctx, url, msg.ChannelID.String(), token,
-				msg.Sequence, true, true); err != nil {
+			if err := client.MarkMessages(ctx, msg.ChannelID, token, msg.Sequence, true,
+				true); err != nil {
 				fmt.Printf("Failed to mark message as read : %s", err)
 			}
 			fmt.Printf("Marked sequence %d as read\n", msg.Sequence)
@@ -225,8 +230,9 @@ func ChannelListen(ctx context.Context, args []string) {
 	listenComplete := make(chan interface{})
 	incoming := make(chan peer_channels.Message, 5)
 
+	client := peer_channels.NewClient(url)
 	go func() {
-		if err := peer_channels.ChannelListen(ctx, url, channelID, token, incoming,
+		if err := client.ChannelListen(ctx, channelID, token, incoming,
 			listenInterrupt); err != nil {
 			logger.Error(ctx, "Failed to listen : %s", err)
 		}
@@ -242,7 +248,7 @@ func ChannelListen(ctx context.Context, args []string) {
 
 			// processMessage(ctx, msg)
 
-			if err := peer_channels.MarkMessages(ctx, url, channelID, token, msg.Sequence, true,
+			if err := client.MarkMessages(ctx, channelID, token, msg.Sequence, true,
 				true); err != nil {
 				fmt.Printf("Failed to mark message as read : %s", err)
 			}

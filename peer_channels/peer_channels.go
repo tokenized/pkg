@@ -3,6 +3,7 @@ package peer_channels
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -18,7 +19,6 @@ import (
 	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/threads"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 )
@@ -29,15 +29,40 @@ const (
 	ContentTypeBinary = "application/octet-stream"
 )
 
+type Client interface {
+	CreateAccount(ctx context.Context, token string) (*string, *string, error)
+	CreateChannel(ctx context.Context, accountID, token string) (*Channel, error)
+	PostTextMessage(ctx context.Context, channelID, token string, message string) (*Message, error)
+	PostJSONMessage(ctx context.Context, channelID, token string,
+		message interface{}) (*Message, error)
+	PostBinaryMessage(ctx context.Context, channelID, token string,
+		message []byte) (*Message, error)
+	PostBSORMessage(ctx context.Context, channelID, token string,
+		message interface{}) (*Message, error)
+	GetMessages(ctx context.Context, channelID, token string, unread bool) (Messages, error)
+	GetMaxMessageSequence(ctx context.Context, channelID, token string) (uint32, error)
+	MarkMessages(ctx context.Context, channelID, token string, sequence uint32,
+		read, older bool) error
+
+	AccountListen(ctx context.Context, accountID, token string,
+		incoming chan Message, interrupt <-chan interface{}) error
+	ChannelListen(ctx context.Context, channelID, token string,
+		incoming chan Message, interrupt <-chan interface{}) error
+}
+
 type Message struct {
 	Sequence    uint32      `bsor:"1" json:"sequence"`
 	Received    time.Time   `bsor:"2" json:"received"`
 	ContentType string      `bsor:"3" json:"content_type"`
 	Payload     bitcoin.Hex `bsor:"4" json:"payload"`
-	ChannelID   uuid.UUID   `bsor:"5" json:"channel_id"`
+	ChannelID   string      `bsor:"5" json:"channel_id"`
 }
 
-type Messages []*Messages
+type Messages []*Message
+
+func (m Message) Hash() bitcoin.Hash32 {
+	return bitcoin.Hash32(sha256.Sum256(m.Payload))
+}
 
 type HTTPError struct {
 	Status  int
@@ -52,22 +77,33 @@ func (err HTTPError) Error() string {
 	return fmt.Sprintf("HTTP Status %d", err.Status)
 }
 
+type HTTPClient struct {
+	baseURL string
+}
+
+func NewClient(baseURL string) Client {
+	return &HTTPClient{
+		baseURL: baseURL,
+	}
+}
+
 // CreateAccount creates a new account on the SPVChannel service.
 // Note: This is a non-standard endpoint and is only implemented by the Tokenized Service.
-func CreateAccount(ctx context.Context, baseURL, token string) (*uuid.UUID, *uuid.UUID, error) {
+func (c *HTTPClient) CreateAccount(ctx context.Context, token string) (*string, *string, error) {
 	var response struct {
-		AccountID uuid.UUID `json:"account_id"`
-		Token     uuid.UUID `json:"token"`
+		AccountID string `json:"account_id"`
+		Token     string `json:"token"`
 	}
-	if err := postJSONWithToken(ctx, baseURL+"/api/v1/account", token, nil, &response); err != nil {
+	if err := postJSONWithToken(ctx, c.baseURL+"/api/v1/account", token, nil,
+		&response); err != nil {
 		return nil, nil, err
 	}
 
 	return &response.AccountID, &response.Token, nil
 }
 
-func CreateChannel(ctx context.Context, baseURL, accountID, token string) (*Channel, error) {
-	url := fmt.Sprintf("%s/api/v1/account/%s/channel", baseURL, accountID)
+func (c *HTTPClient) CreateChannel(ctx context.Context, accountID, token string) (*Channel, error) {
+	url := fmt.Sprintf("%s/api/v1/account/%s/channel", c.baseURL, accountID)
 
 	var response Channel
 	if err := postJSONWithToken(ctx, url, token, nil, &response); err != nil {
@@ -77,11 +113,11 @@ func CreateChannel(ctx context.Context, baseURL, accountID, token string) (*Chan
 	return &response, nil
 }
 
-func PostTextMessage(ctx context.Context, baseURL, channelID, token string,
+func (c *HTTPClient) PostTextMessage(ctx context.Context, channelID, token string,
 	message string) (*Message, error) {
 
 	response := &Message{}
-	if err := postTextWithToken(ctx, baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postTextWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -89,11 +125,11 @@ func PostTextMessage(ctx context.Context, baseURL, channelID, token string,
 	return response, nil
 }
 
-func PostJSONMessage(ctx context.Context, baseURL, channelID, token string,
+func (c *HTTPClient) PostJSONMessage(ctx context.Context, channelID, token string,
 	message interface{}) (*Message, error) {
 
 	response := &Message{}
-	if err := postJSONWithToken(ctx, baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postJSONWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -101,11 +137,11 @@ func PostJSONMessage(ctx context.Context, baseURL, channelID, token string,
 	return response, nil
 }
 
-func PostBinaryMessage(ctx context.Context, baseURL, channelID, token string,
+func (c *HTTPClient) PostBinaryMessage(ctx context.Context, channelID, token string,
 	message []byte) (*Message, error) {
 
 	response := &Message{}
-	if err := postBinaryWithToken(ctx, baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postBinaryWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -113,11 +149,11 @@ func PostBinaryMessage(ctx context.Context, baseURL, channelID, token string,
 	return response, nil
 }
 
-func PostBSORMessage(ctx context.Context, baseURL, channelID, token string,
+func (c *HTTPClient) PostBSORMessage(ctx context.Context, channelID, token string,
 	message interface{}) (*Message, error) {
 
 	response := &Message{}
-	if err := postBSORWithToken(ctx, baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postBSORWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -125,17 +161,17 @@ func PostBSORMessage(ctx context.Context, baseURL, channelID, token string,
 	return response, nil
 }
 
-func GetMessages(ctx context.Context, baseURL, channelID, token string,
-	unread bool) ([]*Message, error) {
+func (c *HTTPClient) GetMessages(ctx context.Context, channelID, token string,
+	unread bool) (Messages, error) {
 
-	url := baseURL + "/api/v1/channel/" + channelID
+	url := c.baseURL + "/api/v1/channel/" + channelID
 	if unread {
 		url += "?unread=true"
 	} else {
 		url += "?unread=false"
 	}
 
-	var response []*Message
+	var response Messages
 	if err := getWithToken(ctx, url, token, &response); err != nil {
 		return nil, err
 	}
@@ -143,8 +179,10 @@ func GetMessages(ctx context.Context, baseURL, channelID, token string,
 	return response, nil
 }
 
-func GetMaxMessageSequence(ctx context.Context, baseURL, channelID, token string) (int, error) {
-	url := baseURL + "/api/v1/channel/" + channelID
+func (c *HTTPClient) GetMaxMessageSequence(ctx context.Context,
+	channelID, token string) (uint32, error) {
+
+	url := c.baseURL + "/api/v1/channel/" + channelID
 
 	headers, err := headWithToken(ctx, url, token)
 	if err != nil {
@@ -161,13 +199,13 @@ func GetMaxMessageSequence(ctx context.Context, baseURL, channelID, token string
 		return 0, errors.Wrap(err, "parse tag")
 	}
 
-	return max, nil
+	return uint32(max), nil
 }
 
-func MarkMessages(ctx context.Context, baseURL, channelID, token string, sequence uint32,
+func (c *HTTPClient) MarkMessages(ctx context.Context, channelID, token string, sequence uint32,
 	read, older bool) error {
 
-	url := fmt.Sprintf("%s/api/v1/channel/%s/%d?older=%t", baseURL, channelID, sequence, older)
+	url := fmt.Sprintf("%s/api/v1/channel/%s/%d?older=%t", c.baseURL, channelID, sequence, older)
 
 	type RequestData struct {
 		Read bool `json:"read"`
@@ -185,10 +223,10 @@ func MarkMessages(ctx context.Context, baseURL, channelID, token string, sequenc
 // AccountListen starts a websocket for push notifications on the account specified. `incoming` is
 // the channel new messages will be fed through. `interrupt` will stop listening if something is fed
 // into it.
-func AccountListen(ctx context.Context, baseURL, accountID, token string, incoming chan Message,
-	interrupt <-chan interface{}) error {
+func (c *HTTPClient) AccountListen(ctx context.Context, accountID, token string,
+	incoming chan Message, interrupt <-chan interface{}) error {
 
-	url := fmt.Sprintf("%s/api/v1/account/%s/notify", baseURL, accountID)
+	url := fmt.Sprintf("%s/api/v1/account/%s/notify", c.baseURL, accountID)
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	header := make(http.Header)
@@ -328,10 +366,10 @@ func AccountListen(ctx context.Context, baseURL, accountID, token string, incomi
 // ChannelListen starts a websocket for push notifications on the channel specified. `incoming` is
 // the channel new messages will be fed through. `interrupt` will stop listening if something is fed
 // into it.
-func ChannelListen(ctx context.Context, baseURL, channelID, token string, incoming chan Message,
-	interrupt <-chan interface{}) error {
+func (c *HTTPClient) ChannelListen(ctx context.Context, channelID, token string,
+	incoming chan Message, interrupt <-chan interface{}) error {
 
-	url := fmt.Sprintf("%s/api/v1/channel/%s/notify", baseURL, channelID)
+	url := fmt.Sprintf("%s/api/v1/channel/%s/notify", c.baseURL, channelID)
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	header := make(http.Header)
@@ -543,7 +581,9 @@ func postWithToken(ctx context.Context, url, token string, contentType string, r
 	}
 
 	// Authorization: Bearer <token>
-	httpRequest.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	if len(token) > 0 {
+		httpRequest.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
 	if request != nil {
 		httpRequest.Header.Set("Content-Type", contentType)
 	}
