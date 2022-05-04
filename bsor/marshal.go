@@ -153,68 +153,6 @@ func marshalField(field reflect.StructField,
 		return append(bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))},
 			objectScriptItems...), nil
 
-	case reflect.Array:
-		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
-
-		elem := typ.Elem()
-		switch elem.Kind() {
-		case reflect.Uint8: // byte array (Binary Data)
-			// Convert to byte slice
-			l := fieldValue.Len()
-			b := make([]byte, l)
-			for i := 0; i < l; i++ {
-				index := fieldValue.Index(i)
-				indexInterface := index.Interface()
-				val, ok := indexInterface.(byte)
-				if !ok {
-					return nil, errors.Wrap(ErrValueConversion, "byte array index")
-				}
-				b[i] = val
-			}
-
-			return append(result, bitcoin.NewPushDataScriptItem(b)), nil
-		}
-
-		// Fixed Size Array encoding
-		// Count does not need to be encoded as it is fixed.
-		l := fieldValue.Len()
-		for i := 0; i < l; i++ {
-			index := fieldValue.Index(i)
-			objectScriptItems, err := marshalObject(index.Interface(), true)
-			if err != nil {
-				return nil, errors.Wrapf(err, "write item %d", i)
-			}
-
-			result = append(result, objectScriptItems...)
-		}
-
-		return result, nil
-
-	case reflect.Slice:
-		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
-
-		elem := typ.Elem()
-		switch elem.Kind() {
-		case reflect.Uint8: // byte slice (Binary Data)
-			return append(result, bitcoin.NewPushDataScriptItem(fieldValue.Bytes())), nil
-		}
-
-		// Array encoding
-		result = append(result, bitcoin.PushNumberScriptItem(int64(fieldValue.Len())))
-
-		l := fieldValue.Len()
-		for i := 0; i < l; i++ {
-			index := fieldValue.Index(i)
-			objectScriptItems, err := marshalObject(index.Interface(), true)
-			if err != nil {
-				return nil, errors.Wrapf(err, "write item %d", i)
-			}
-
-			result = append(result, objectScriptItems...)
-		}
-
-		return result, nil
-
 	default:
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
@@ -228,9 +166,9 @@ func marshalField(field reflect.StructField,
 }
 
 func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, error) {
-
 	var result bitcoin.ScriptItems
-	switch value.Type().Kind() {
+	typ := value.Type()
+	switch typ.Kind() {
 	case reflect.Ptr:
 		if !value.IsNil() && inArray {
 			result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
@@ -262,8 +200,66 @@ func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, e
 	case reflect.Float64:
 		return bitcoin.ScriptItems{float64ScriptItem(value.Float())}, nil
 
+	case reflect.Array:
+		elem := typ.Elem()
+		switch elem.Kind() {
+		case reflect.Uint8: // byte array (Binary Data)
+			// Convert to byte slice
+			l := value.Len()
+			b := make([]byte, l)
+			for i := 0; i < l; i++ {
+				index := value.Index(i)
+				indexInterface := index.Interface()
+				val, ok := indexInterface.(byte)
+				if !ok {
+					return nil, errors.Wrap(ErrValueConversion, "byte array index")
+				}
+				b[i] = val
+			}
+
+			return append(result, bitcoin.NewPushDataScriptItem(b)), nil
+		}
+
+		// Fixed Size Array encoding
+		// Count does not need to be encoded as it is fixed.
+		l := value.Len()
+		for i := 0; i < l; i++ {
+			index := value.Index(i)
+			objectScriptItems, err := marshalObject(index.Interface(), true)
+			if err != nil {
+				return nil, errors.Wrapf(err, "write item %d", i)
+			}
+
+			result = append(result, objectScriptItems...)
+		}
+
+		return result, nil
+
+	case reflect.Slice:
+		elem := typ.Elem()
+		switch elem.Kind() {
+		case reflect.Uint8: // byte slice (Binary Data)
+			return append(result, bitcoin.NewPushDataScriptItem(value.Bytes())), nil
+		}
+
+		// Array encoding
+		result = append(result, bitcoin.PushNumberScriptItem(int64(value.Len())))
+
+		l := value.Len()
+		for i := 0; i < l; i++ {
+			index := value.Index(i)
+			objectScriptItems, err := marshalObject(index.Interface(), true)
+			if err != nil {
+				return nil, errors.Wrapf(err, "write item %d", i)
+			}
+
+			result = append(result, objectScriptItems...)
+		}
+
+		return result, nil
+
 	default:
-		return nil, errors.Wrap(ErrValueConversion, "unknown type")
+		return nil, errors.Wrapf(ErrValueConversion, "unknown type: %s", typeName(value.Type()))
 	}
 }
 

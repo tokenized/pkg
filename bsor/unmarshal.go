@@ -213,60 +213,6 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 
 		return nil
 
-	case reflect.Array:
-		elem := field.Type.Elem()
-		switch elem.Kind() {
-		case reflect.Uint8: // byte array (Binary Data)
-			b, err := readBytes(scriptItems)
-			if err != nil {
-				return errors.Wrap(err, "fixed bytes")
-			}
-
-			reflect.Copy(fieldValue, reflect.ValueOf(b))
-			return nil
-		}
-
-		// Fixed Size Array encoding
-		ptr := reflect.New(field.Type)
-		array := ptr.Elem()
-		for i := 0; i < fieldValue.Len(); i++ {
-			if err := unmarshalObject(scriptItems, array.Index(int(i)), true); err != nil {
-				return errors.Wrapf(err, "item %d", i)
-			}
-		}
-
-		fieldValue.Set(array)
-		return nil
-
-	case reflect.Slice:
-		elem := field.Type.Elem()
-		switch elem.Kind() {
-		case reflect.Uint8: // byte slice (Binary Data)
-			b, err := readBytes(scriptItems)
-			if err != nil {
-				return errors.Wrap(err, "bytes")
-			}
-
-			fieldValue.SetBytes(b)
-			return nil
-		}
-
-		// Array encoding
-		count, err := readCount(scriptItems)
-		if err != nil {
-			return errors.Wrap(err, "count")
-		}
-
-		slice := reflect.MakeSlice(field.Type, int(count), int(count))
-		for i := uint64(0); i < count; i++ {
-			if err := unmarshalObject(scriptItems, slice.Index(int(i)), true); err != nil {
-				return errors.Wrapf(err, "item %d", i)
-			}
-		}
-
-		fieldValue.Set(slice)
-		return nil
-
 	default:
 		return unmarshalPrimitive(scriptItems, fieldValue, false)
 	}
@@ -342,13 +288,61 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 		return nil
 
 	case reflect.Struct:
-		return errors.Wrap(ErrValueConversion, "struct")
+		return errors.Wrapf(ErrValueConversion, "struct: %s", typeName(typ))
 
 	case reflect.Array:
-		return errors.Wrap(ErrValueConversion, "array")
+		elem := typ.Elem()
+		switch elem.Kind() {
+		case reflect.Uint8: // byte array (Binary Data)
+			b, err := readBytes(scriptItems)
+			if err != nil {
+				return errors.Wrap(err, "fixed bytes")
+			}
+
+			reflect.Copy(value, reflect.ValueOf(b))
+			return nil
+		}
+
+		// Fixed Size Array encoding
+		ptr := reflect.New(typ)
+		array := ptr.Elem()
+		for i := 0; i < value.Len(); i++ {
+			if err := unmarshalObject(scriptItems, array.Index(int(i)), true); err != nil {
+				return errors.Wrapf(err, "item %d", i)
+			}
+		}
+
+		value.Set(array)
+		return nil
 
 	case reflect.Slice:
-		return errors.Wrap(ErrValueConversion, "slice")
+		elem := typ.Elem()
+		switch elem.Kind() {
+		case reflect.Uint8: // byte slice (Binary Data)
+			b, err := readBytes(scriptItems)
+			if err != nil {
+				return errors.Wrap(err, "bytes")
+			}
+
+			value.SetBytes(b)
+			return nil
+		}
+
+		// Array encoding
+		count, err := readCount(scriptItems)
+		if err != nil {
+			return errors.Wrap(err, "count")
+		}
+
+		slice := reflect.MakeSlice(typ, int(count), int(count))
+		for i := uint64(0); i < count; i++ {
+			if err := unmarshalObject(scriptItems, slice.Index(int(i)), true); err != nil {
+				return errors.Wrapf(err, "item %d", i)
+			}
+		}
+
+		value.Set(slice)
+		return nil
 
 	default:
 		return errors.Wrap(ErrValueConversion, "unknown type")
