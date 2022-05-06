@@ -1,0 +1,77 @@
+{
+  "IntField": 10,
+  "StringField": "test",
+  "SubStruct": {
+    "SubIntField": 20,
+    "SubStringField": "sub_string"
+  },
+  "SubStructPtr": {
+    "SubIntField": 21,
+    "SubStringField": ""
+  },
+  "BinaryField": "Rc0=",
+  "FixedBinaryField": [
+    16,
+    17,
+    18,
+    19
+  ],
+  "PointerField": "string value",
+  "ArrayPrimitiveField": [
+    "string1",
+    "string2"
+  ],
+  "FixedArrayPrimitiveField": [
+    4,
+    5
+  ],
+  "ArrayObjectField": [
+    {
+      "SubIntField": 22,
+      "SubStringField": "sub_string_array"
+    }
+  ],
+  "FixedArrayObjectField": [
+    {
+      "SubIntField": 23,
+      "SubStringField": "sub_string_array2"
+    },
+    {
+      "SubIntField": 24,
+      "SubStringField": "sub_string_array3"
+    }
+  ],
+  "ArrayObjectPtrField": [
+    null,
+    {
+      "SubIntField": 25,
+      "SubStringField": "sub_string_array4"
+    }
+  ],
+  "ArrayStringPtrField": [
+    null,
+    "string value"
+  ],
+  "PublicKeyField": "03ae22c0e7a08450c9f332a21d0753c7f19729ee1233d4795a7a52ea671c6c9811",
+  "PublicKeyPtrField": "03ae22c0e7a08450c9f332a21d0753c7f19729ee1233d4795a7a52ea671c6c9811",
+  "PublicKeyPtrField2": null,
+  "PublicKeyArrayField": [
+    "03ae22c0e7a08450c9f332a21d0753c7f19729ee1233d4795a7a52ea671c6c9811",
+    "03430e5de4a79ada96557a0b5369476ba364071f653fa1a676a99c159609ade82c"
+  ],
+  "PublicKeyFixedArrayField": [
+    "03ae22c0e7a08450c9f332a21d0753c7f19729ee1233d4795a7a52ea671c6c9811",
+    "03430e5de4a79ada96557a0b5369476ba364071f653fa1a676a99c159609ade82c"
+  ],
+  "PublicKeyPtrArrayField": [
+    null,
+    "03430e5de4a79ada96557a0b5369476ba364071f653fa1a676a99c159609ade82c"
+  ],
+  "PublicKeyPtrFixedArrayField": [
+    null,
+    "03430e5de4a79ada96557a0b5369476ba364071f653fa1a676a99c159609ade82c"
+  ],
+  "IntPtrField": 500,
+  "IntPtrNilField": null,
+  "IntPtrZeroField": 0
+}
