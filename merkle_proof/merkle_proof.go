@@ -311,8 +311,18 @@ func (mp *MerkleProof) Deserialize(r io.Reader) error {
 	mp.Index = int(index)
 
 	if flag&0x01 == 0x01 {
+		txSize, err := wire.ReadVarInt(r, 0)
+		if err != nil {
+			return errors.Wrap(err, "tx length")
+		}
+
+		b := make([]byte, txSize)
+		if _, err := io.ReadFull(r, b); err != nil {
+			return errors.Wrap(err, "tx bytes")
+		}
+
 		tx := &wire.MsgTx{}
-		if err := tx.Deserialize(r); err != nil {
+		if err := tx.Deserialize(bytes.NewReader(b)); err != nil {
 			return errors.Wrap(err, "tx")
 		}
 
