@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+type Serializer interface {
+	Serialize(io.Writer) error
+}
+
+type Deserializer interface {
+	Deserialize(io.Reader) error
+}
+
 // Storage is the interface combining all storage interfaces.
 type Storage interface {
 	ReadWriter
