@@ -24,10 +24,23 @@ type Storage interface {
 	List
 }
 
+type StreamStorage interface {
+	ReadWriter
+	Remover
+	Searcher
+	Clearer
+	List
+}
+
 // ReadWriter interface combines the Reader and Writer interface.
 type ReadWriter interface {
 	Reader
 	Writer
+}
+
+type StreamReadWriter interface {
+	StreamReader
+	StreamWriter
 }
 
 // Reader interface is for retrieving items from the store.

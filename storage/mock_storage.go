@@ -93,6 +93,10 @@ func (s *MockStorage) StreamReadRange(ctx context.Context, key string,
 		return nil, fmt.Errorf("End offset past end: offset: %d, end: %d", end, len(result))
 	}
 
+	if end == 0 {
+		end = int64(len(result))
+	}
+
 	return bytes.NewReader(result[start:end]), nil
 }
 
