@@ -14,11 +14,11 @@ var (
 )
 
 type JSONEnvelope struct {
-	Payload   string             `json:"payload"`
-	Signature *bitcoin.Signature `json:"signature"`
-	PublicKey *bitcoin.PublicKey `json:"publicKey"`
-	Encoding  string             `json:"encoding"`
-	MimeType  string             `json:"mimetype"`
+	Payload   string             `bsor:"1" json:"payload"`
+	Signature *bitcoin.Signature `bsor:"2" json:"signature"`
+	PublicKey *bitcoin.PublicKey `bsor:"3" json:"publicKey"`
+	Encoding  string             `bsor:"4" json:"encoding"`
+	MimeType  string             `bsor:"5" json:"mimetype"`
 }
 
 // Verify verifies the signature is valid.
