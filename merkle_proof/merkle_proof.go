@@ -484,6 +484,71 @@ func (mp MerkleProof) MarshalJSON() ([]byte, error) {
 	return json.Marshal(convert)
 }
 
+func (mp MerkleProof) String() string {
+	result := &bytes.Buffer{}
+	result.Write([]byte(fmt.Sprintf("Tx Index : %d\n", mp.Index)))
+
+	var hash bitcoin.Hash32
+	if mp.Tx != nil {
+		result.Write([]byte(mp.Tx.String()))
+	} else if mp.TxID != nil {
+		result.Write([]byte(fmt.Sprintf("TxID : %s\n", mp.TxID)))
+	}
+
+	if mp.BlockHeader != nil {
+		result.Write([]byte(fmt.Sprintf("Header : %s\n", mp.BlockHeader.BlockHash())))
+	} else if mp.MerkleRoot != nil {
+		result.Write([]byte(fmt.Sprintf("Merkle Root : %s\n", mp.MerkleRoot)))
+	} else if mp.BlockHash != nil {
+		result.Write([]byte(fmt.Sprintf("Block Hash : %s\n", mp.BlockHash)))
+	}
+
+	// Calculate nodes
+	layer := 1
+	index := mp.Index
+	path := mp.Path
+	duplicateIndexes := mp.DuplicatedIndexes
+	result.Write([]byte(fmt.Sprintf("%d Nodes\n", len(mp.DuplicatedIndexes)+len(mp.Path))))
+
+	for {
+		isLeft := index%2 == 0
+
+		// Check duplicate index
+		var otherHash bitcoin.Hash32
+		if len(duplicateIndexes) > 0 && layer == duplicateIndexes[0] {
+			result.Write([]byte("  *\n"))
+		} else {
+			if len(path) == 0 {
+				break
+			}
+			otherHash = path[0]
+			path = path[1:]
+
+			result.Write([]byte("  " + otherHash.String() + "\n"))
+		}
+
+		if !isLeft && otherHash.Equal(&hash) {
+			// Right hash can't be duplicate
+			result.Write([]byte("  Invalid Duplicate\n"))
+		}
+
+		s := sha256.New()
+		if isLeft {
+			s.Write(hash[:])
+			s.Write(otherHash[:])
+		} else {
+			s.Write(otherHash[:])
+			s.Write(hash[:])
+		}
+		hash = sha256.Sum256(s.Sum(nil)) // double SHA256
+
+		index = index / 2
+		layer++
+	}
+
+	return string(result.Bytes())
+}
+
 func (mp *MerkleProof) UnmarshalJSON(data []byte) error {
 	var convert jsonMerkleProof
 	if err := json.Unmarshal(data, &convert); err != nil {
