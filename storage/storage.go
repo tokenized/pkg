@@ -26,6 +26,7 @@ type Storage interface {
 
 type StreamStorage interface {
 	ReadWriter
+	StreamReadWriter
 	Remover
 	Searcher
 	Clearer
