@@ -84,13 +84,21 @@ type HTTPClient struct {
 }
 
 type Factory struct {
-	mockClient *MockClient
+	mockClient     *MockClient
+	internalClient Client
 
 	lock sync.Mutex
 }
 
 func NewFactory() *Factory {
 	return &Factory{}
+}
+
+func (f *Factory) SetInternalClient(client Client) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.internalClient = client
 }
 
 func (f *Factory) NewClient(baseURL string) (Client, error) {
@@ -103,6 +111,14 @@ func (f *Factory) NewClient(baseURL string) (Client, error) {
 		}
 
 		return f.mockClient, nil
+	}
+
+	if strings.HasPrefix(baseURL, "internal://") {
+		if f.internalClient == nil {
+			return nil, errors.New("No internal client set")
+		}
+
+		return f.internalClient, nil
 	}
 
 	if !strings.HasPrefix(baseURL, "https://") {
