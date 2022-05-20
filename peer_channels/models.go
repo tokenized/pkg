@@ -29,3 +29,13 @@ type AccessToken struct {
 type ChannelList struct {
 	Channels []*Channel `json:"channels"`
 }
+
+func (c Channel) GetWriteToken() string {
+	for _, token := range c.AccessTokens {
+		if token.CanWrite {
+			return token.Token
+		}
+	}
+
+	return ""
+}
