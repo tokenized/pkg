@@ -56,6 +56,10 @@ func NewMockClient() *MockClient {
 	}
 }
 
+func (c *MockClient) BaseURL() string {
+	return c.baseURL
+}
+
 func (c *MockClient) CreateAccount(ctx context.Context, token string) (*string, *string, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()

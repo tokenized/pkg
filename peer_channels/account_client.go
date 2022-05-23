@@ -14,6 +14,8 @@ type AccountClient interface {
 
 	// Listen receives incoming messages for the peer channel account.
 	Listen(ctx context.Context, incoming chan Message, interrupt <-chan interface{}) error
+
+	BaseURL() string
 }
 
 type StandardAccountClient struct {
@@ -41,4 +43,8 @@ func (c *StandardAccountClient) CreateChannel(ctx context.Context) (*Channel, er
 func (c *StandardAccountClient) Listen(ctx context.Context, incoming chan Message,
 	interrupt <-chan interface{}) error {
 	return c.client.AccountListen(ctx, c.accountID, c.token, incoming, interrupt)
+}
+
+func (c *StandardAccountClient) BaseURL() string {
+	return c.client.BaseURL()
 }

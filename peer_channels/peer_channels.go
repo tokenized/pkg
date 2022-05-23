@@ -50,6 +50,8 @@ type Client interface {
 		incoming chan Message, interrupt <-chan interface{}) error
 	ChannelListen(ctx context.Context, channelID, token string,
 		incoming chan Message, interrupt <-chan interface{}) error
+
+	BaseURL() string
 }
 
 type Message struct {
@@ -132,6 +134,10 @@ func NewHTTPClient(baseURL string) *HTTPClient {
 	return &HTTPClient{
 		baseURL: baseURL,
 	}
+}
+
+func (c *HTTPClient) BaseURL() string {
+	return c.baseURL
 }
 
 // CreateAccount creates a new account on the SPVChannel service.
