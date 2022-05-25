@@ -62,21 +62,38 @@ func TestBasic(t *testing.T) {
 	}
 
 	// Test single valid private key
-	err = tx.Sign([]bitcoin.Key{key})
+	var signingKeys []bitcoin.Key
+	signingKeys, err = tx.Sign([]bitcoin.Key{key})
 	if err != nil {
 		t.Errorf("Failed to sign tx : %s", err)
 	}
 	t.Logf("Tx Fee : %d", tx.Fee())
 
+	if len(signingKeys) != 1 {
+		t.Fatalf("Wrong signingKeys count : got %d, want %d", len(signingKeys), 1)
+	}
+
+	if !signingKeys[0].Equal(key) {
+		t.Errorf("Wrong signing key : got %s, want %s", signingKeys[0].String(), key.String())
+	}
+
 	// Test extra private key
-	err = tx.Sign([]bitcoin.Key{key, key2})
+	signingKeys, err = tx.Sign([]bitcoin.Key{key, key2})
 	if err != nil {
 		t.Errorf("Failed to sign tx with both keys : %s", err)
 	}
 	t.Logf("Tx Fee : %d", tx.Fee())
 
+	if len(signingKeys) != 1 {
+		t.Fatalf("Wrong signingKeys count : got %d, want %d", len(signingKeys), 1)
+	}
+
+	if !signingKeys[0].Equal(key) {
+		t.Errorf("Wrong signing key : got %s, want %s", signingKeys[0].String(), key.String())
+	}
+
 	// Test wrong private key
-	err = tx.Sign([]bitcoin.Key{key2})
+	_, err = tx.Sign([]bitcoin.Key{key2})
 	if errors.Cause(err) == ErrWrongPrivateKey {
 		if err != nil {
 			t.Errorf("Failed to return wrong private key error : %s", err)
@@ -131,7 +148,7 @@ func TestSample(t *testing.T) {
 	_ = builder.AddPaymentOutput(bitcoin.NewRawAddressFromAddress(paymentAddress), 1000, false)
 
 	// sign the first and only input
-	_ = builder.Sign([]bitcoin.Key{key})
+	builder.Sign([]bitcoin.Key{key})
 
 	// get the raw TX bytes
 	_, _ = builder.Serialize()

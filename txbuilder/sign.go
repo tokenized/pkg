@@ -63,7 +63,7 @@ func (tx *TxBuilder) SignP2PKHInput(index int, key bitcoin.Key, hashCache *SigHa
 // Sign estimates and updates the fee, signs all inputs, and corrects the fee if necessary.
 //   keys is a slice of all keys required to sign all inputs. They do not have to be in any order.
 // TODO Upgrade to sign more than just P2PKH inputs.
-func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
+func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 	// Update fee to estimated amount
 	estimatedFee := int64(float32(tx.EstimatedSize()) * tx.FeeRate)
 	inputValue := tx.InputValue()
@@ -71,7 +71,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 	shc := SigHashCache{}
 
 	if inputValue < outputValue+uint64(estimatedFee) {
-		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+		return nil, errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 			outputValue+uint64(estimatedFee)))
 	}
 
@@ -82,25 +82,29 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 	done, err = tx.adjustFee(estimatedFee - currentFee)
 	if err != nil {
 		if errors.Cause(err) == ErrInsufficientValue {
-			return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+			return nil, errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 				outputValue+uint64(estimatedFee)))
 		}
-		return err
+		return nil, err
 	}
 
 	attempt := 3 // Max of 3 fee adjustment attempts
 	for {
 		shc.ClearOutputs()
+		var result []bitcoin.Key
 
 		// Sign all inputs
 		for index, _ := range tx.Inputs {
-			if err := tx.signInput(index, keys, shc); err != nil {
-				return errors.Wrap(err, fmt.Sprintf("sign input %d", index))
+			keys, err := tx.signInput(index, keys, shc)
+			if err != nil {
+				return nil, errors.Wrap(err, fmt.Sprintf("sign input %d", index))
 			}
+
+			result = appendKeys(result, keys...)
 		}
 
 		if done || attempt == 0 {
-			break
+			return result, nil
 		}
 
 		// Check fee and adjust if too low
@@ -109,116 +113,134 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) error {
 		outputValue = tx.OutputValue(false)
 		changeValue := tx.changeSum()
 		if inputValue < outputValue+uint64(targetFee) {
-			return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+			return nil, errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 				outputValue+uint64(targetFee)))
 		}
 
 		currentFee = int64(inputValue) - int64(outputValue) - int64(changeValue)
 		if currentFee >= targetFee && float32(currentFee-targetFee)/float32(targetFee) < 0.05 {
-			break // Within 5% of target fee
+			// Within 5% of target fee
+			return result, nil
 		}
 
 		done, err = tx.adjustFee(targetFee - currentFee)
 		if err != nil {
 			if errors.Cause(err) == ErrInsufficientValue {
-				return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+				return nil, errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 					outputValue+uint64(targetFee)))
 			}
-			return err
+			return nil, err
 		}
 
 		attempt--
 	}
-
-	return nil
 }
 
 // SignOnly signs any unsigned inputs in the tx.
 // It does not adjust the fee or make any other modifications to the tx like Sign.
-func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) error {
+func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 	shc := SigHashCache{}
-
+	var result []bitcoin.Key
 	for index, _ := range tx.Inputs {
 		if len(tx.MsgTx.TxIn[index].UnlockingScript) > 0 {
 			continue // already signed
 		}
 
-		if err := tx.signInput(index, keys, shc); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("sign input %d", index))
+		keys, err := tx.signInput(index, keys, shc)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("sign input %d", index))
 		}
+
+		result = appendKeys(result, keys...)
 	}
 
-	return nil
+	return result, nil
 }
 
-// signInput signs an input of the tx.
-func (tx *TxBuilder) signInput(index int, keys []bitcoin.Key, shc SigHashCache) error {
-	address, err := bitcoin.RawAddressFromLockingScript(tx.Inputs[index].LockingScript)
-	if err != nil {
-		return errors.Wrap(err, "locking script")
+func appendKeys(list []bitcoin.Key, keys ...bitcoin.Key) []bitcoin.Key {
+	result := list
+	for _, key := range keys {
+		found := false
+		for _, k := range list {
+			if k.Equal(key) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			result = append(result, key)
+		}
 	}
 
-	switch address.Type() {
-	case bitcoin.ScriptTypePKH:
-		hash, err := address.Hash()
-		if err != nil {
-			return errors.Wrap(err, "address hash")
-		}
-		signed := false
+	return result
+}
+
+// signInput signs an input of the tx and returns the keys used.
+func (tx *TxBuilder) signInput(index int, keys []bitcoin.Key,
+	shc SigHashCache) ([]bitcoin.Key, error) {
+
+	lockingScript := tx.Inputs[index].LockingScript
+	value := tx.Inputs[index].Value
+
+	if lockingScript.IsP2PKH() {
 		for _, key := range keys {
-			pkh := bitcoin.Hash160(key.PublicKey().Bytes())
-			if !bytes.Equal(pkh, hash.Bytes()) {
+			keyLockingScript, err := key.LockingScript()
+			if err != nil {
+				return nil, errors.Wrap(err, "key locking script")
+			}
+
+			if !keyLockingScript.Equal(lockingScript) {
 				continue
 			}
 
-			tx.MsgTx.TxIn[index].UnlockingScript, err = P2PKHUnlockingScript(key, tx.MsgTx, index,
-				tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID,
-				&shc)
-
+			unlockingScript, err := P2PKHUnlockingScript(key, tx.MsgTx, index, lockingScript,
+				value, SigHashAll+SigHashForkID, &shc)
 			if err != nil {
-				return errors.Wrap(err, "unlock script")
+				return nil, errors.Wrap(err, "unlock script")
 			}
-			signed = true
-			break
+			tx.MsgTx.TxIn[index].UnlockingScript = unlockingScript
+
+			return []bitcoin.Key{key}, nil
 		}
 
-		if !signed {
-			return ErrMissingPrivateKey
-		}
+		return nil, ErrMissingPrivateKey
+	}
 
-	case bitcoin.ScriptTypePK:
-		pubKey, err := address.GetPublicKey()
+	if lockingScript.IsP2PK() {
+		scriptItems, err := bitcoin.ParseScriptItems(bytes.NewReader(lockingScript), -1)
 		if err != nil {
-			return err
+			return nil, errors.Wrap(err, "parse locking script")
 		}
-		pkb := pubKey.Bytes()
-		signed := false
+
+		if len(scriptItems) != 2 {
+			return nil, bitcoin.ErrUnknownScriptTemplate
+		}
+
+		pubKeyItem := scriptItems[0]
+		if pubKeyItem.Type != bitcoin.ScriptItemTypePushData {
+			return nil, bitcoin.ErrUnknownScriptTemplate
+		}
+
 		for _, key := range keys {
-			pk := key.PublicKey().Bytes()
-			if !bytes.Equal(pk, pkb) {
+			if !bytes.Equal(key.PublicKey().Bytes(), pubKeyItem.Data) {
 				continue
 			}
 
-			tx.MsgTx.TxIn[index].UnlockingScript, err = P2PKUnlockingScript(key, tx.MsgTx, index,
-				tx.Inputs[index].LockingScript, tx.Inputs[index].Value, SigHashAll+SigHashForkID,
-				&shc)
-
+			unlockingScript, err := P2PKUnlockingScript(key, tx.MsgTx, index, lockingScript,
+				value, SigHashAll+SigHashForkID, &shc)
 			if err != nil {
-				return errors.Wrap(err, "unlock script")
+				return nil, errors.Wrap(err, "unlock script")
 			}
-			signed = true
-			break
+			tx.MsgTx.TxIn[index].UnlockingScript = unlockingScript
+
+			return []bitcoin.Key{key}, nil
 		}
 
-		if !signed {
-			return ErrMissingPrivateKey
-		}
-
-	default:
-		return errors.Wrap(ErrWrongScriptTemplate, "Not a P2PKH or P2PK locking script")
+		return nil, ErrMissingPrivateKey
 	}
 
-	return nil
+	return nil, errors.Wrap(ErrWrongScriptTemplate, "Not a P2PKH or P2PK locking script")
 }
 
 func P2PKHUnlockingScript(key bitcoin.Key, tx *wire.MsgTx, index int,

@@ -54,7 +54,7 @@ func MockPaymentTx(ctx context.Context, rpc *MockRpcNode, value uint64,
 
 	tx.AddPaymentOutput(address, value, false)
 
-	if err := tx.Sign([]bitcoin.Key{inputKey}); err != nil {
+	if _, err := tx.Sign([]bitcoin.Key{inputKey}); err != nil {
 		panic(err)
 	}
 

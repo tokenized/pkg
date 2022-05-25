@@ -124,7 +124,7 @@ func CreateSend(ctx context.Context, cfg *Config, args []string) {
 		return
 	}
 
-	if err := tx.Sign([]bitcoin.Key{key}); err != nil {
+	if _, err := tx.Sign([]bitcoin.Key{key}); err != nil {
 		fmt.Printf("Failed to sign transaction : %s\n", err)
 		return
 	}
