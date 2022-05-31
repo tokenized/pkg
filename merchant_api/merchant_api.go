@@ -21,10 +21,21 @@ import (
 var (
 	ErrFailure        = errors.New("Failure")
 	ErrDoubleSpend    = errors.New("Double Spend")
-	AlreadyInMempool  = errors.New("Already In Mempool")
 	ErrHTTPNotFound   = errors.New("HTTP Not Found")
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
 	ErrTimeout        = errors.New("Timeout")
+
+	// AlreadyInMempool can be returned when submitting a tx that the miner has already seen. It
+	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks. The "status"
+	// endpoint should be checked to verify the tx is valid.
+	AlreadyInMempool = errors.New("Already In Mempool")
+
+	// MissingInputs can be returned when you are submitting a tx and the inputs are already spent,
+	// or don't exist. One scenario is when submitting a tx that was included in a block a while ago
+	// it will return missing inputs because the inputs were spent long enough in the past. It
+	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks. The "status"
+	// endpoint should be checked to verify the tx is valid.
+	MissingInputs = errors.New("Missing Inputs")
 )
 
 const (
@@ -174,6 +185,10 @@ func (str SubmitTxResponse) Success() error {
 
 	if str.Result == "failure" && str.ResultDescription == "Transaction already in the mempool" {
 		return AlreadyInMempool
+	}
+
+	if str.Result == "failure" && str.ResultDescription == "Missing inputs" {
+		return MissingInputs
 	}
 
 	return errors.Wrap(ErrFailure, str.Result)
