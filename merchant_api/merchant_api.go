@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -20,10 +21,21 @@ import (
 var (
 	ErrFailure        = errors.New("Failure")
 	ErrDoubleSpend    = errors.New("Double Spend")
-	AlreadyInMempool  = errors.New("Already In Mempool")
 	ErrHTTPNotFound   = errors.New("HTTP Not Found")
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
 	ErrTimeout        = errors.New("Timeout")
+
+	// AlreadyInMempool can be returned when submitting a tx that the miner has already seen. It
+	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks. The "status"
+	// endpoint should be checked to verify the tx is valid.
+	AlreadyInMempool = errors.New("Already In Mempool")
+
+	// MissingInputs can be returned when you are submitting a tx and the inputs are already spent,
+	// or don't exist. One scenario is when submitting a tx that was included in a block a while ago
+	// it will return missing inputs because the inputs were spent long enough in the past. It
+	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks. The "status"
+	// endpoint should be checked to verify the tx is valid.
+	MissingInputs = errors.New("Missing Inputs")
 )
 
 const (
@@ -171,6 +183,12 @@ type FeePolicies struct {
 }
 
 func GetFeeQuote(ctx context.Context, baseURL string) (*FeeQuoteResponse, error) {
+	return GetFeeQuoteWithAuth(ctx, baseURL, "")
+}
+
+func GetFeeQuoteWithAuth(ctx context.Context,
+	baseURL, authToken string) (*FeeQuoteResponse, error) {
+
 	if len(baseURL) == 0 {
 		return nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
 	}
@@ -180,7 +198,7 @@ func GetFeeQuote(ctx context.Context, baseURL string) (*FeeQuoteResponse, error)
 	}
 
 	envelope := &json_envelope.JSONEnvelope{}
-	if err := get(ctx, baseURL+"/mapi/feeQuote", envelope); err != nil {
+	if err := get(ctx, baseURL+"/mapi/feeQuote", authToken, envelope); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
 
@@ -245,6 +263,10 @@ func (str SubmitTxResponse) Success() error {
 		return AlreadyInMempool
 	}
 
+	if str.Result == "failure" && str.ResultDescription == "Missing inputs" {
+		return MissingInputs
+	}
+
 	return errors.Wrap(ErrFailure, str.Result)
 }
 
@@ -272,6 +294,11 @@ type CallBackDoubleSpend struct {
 
 func SubmitTx(ctx context.Context, baseURL string,
 	request SubmitTxRequest) (*SubmitTxResponse, error) {
+	return SubmitTxWithAuth(ctx, baseURL, request, "")
+}
+
+func SubmitTxWithAuth(ctx context.Context, baseURL string,
+	request SubmitTxRequest, authToken string) (*SubmitTxResponse, error) {
 
 	if len(baseURL) == 0 {
 		return nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
@@ -282,7 +309,7 @@ func SubmitTx(ctx context.Context, baseURL string,
 	}
 
 	envelope := &json_envelope.JSONEnvelope{}
-	if err := post(ctx, baseURL+"/mapi/tx", request, envelope); err != nil {
+	if err := post(ctx, baseURL+"/mapi/tx", authToken, request, envelope); err != nil {
 		return nil, errors.Wrap(err, "http post")
 	}
 
@@ -326,6 +353,11 @@ func (str GetTxStatusResponse) Success() error {
 // GetTxStatus returns the status of a tx. If it is confirmed it will return valid.
 func GetTxStatus(ctx context.Context, baseURL string,
 	txid bitcoin.Hash32) (*GetTxStatusResponse, error) {
+	return GetTxStatusWithAuth(ctx, baseURL, txid, "")
+}
+
+func GetTxStatusWithAuth(ctx context.Context, baseURL string,
+	txid bitcoin.Hash32, authToken string) (*GetTxStatusResponse, error) {
 
 	if len(baseURL) == 0 {
 		return nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
@@ -336,7 +368,7 @@ func GetTxStatus(ctx context.Context, baseURL string,
 	}
 
 	envelope := &json_envelope.JSONEnvelope{}
-	if err := get(ctx, baseURL+"/mapi/tx/"+txid.String(), envelope); err != nil {
+	if err := get(ctx, baseURL+"/mapi/tx/"+txid.String(), authToken, envelope); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
 
@@ -357,7 +389,7 @@ func GetTxStatus(ctx context.Context, baseURL string,
 }
 
 // post sends a request to the HTTP server using the POST method.
-func post(ctx context.Context, url string, request, response interface{}) error {
+func post(ctx context.Context, url, authToken string, request, response interface{}) error {
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -370,12 +402,33 @@ func post(ctx context.Context, url string, request, response interface{}) error 
 		Transport: transport,
 	}
 
-	b, err := json.Marshal(request)
-	if err != nil {
-		return errors.Wrap(err, "marshal request")
+	var r io.Reader
+	if request != nil {
+		var b []byte
+		if s, ok := request.(string); ok {
+			// request is already a json string, not an object to convert to json
+			b = []byte(s)
+		} else {
+			bt, err := json.Marshal(request)
+			if err != nil {
+				return errors.Wrap(err, "marshal request")
+			}
+			b = bt
+		}
+		r = bytes.NewReader(b)
 	}
 
-	httpResponse, err := client.Post(url, "application/json", bytes.NewReader(b))
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, url, r)
+	if err != nil {
+		return errors.Wrap(err, "create request")
+	}
+
+	httpRequest.Header.Add("Authorization", authToken)
+	if request != nil {
+		httpRequest.Header.Add("Content-Type", "application/json")
+	}
+
+	httpResponse, err := client.Do(httpRequest)
 	if err != nil {
 		if errors.Cause(err) == context.DeadlineExceeded {
 			return errors.Wrap(ErrTimeout, errors.Wrap(err, "http post").Error())
@@ -409,7 +462,7 @@ func post(ctx context.Context, url string, request, response interface{}) error 
 }
 
 // get sends a request to the HTTP server using the GET method.
-func get(ctx context.Context, url string, response interface{}) error {
+func get(ctx context.Context, url, authToken string, response interface{}) error {
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -422,7 +475,14 @@ func get(ctx context.Context, url string, response interface{}) error {
 		Transport: transport,
 	}
 
-	httpResponse, err := client.Get(url)
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return errors.Wrap(err, "create request")
+	}
+
+	httpRequest.Header.Add("Authorization", authToken)
+
+	httpResponse, err := client.Do(httpRequest)
 	if err != nil {
 		if errors.Cause(err) == context.DeadlineExceeded {
 			return errors.Wrap(ErrTimeout, errors.Wrap(err, "http get").Error())
