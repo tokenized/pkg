@@ -35,6 +35,7 @@ type TestStruct struct {
 	IntPtrField                 *int                  `bsor:"21"`
 	IntPtrNilField              *int                  `bsor:"22"`
 	IntPtrZeroField             *int                  `bsor:"23"`
+	FixedStringField            string                `bsor:"24" bsor_fixed_size:"5"`
 }
 
 type TestSubStruct struct {
@@ -115,8 +116,9 @@ func Test_Marshal_TestStruct1(t *testing.T) {
 					nil,
 					&pubKey2,
 				},
-				IntPtrField:     &intValue,
-				IntPtrZeroField: &intZeroValue,
+				IntPtrField:      &intValue,
+				IntPtrZeroField:  &intZeroValue,
+				FixedStringField: "12345",
 			},
 		},
 	}

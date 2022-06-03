@@ -172,6 +172,10 @@ func (k *PublicKey) UnmarshalText(text []byte) error {
 	return k.SetBytes(b)
 }
 
+func (k PublicKey) MarshalBinaryFixedSize() int {
+	return 33
+}
+
 // MarshalBinary returns the binary encoding of the public key.
 // Implements encoding.BinaryMarshaler interface.
 func (k PublicKey) MarshalBinary() ([]byte, error) {

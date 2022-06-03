@@ -1296,7 +1296,6 @@ func StringToScript(text string) (Script, error) {
 			continue
 		}
 
-		fmt.Printf("Part : %s\n", part)
 		firstChar = part[0]
 		lastChar = part[len(part)-1]
 

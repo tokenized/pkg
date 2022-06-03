@@ -16,6 +16,19 @@ var (
 	ErrValueConversion = errors.New("Value Conversion")
 )
 
+type BinaryMarshaler interface {
+	MarshalBinary() (data []byte, err error)
+}
+
+type BinaryUnmarshaler interface {
+	UnmarshalBinary(data []byte) error
+}
+
+type FixedBinaryMarshaler interface {
+	MarshalBinaryFixedSize() int
+	MarshalBinary() (data []byte, err error)
+}
+
 func Marshal(object interface{}) (bitcoin.ScriptItems, error) {
 	return marshalObject(object, false)
 }
@@ -52,7 +65,7 @@ func Unmarshal(scriptItems bitcoin.ScriptItems, object interface{}) (bitcoin.Scr
 	// 	return nil, fmt.Errorf("Unmarshal object is not a struct: %s", objectType.Kind())
 	// }
 
-	if err := unmarshalObject(&scriptItems, objectValue, false); err != nil {
+	if err := unmarshalObject(&scriptItems, objectValue, 0, false); err != nil {
 		return nil, errors.Wrap(err, "object")
 	}
 

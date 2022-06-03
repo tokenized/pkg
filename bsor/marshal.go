@@ -2,7 +2,6 @@ package bsor
 
 import (
 	"bytes"
-	"encoding"
 	"encoding/binary"
 	"fmt"
 	"reflect"
@@ -14,7 +13,7 @@ import (
 )
 
 func marshalObject(object interface{}, inArray bool) (bitcoin.ScriptItems, error) {
-	binaryMarshaler, isBinaryMarshaler := object.(encoding.BinaryMarshaler)
+	binaryMarshaler, isBinaryMarshaler := object.(BinaryMarshaler)
 	value := reflect.ValueOf(object)
 	typ := value.Type()
 	kind := typ.Kind()
@@ -48,7 +47,7 @@ func marshalObject(object interface{}, inArray bool) (bitcoin.ScriptItems, error
 	}
 
 	if kind != reflect.Struct {
-		primitiveScriptItems, err := marshalPrimitive(value, inArray)
+		primitiveScriptItems, err := marshalPrimitive(value, 0, inArray)
 		if err != nil {
 			return nil, errors.Wrap(err, "primitive")
 		}
@@ -121,6 +120,18 @@ func marshalField(field reflect.StructField,
 		return nil, nil // zero value / empty field
 	}
 
+	fixedSizeString := field.Tag.Get("bsor_fixed_size")
+	var fixedSize uint
+	if len(fixedSizeString) > 0 {
+		value, err := strconv.ParseUint(fixedSizeString, 10, 64)
+		if err != nil {
+			return nil, errors.Wrapf(ErrInvalidID, "bsor_fixed_size tag invalid integer: \"%s\"",
+				fixedSizeString)
+		}
+
+		fixedSize = uint(value)
+	}
+
 	typ := fieldValue.Type()
 	switch typ.Kind() {
 	case reflect.Ptr:
@@ -156,7 +167,7 @@ func marshalField(field reflect.StructField,
 	default:
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		primitiveScriptItems, err := marshalPrimitive(fieldValue, false)
+		primitiveScriptItems, err := marshalPrimitive(fieldValue, fixedSize, false)
 		if err != nil {
 			return nil, errors.Wrap(err, "primitive")
 		}
@@ -165,7 +176,9 @@ func marshalField(field reflect.StructField,
 	}
 }
 
-func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, error) {
+func marshalPrimitive(value reflect.Value, fixedSize uint,
+	inArray bool) (bitcoin.ScriptItems, error) {
+
 	var result bitcoin.ScriptItems
 	typ := value.Type()
 	switch typ.Kind() {
@@ -174,7 +187,7 @@ func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, e
 			result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
 		}
 
-		primitiveScriptItems, err := marshalPrimitive(value, inArray)
+		primitiveScriptItems, err := marshalPrimitive(value, fixedSize, inArray)
 		if err != nil {
 			return nil, errors.Wrap(err, "ptr")
 		}
@@ -182,6 +195,12 @@ func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, e
 		return append(result, primitiveScriptItems...), err
 
 	case reflect.String:
+		s := value.String()
+		if fixedSize > 0 && uint(len(s)) != fixedSize {
+			return nil, errors.Wrapf(ErrValueConversion,
+				"Fixed string wrong size : got %d, want %d", len(s), fixedSize)
+		}
+
 		return bitcoin.ScriptItems{bitcoin.NewPushDataScriptItem([]byte(value.String()))}, nil
 
 	case reflect.Bool:
@@ -206,6 +225,11 @@ func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, e
 		case reflect.Uint8: // byte array (Binary Data)
 			// Convert to byte slice
 			l := value.Len()
+			if fixedSize > 0 && uint(l) != fixedSize {
+				return nil, errors.Wrapf(ErrValueConversion,
+					"Fixed string wrong size : got %d, want %d", l, fixedSize)
+			}
+
 			b := make([]byte, l)
 			for i := 0; i < l; i++ {
 				index := value.Index(i)
@@ -239,7 +263,13 @@ func marshalPrimitive(value reflect.Value, inArray bool) (bitcoin.ScriptItems, e
 		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte slice (Binary Data)
-			return append(result, bitcoin.NewPushDataScriptItem(value.Bytes())), nil
+			b := value.Bytes()
+			if fixedSize > 0 && uint(len(b)) != fixedSize {
+				return nil, errors.Wrapf(ErrValueConversion,
+					"Fixed string wrong size : got %d, want %d", len(b), fixedSize)
+			}
+
+			return append(result, bitcoin.NewPushDataScriptItem(b)), nil
 		}
 
 		// Array encoding

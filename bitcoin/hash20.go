@@ -172,6 +172,10 @@ func (h *Hash20) UnmarshalText(text []byte) error {
 	return h.SetBytes(b)
 }
 
+func (h Hash20) MarshalBinaryFixedSize() int {
+	return 20
+}
+
 // MarshalBinary returns the binary encoding of the hash.
 // Implements encoding.BinaryMarshaler interface.
 func (h Hash20) MarshalBinary() ([]byte, error) {

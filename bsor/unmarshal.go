@@ -14,18 +14,25 @@ import (
 	"github.com/pkg/errors"
 )
 
-type FieldIndexes map[uint64]int
+type FieldIndexes map[uint64]FieldIndex
+type FieldIndex struct {
+	Index     int
+	FixedSize uint
+}
 
-func (f *FieldIndexes) add(id uint64, index int) error {
+func (f *FieldIndexes) add(id uint64, index int, fixedSize uint) error {
 	if _, exists := (*f)[id]; exists {
 		return ErrDuplicateID
 	}
 
-	(*f)[id] = index
+	(*f)[id] = FieldIndex{
+		Index:     index,
+		FixedSize: fixedSize,
+	}
 	return nil
 }
 
-func (f FieldIndexes) find(id uint64) *int {
+func (f FieldIndexes) find(id uint64) *FieldIndex {
 	index, exists := f[id]
 	if !exists {
 		return nil
@@ -34,7 +41,7 @@ func (f FieldIndexes) find(id uint64) *int {
 	return &index
 }
 
-func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, error) {
+func NewFieldIndexes(typ reflect.Type, value reflect.Value) (FieldIndexes, error) {
 	fieldCount := typ.NumField()
 
 	fields := make(FieldIndexes)
@@ -69,15 +76,29 @@ func NewFieldIndexes(typ reflect.Type, value reflect.Value) (*FieldIndexes, erro
 				field.Name)
 		}
 
-		if err := fields.add(id, i); err != nil {
+		fixedSizeString := field.Tag.Get("bsor_fixed_size")
+		var fixedSize uint
+		if len(fixedSizeString) > 0 {
+			value, err := strconv.ParseUint(fixedSizeString, 10, 64)
+			if err != nil {
+				return nil, errors.Wrapf(ErrInvalidID, "bsor_fixed_size tag invalid integer: \"%s\"",
+					fixedSizeString)
+			}
+
+			fixedSize = uint(value)
+		}
+
+		if err := fields.add(id, i, fixedSize); err != nil {
 			return nil, errors.Wrap(err, field.Name)
 		}
 	}
 
-	return &fields, nil
+	return fields, nil
 }
 
-func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inArray bool) error {
+func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixedSize uint,
+	inArray bool) error {
+
 	typ := value.Type()
 	kind := typ.Kind()
 	var valuePtr reflect.Value
@@ -127,7 +148,7 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 	}
 
 	if kind != reflect.Struct {
-		return unmarshalPrimitive(scriptItems, value, inArray)
+		return unmarshalPrimitive(scriptItems, value, fixedSize, inArray)
 	}
 
 	fieldCount, err := readCount(scriptItems)
@@ -166,14 +187,15 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 			return fmt.Errorf("Field %d not found in %s", id, typ.Name())
 		}
 
-		field := typ.Field(*fieldIndex)
+		field := typ.Field(fieldIndex.Index)
 		fieldValue := reflect.New(field.Type) // must use elem to be "assignable"
 
-		if err := unmarshalField(scriptItems, field, fieldValue.Elem()); err != nil {
+		if err := unmarshalField(scriptItems, field, fieldValue.Elem(),
+			fieldIndex.FixedSize); err != nil {
 			return errors.Wrapf(err, "unmarshal field: %s (id %d) (%s)", field.Name, id,
 				typeName(field.Type))
 		}
-		newValue.Field(*fieldIndex).Set(fieldValue.Elem())
+		newValue.Field(fieldIndex.Index).Set(fieldValue.Elem())
 	}
 
 	if isPtr {
@@ -184,7 +206,7 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, inAr
 }
 
 func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
-	fieldValue reflect.Value) error {
+	fieldValue reflect.Value, fixedSize uint) error {
 
 	if !fieldValue.CanInterface() {
 		return nil // not exported, "private" lower case field name
@@ -195,7 +217,7 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 		elem := field.Type.Elem()
 		value := reflect.New(elem)
 
-		if err := unmarshalObject(scriptItems, value.Elem(), false); err != nil {
+		if err := unmarshalObject(scriptItems, value.Elem(), fixedSize, false); err != nil {
 			return errors.Wrap(err, "ptr object")
 		}
 
@@ -207,24 +229,31 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 	// case reflect.Map: // TODO Add map support --ce
 
 	case reflect.Struct:
-		if err := unmarshalObject(scriptItems, fieldValue, false); err != nil {
+		if err := unmarshalObject(scriptItems, fieldValue, fixedSize, false); err != nil {
 			return errors.Wrap(err, "struct")
 		}
 
 		return nil
 
 	default:
-		return unmarshalPrimitive(scriptItems, fieldValue, false)
+		return unmarshalPrimitive(scriptItems, fieldValue, fixedSize, false)
 	}
 }
 
-func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, inArray bool) error {
+func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixedSize uint,
+	inArray bool) error {
+
 	typ := value.Type()
 	switch typ.Kind() {
 	case reflect.String:
 		b, err := readBytes(scriptItems)
 		if err != nil {
 			return errors.Wrap(err, "bytes")
+		}
+
+		if fixedSize > 0 && uint(len(b)) != fixedSize {
+			return errors.Wrapf(ErrValueConversion,
+				"Fixed string wrong size : got %d, want %d", len(b), fixedSize)
 		}
 
 		value.SetString(string(b))
@@ -280,7 +309,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 		valuePtr := reflect.New(typ.Elem())
 		newValue := valuePtr.Elem()
 
-		if err := unmarshalObject(scriptItems, newValue, inArray); err != nil {
+		if err := unmarshalObject(scriptItems, newValue, fixedSize, inArray); err != nil {
 			return errors.Wrap(err, "pointer")
 		}
 
@@ -299,6 +328,11 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 				return errors.Wrap(err, "fixed bytes")
 			}
 
+			if fixedSize > 0 && uint(len(b)) != fixedSize {
+				return errors.Wrapf(ErrValueConversion,
+					"Fixed binary wrong size : got %d, want %d", len(b), fixedSize)
+			}
+
 			reflect.Copy(value, reflect.ValueOf(b))
 			return nil
 		}
@@ -307,7 +341,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 		ptr := reflect.New(typ)
 		array := ptr.Elem()
 		for i := 0; i < value.Len(); i++ {
-			if err := unmarshalObject(scriptItems, array.Index(int(i)), true); err != nil {
+			if err := unmarshalObject(scriptItems, array.Index(int(i)), 0, true); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
 		}
@@ -324,6 +358,11 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 				return errors.Wrap(err, "bytes")
 			}
 
+			if fixedSize > 0 && uint(len(b)) != fixedSize {
+				return errors.Wrapf(ErrValueConversion,
+					"Fixed binary wrong size : got %d, want %d", len(b), fixedSize)
+			}
+
 			value.SetBytes(b)
 			return nil
 		}
@@ -336,7 +375,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, i
 
 		slice := reflect.MakeSlice(typ, int(count), int(count))
 		for i := uint64(0); i < count; i++ {
-			if err := unmarshalObject(scriptItems, slice.Index(int(i)), true); err != nil {
+			if err := unmarshalObject(scriptItems, slice.Index(int(i)), 0, true); err != nil {
 				return errors.Wrapf(err, "item %d", i)
 			}
 		}
