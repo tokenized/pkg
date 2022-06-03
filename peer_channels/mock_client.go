@@ -368,8 +368,13 @@ func (c *MockClient) getUnreadMessagesForAccount(accountID string) Messages {
 	return result
 }
 
+func (c *MockClient) AccountNotify(ctx context.Context, accountID, token string,
+	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
+	return errors.New("Not Implemented")
+}
+
 func (c *MockClient) AccountListen(ctx context.Context, accountID, token string,
-	incoming chan Message, interrupt <-chan interface{}) error {
+	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	c.lock.Lock()
 	account, exists := c.accounts[accountID]
@@ -442,8 +447,13 @@ func (channel *mockChannel) getUnreadMessages() Messages {
 	return result
 }
 
+func (c *MockClient) ChannelNotify(ctx context.Context, channelID, token string,
+	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
+	return errors.New("Not Implemented")
+}
+
 func (c *MockClient) ChannelListen(ctx context.Context, channelID, token string,
-	incoming chan Message, interrupt <-chan interface{}) error {
+	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	c.lock.Lock()
 	channel, exists := c.channels[channelID]

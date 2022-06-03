@@ -12,6 +12,10 @@ type AccountClient interface {
 	// the write token.
 	CreateChannel(ctx context.Context) (*Channel, error)
 
+	// Notify receives incoming messages for the peer channel account.
+	Notify(ctx context.Context, incoming chan MessageNotification,
+		interrupt <-chan interface{}) error
+
 	// Listen receives incoming messages for the peer channel account.
 	Listen(ctx context.Context, incoming chan Message, interrupt <-chan interface{}) error
 
@@ -38,6 +42,11 @@ func (c *StandardAccountClient) CreatePublicChannel(ctx context.Context) (*Chann
 
 func (c *StandardAccountClient) CreateChannel(ctx context.Context) (*Channel, error) {
 	return c.client.CreateChannel(ctx, c.accountID, c.token)
+}
+
+func (c *StandardAccountClient) Notify(ctx context.Context, incoming chan MessageNotification,
+	interrupt <-chan interface{}) error {
+	return c.client.AccountNotify(ctx, c.accountID, c.token, incoming, interrupt)
 }
 
 func (c *StandardAccountClient) Listen(ctx context.Context, incoming chan Message,
