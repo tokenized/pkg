@@ -191,7 +191,7 @@ func Test_ChannelListen(t *testing.T) {
 	}()
 
 	if err := client.ChannelListen(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", incoming, interrupt); err != nil {
+		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", true, incoming, interrupt); err != nil {
 		t.Fatalf("Failed to notify messages : %s", err)
 	}
 	close(incoming)

@@ -13,11 +13,12 @@ type AccountClient interface {
 	CreateChannel(ctx context.Context) (*Channel, error)
 
 	// Notify receives incoming messages for the peer channel account.
-	Notify(ctx context.Context, incoming chan MessageNotification,
+	Notify(ctx context.Context, autosend bool, incoming chan MessageNotification,
 		interrupt <-chan interface{}) error
 
 	// Listen receives incoming messages for the peer channel account.
-	Listen(ctx context.Context, incoming chan Message, interrupt <-chan interface{}) error
+	Listen(ctx context.Context, autosend bool, incoming chan Message,
+		interrupt <-chan interface{}) error
 
 	BaseURL() string
 }
@@ -44,14 +45,14 @@ func (c *StandardAccountClient) CreateChannel(ctx context.Context) (*Channel, er
 	return c.client.CreateChannel(ctx, c.accountID, c.token)
 }
 
-func (c *StandardAccountClient) Notify(ctx context.Context, incoming chan MessageNotification,
-	interrupt <-chan interface{}) error {
-	return c.client.AccountNotify(ctx, c.accountID, c.token, incoming, interrupt)
+func (c *StandardAccountClient) Notify(ctx context.Context, autosend bool,
+	incoming chan MessageNotification, interrupt <-chan interface{}) error {
+	return c.client.AccountNotify(ctx, c.accountID, c.token, autosend, incoming, interrupt)
 }
 
-func (c *StandardAccountClient) Listen(ctx context.Context, incoming chan Message,
+func (c *StandardAccountClient) Listen(ctx context.Context, autosend bool, incoming chan Message,
 	interrupt <-chan interface{}) error {
-	return c.client.AccountListen(ctx, c.accountID, c.token, incoming, interrupt)
+	return c.client.AccountListen(ctx, c.accountID, c.token, autosend, incoming, interrupt)
 }
 
 func (c *StandardAccountClient) BaseURL() string {

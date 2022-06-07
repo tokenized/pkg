@@ -36,13 +36,13 @@ type Client interface {
 	MarkMessages(ctx context.Context, channelID, token string, sequence uint32,
 		read, older bool) error
 
-	AccountNotify(ctx context.Context, accountID, token string,
+	AccountNotify(ctx context.Context, accountID, token string, autosend bool,
 		incoming chan<- MessageNotification, interrupt <-chan interface{}) error
-	AccountListen(ctx context.Context, accountID, token string,
+	AccountListen(ctx context.Context, accountID, token string, autosend bool,
 		incoming chan<- Message, interrupt <-chan interface{}) error
-	ChannelNotify(ctx context.Context, channelID, token string,
+	ChannelNotify(ctx context.Context, channelID, token string, autosend bool,
 		incoming chan<- MessageNotification, interrupt <-chan interface{}) error
-	ChannelListen(ctx context.Context, channelID, token string,
+	ChannelListen(ctx context.Context, channelID, token string, autosend bool,
 		incoming chan<- Message, interrupt <-chan interface{}) error
 
 	BaseURL() string

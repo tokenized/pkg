@@ -194,7 +194,7 @@ func Listen(ctx context.Context, args []string) {
 		return
 	}
 	go func() {
-		if err := client.AccountListen(ctx, accountID, token, incoming,
+		if err := client.AccountListen(ctx, accountID, token, true, incoming,
 			listenInterrupt); err != nil {
 			logger.Error(ctx, "Failed to listen : %s", err)
 		}
@@ -262,7 +262,7 @@ func ChannelListen(ctx context.Context, args []string) {
 		return
 	}
 	go func() {
-		if err := client.ChannelListen(ctx, channelID, token, incoming,
+		if err := client.ChannelListen(ctx, channelID, token, true, incoming,
 			listenInterrupt); err != nil {
 			logger.Error(ctx, "Failed to listen : %s", err)
 		}

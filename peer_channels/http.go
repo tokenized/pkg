@@ -308,12 +308,12 @@ func (t *notificationTranslator) Close() {
 // AccountNotify starts a websocket for push notifications on the account specified. `incoming` is
 // the channel new message notifications will be fed through. `interrupt` will stop listening if
 // it is closed.
-func (c *HTTPClient) AccountNotify(ctx context.Context, accountID, token string,
+func (c *HTTPClient) AccountNotify(ctx context.Context, accountID, token string, autosend bool,
 	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 
 	translator := newNotificationTranslator(incoming)
 
-	url := fmt.Sprintf("%s/api/v1/account/%s/notify", c.baseURL, accountID)
+	url := fmt.Sprintf("%s/api/v1/account/%s/notify?autosend=%t", c.baseURL, accountID, autosend)
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	return websocketListen(ctx, url, token, translator, interrupt)
@@ -321,12 +321,12 @@ func (c *HTTPClient) AccountNotify(ctx context.Context, accountID, token string,
 
 // AccountListen starts a websocket for push notifications on the account specified. `incoming` is
 // the channel new messages will be fed through. `interrupt` will stop listening if it is closed.
-func (c *HTTPClient) AccountListen(ctx context.Context, accountID, token string,
+func (c *HTTPClient) AccountListen(ctx context.Context, accountID, token string, autosend bool,
 	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	translator := newMessageTranslator(incoming)
 
-	url := fmt.Sprintf("%s/api/v1/account/%s/listen", c.baseURL, accountID)
+	url := fmt.Sprintf("%s/api/v1/account/%s/listen?autosend=%t", c.baseURL, accountID, autosend)
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	return websocketListen(ctx, url, token, translator, interrupt)
@@ -335,12 +335,12 @@ func (c *HTTPClient) AccountListen(ctx context.Context, accountID, token string,
 // ChannelNotify starts a websocket for push notifications on the channel specified. `incoming` is
 // the channel new message notifications will be fed through. `interrupt` will stop listening if
 // it is closed.
-func (c *HTTPClient) ChannelNotify(ctx context.Context, channelID, token string,
+func (c *HTTPClient) ChannelNotify(ctx context.Context, channelID, token string, autosend bool,
 	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 
 	translator := newNotificationTranslator(incoming)
 
-	url := fmt.Sprintf("%s/api/v1/channel/%s/notify", c.baseURL, channelID)
+	url := fmt.Sprintf("%s/api/v1/channel/%s/notify?autosend=%t", c.baseURL, channelID, autosend)
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	return websocketListen(ctx, url, token, translator, interrupt)
@@ -348,12 +348,12 @@ func (c *HTTPClient) ChannelNotify(ctx context.Context, channelID, token string,
 
 // ChannelListen starts a websocket for push notifications on the channel specified. `incoming` is
 // the channel new messages will be fed through. `interrupt` will stop listening if it is closed.
-func (c *HTTPClient) ChannelListen(ctx context.Context, channelID, token string,
+func (c *HTTPClient) ChannelListen(ctx context.Context, channelID, token string, autosend bool,
 	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	translator := newMessageTranslator(incoming)
 
-	url := fmt.Sprintf("%s/api/v1/channel/%s/listen", c.baseURL, channelID)
+	url := fmt.Sprintf("%s/api/v1/channel/%s/listen?autosend=%t", c.baseURL, channelID, autosend)
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	return websocketListen(ctx, url, token, translator, interrupt)

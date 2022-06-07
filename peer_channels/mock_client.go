@@ -368,12 +368,12 @@ func (c *MockClient) getUnreadMessagesForAccount(accountID string) Messages {
 	return result
 }
 
-func (c *MockClient) AccountNotify(ctx context.Context, accountID, token string,
+func (c *MockClient) AccountNotify(ctx context.Context, accountID, token string, autosend bool,
 	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 	return errors.New("Not Implemented")
 }
 
-func (c *MockClient) AccountListen(ctx context.Context, accountID, token string,
+func (c *MockClient) AccountListen(ctx context.Context, accountID, token string, autosend bool,
 	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	c.lock.Lock()
@@ -396,22 +396,24 @@ func (c *MockClient) AccountListen(ctx context.Context, accountID, token string,
 	done := make(chan interface{})
 	wait := &sync.WaitGroup{}
 
-	wait.Add(1)
-	go func() {
-		defer close(done)
-		for !stop.IsSet() {
-			account.lock.Lock()
-			newMessages := c.getUnreadMessagesForAccount(accountID)
-			account.lock.Unlock()
+	if autosend {
+		wait.Add(1)
+		go func() {
+			defer close(done)
+			for !stop.IsSet() {
+				account.lock.Lock()
+				newMessages := c.getUnreadMessagesForAccount(accountID)
+				account.lock.Unlock()
 
-			for _, message := range newMessages {
-				incoming <- *message
+				for _, message := range newMessages {
+					incoming <- *message
+				}
+
+				time.Sleep(time.Millisecond * 100)
 			}
-
-			time.Sleep(time.Millisecond * 100)
-		}
-		wait.Done()
-	}()
+			wait.Done()
+		}()
+	}
 
 	wait.Add(1)
 	go func() {
@@ -447,12 +449,12 @@ func (channel *mockChannel) getUnreadMessages() Messages {
 	return result
 }
 
-func (c *MockClient) ChannelNotify(ctx context.Context, channelID, token string,
+func (c *MockClient) ChannelNotify(ctx context.Context, channelID, token string, autosend bool,
 	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 	return errors.New("Not Implemented")
 }
 
-func (c *MockClient) ChannelListen(ctx context.Context, channelID, token string,
+func (c *MockClient) ChannelListen(ctx context.Context, channelID, token string, autosend bool,
 	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	c.lock.Lock()
@@ -475,20 +477,22 @@ func (c *MockClient) ChannelListen(ctx context.Context, channelID, token string,
 	done := make(chan interface{})
 	wait := &sync.WaitGroup{}
 
-	wait.Add(1)
-	go func() {
-		defer close(done)
-		for {
-			newMessages := channel.getUnreadMessages()
+	if autosend {
+		wait.Add(1)
+		go func() {
+			defer close(done)
+			for {
+				newMessages := channel.getUnreadMessages()
 
-			for _, message := range newMessages {
-				incoming <- *message
+				for _, message := range newMessages {
+					incoming <- *message
+				}
+
+				time.Sleep(time.Millisecond * 100)
 			}
-
-			time.Sleep(time.Millisecond * 100)
-		}
-		wait.Done()
-	}()
+			wait.Done()
+		}()
+	}
 
 	wait.Add(1)
 	go func() {
