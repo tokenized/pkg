@@ -1,7 +1,7 @@
 package bsor
 
 import (
-	"bytes"
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -12,10 +12,13 @@ func Test_Definition_TestStruct(t *testing.T) {
 		t.Fatalf("Failed to build definitions : %s", err)
 	}
 
-	buf := &bytes.Buffer{}
-	if err := definitions.Write(buf); err != nil {
-		t.Fatalf("Failed to write definitions : %s", err)
+	js, err := json.MarshalIndent(definitions, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal definitions : %s", err)
 	}
 
-	t.Logf("Definitions : \n%s", buf.Bytes())
+	t.Logf("Definitions : \n%s", js)
+
+	s := definitions.String()
+	t.Logf("User Definitions : \n%s", s)
 }
