@@ -16,6 +16,8 @@ const (
 	ContentTypeText   = "text/plain"
 	ContentTypeJSON   = "application/json"
 	ContentTypeBinary = "application/octet-stream"
+
+	InternalBaseURL = "internal://"
 )
 
 type Client interface {
