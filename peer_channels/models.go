@@ -1,33 +1,46 @@
 package peer_channels
 
 type Channel struct {
-	ID           string        `json:"id"`
-	Path         string        `json:"href"`
-	PublicRead   bool          `json:"public_read"`
-	PublicWrite  bool          `json:"public_write"`
-	Sequenced    bool          `json:"sequenced"`
-	Locked       bool          `json:"locked"`
-	Head         int           `json:"head"`
-	Retention    Retention     `json:"retention"`
-	AccessTokens []AccessToken `json:"access_tokens"`
+	ID   string `bsor:"1" json:"id"`
+	Path string `bsor:"2" json:"href"`
+
+	// PublicRead specifies that a read token is not needed to read messages from this channel.
+	// You still need a read token to mark messages as read and delete messages.
+	PublicRead bool `bsor:"3" json:"public_read"`
+
+	// PublicWrite specifies that a write token is not needed to write new messages to this channel.
+	PublicWrite bool `bsor:"4" json:"public_write"`
+
+	// Sequenced specifies that all channel messages must be marked as read before a message can be
+	// written
+	Sequenced bool `bsor:"5" json:"sequenced"`
+
+	// Locked specifies a channel can not have new messages written to it.
+	Locked bool `bsor:"6" json:"locked"`
+
+	// Head is the sequence of the next message to be written.
+	Head int `bsor:"7" json:"head"`
+
+	Retention    Retention     `bsor:"8" json:"retention"`
+	AccessTokens []AccessToken `bsor:"9" json:"access_tokens"`
 }
 
 type Retention struct {
-	MinAgeDays int  `json:"min_age_days"`
-	MaxAgeDays int  `json:"max_age_days"`
-	AutoPrune  bool `json:"auto_prune"`
+	MinAgeDays int  `bsor:"1" json:"min_age_days"`
+	MaxAgeDays int  `bsor:"2" json:"max_age_days"`
+	AutoPrune  bool `bsor:"3" json:"auto_prune"`
 }
 
 type AccessToken struct {
-	ID          string `json:"id"`
-	Token       string `json:"token"`
-	Description string `json:"description"`
-	CanRead     bool   `json:"can_read"`
-	CanWrite    bool   `json:"can_write"`
+	ID          string `bsor:"1" json:"id"`
+	Token       string `bsor:"2" json:"token"`
+	Description string `bsor:"3" json:"description"`
+	CanRead     bool   `bsor:"4" json:"can_read"`
+	CanWrite    bool   `bsor:"5" json:"can_write"`
 }
 
 type ChannelList struct {
-	Channels []*Channel `json:"channels"`
+	Channels []*Channel `bsor:"1" json:"channels"`
 }
 
 func (c Channel) GetWriteToken() string {

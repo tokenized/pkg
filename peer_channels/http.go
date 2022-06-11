@@ -22,6 +22,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	apiURLPart = "/api/v1/channel/"
+)
+
 type HTTPError struct {
 	Status  int
 	Message string
@@ -99,7 +103,7 @@ func (c *HTTPClient) PostTextMessage(ctx context.Context, channelID, token strin
 	message string) (*Message, error) {
 
 	response := &Message{}
-	if err := postTextWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postTextWithToken(ctx, c.baseURL+apiURLPart+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -111,7 +115,7 @@ func (c *HTTPClient) PostJSONMessage(ctx context.Context, channelID, token strin
 	message interface{}) (*Message, error) {
 
 	response := &Message{}
-	if err := postJSONWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postJSONWithToken(ctx, c.baseURL+apiURLPart+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -123,7 +127,7 @@ func (c *HTTPClient) PostBinaryMessage(ctx context.Context, channelID, token str
 	message []byte) (*Message, error) {
 
 	response := &Message{}
-	if err := postBinaryWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postBinaryWithToken(ctx, c.baseURL+apiURLPart+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -135,7 +139,7 @@ func (c *HTTPClient) PostBSORMessage(ctx context.Context, channelID, token strin
 	message interface{}) (*Message, error) {
 
 	response := &Message{}
-	if err := postBSORWithToken(ctx, c.baseURL+"/api/v1/channel/"+channelID, token, message,
+	if err := postBSORWithToken(ctx, c.baseURL+apiURLPart+channelID, token, message,
 		response); err != nil {
 		return nil, err
 	}
@@ -146,7 +150,7 @@ func (c *HTTPClient) PostBSORMessage(ctx context.Context, channelID, token strin
 func (c *HTTPClient) GetMessages(ctx context.Context, channelID, token string,
 	unread bool) (Messages, error) {
 
-	url := c.baseURL + "/api/v1/channel/" + channelID
+	url := c.baseURL + apiURLPart + channelID
 	if unread {
 		url += "?unread=true"
 	} else {
@@ -164,7 +168,7 @@ func (c *HTTPClient) GetMessages(ctx context.Context, channelID, token string,
 func (c *HTTPClient) GetMaxMessageSequence(ctx context.Context,
 	channelID, token string) (uint32, error) {
 
-	url := c.baseURL + "/api/v1/channel/" + channelID
+	url := c.baseURL + apiURLPart + channelID
 
 	headers, err := headWithToken(ctx, url, token)
 	if err != nil {
@@ -253,7 +257,6 @@ func (t *messageTranslator) Translate(ctx context.Context, msg websocketMessage)
 }
 
 func (t *messageTranslator) Close() {
-	close(t.incoming)
 }
 
 type notificationTranslator struct {
@@ -302,7 +305,6 @@ func (t *notificationTranslator) Translate(ctx context.Context, msg websocketMes
 }
 
 func (t *notificationTranslator) Close() {
-	close(t.incoming)
 }
 
 // AccountNotify starts a websocket for push notifications on the account specified. `incoming` is

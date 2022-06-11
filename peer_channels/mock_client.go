@@ -328,7 +328,14 @@ func (c *MockClient) MarkMessages(ctx context.Context, channelID, token string, 
 	channel.lock.Lock()
 	defer channel.lock.Unlock()
 	if channel.readToken != token {
-		return HTTPError{Status: http.StatusForbidden}
+		account, exists := c.accounts[channel.accountID]
+		if !exists {
+			return HTTPError{Status: http.StatusForbidden}
+		}
+
+		if account.token != token {
+			return HTTPError{Status: http.StatusForbidden}
+		}
 	}
 
 	if !read || !older {

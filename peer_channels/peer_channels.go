@@ -3,6 +3,7 @@ package peer_channels
 import (
 	"context"
 	"crypto/sha256"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +47,28 @@ type Client interface {
 		incoming chan<- Message, interrupt <-chan interface{}) error
 
 	BaseURL() string
+}
+
+func ParseChannelURL(url string) (string, string, error) {
+	parts := strings.Split(url, apiURLPart)
+	if len(parts) != 2 {
+		return "", "", errors.New("Missing api channel part")
+	}
+
+	if len(parts[0]) == 0 {
+		return "", "", errors.New("Missing base URL")
+	}
+
+	if len(parts[1]) == 0 {
+		return "", "", errors.New("Missing channel id")
+	}
+
+	channelParts := strings.Split(parts[1], "/")
+	return parts[0], channelParts[0], nil
+}
+
+func ChannelURL(baseURL, channelID string) string {
+	return fmt.Sprintf("%s%s%s", baseURL, apiURLPart, channelID)
 }
 
 type Message struct {
@@ -106,7 +129,7 @@ func (f *Factory) NewClient(baseURL string) (Client, error) {
 		return f.internalClient, nil
 	}
 
-	if !strings.HasPrefix(baseURL, "https://") {
+	if !strings.HasPrefix(baseURL, "https://") && !strings.HasPrefix(baseURL, "http://") {
 		return nil, errors.New("Unsupported URL protocol")
 	}
 
