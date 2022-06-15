@@ -1,6 +1,7 @@
 package peer_channels
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 )
 
 const testBaseURL = "http://localhost:8080"
+const testMasterToken = ""
 
 func Test_Interface(t *testing.T) {
 	// Verify that both client implementations fully implement the Client interface. This will not
@@ -22,13 +24,8 @@ func Test_Interface(t *testing.T) {
 func Test_CreateAccount(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
-	factory := NewFactory()
-	client, err := factory.NewClient(testBaseURL)
-	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
-	}
 
-	accountID, accountToken, err := client.CreateAccount(ctx, "<uuid>")
+	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
 	if err != nil {
 		t.Fatalf("Failed to create account : %s", err)
 	}
@@ -40,14 +37,15 @@ func Test_CreateAccount(t *testing.T) {
 func Test_CreateChannel(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
-	factory := NewFactory()
-	client, err := factory.NewClient(testBaseURL)
+
+	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
 	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
+		t.Fatalf("Failed to create account : %s", err)
 	}
 
-	channel, err := client.CreateChannel(ctx, "d695a715-e6c6-4ea1-a501-3eadc83055e0",
-		"87b587e9-98cd-43d2-9e8d-fc85ee714177")
+	accountClient := NewHTTPAccountClient(testBaseURL, *accountID, *accountToken)
+
+	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create channel : %s", err)
 	}
@@ -60,13 +58,26 @@ func Test_CreateChannel(t *testing.T) {
 	t.Logf("Channel : %s", js)
 }
 
-func Test_PostJSONMessage(t *testing.T) {
+func Test_WriteMessage_JSON(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+
+	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	if err != nil {
+		t.Fatalf("Failed to create account : %s", err)
+	}
+
+	accountClient := NewHTTPAccountClient(testBaseURL, *accountID, *accountToken)
+
+	channel, err := accountClient.CreateChannel(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create channel : %s", err)
+	}
+
 	factory := NewFactory()
 	client, err := factory.NewClient(testBaseURL)
 	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
+		t.Fatalf("Failed to create client : %s", err)
 	}
 
 	type MessageData struct {
@@ -74,84 +85,110 @@ func Test_PostJSONMessage(t *testing.T) {
 	}
 
 	messageData := MessageData{Data: "Some test data"}
+	js, _ := json.Marshal(messageData)
 
-	message, err := client.PostJSONMessage(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-		"480bc60b-c779-450a-8c0b-854cbe856a92", messageData)
-	if err != nil {
-		t.Fatalf("Failed to post message : %s", err)
+	if err := client.WriteMessage(ctx, channel.ID, channel.WriteToken, ContentTypeJSON,
+		bytes.NewReader(js)); err != nil {
+		t.Fatalf("Failed to write message : %s", err)
 	}
 
-	js, err := json.MarshalIndent(message, "", "  ")
+	msgs, err := client.GetMessages(ctx, channel.ID, channel.ReadToken, true, 10)
 	if err != nil {
-		t.Fatalf("Failed to marshal message : %s", err)
+		t.Fatalf("Failed to get channel messages : %s", err)
 	}
 
-	t.Logf("Message : %s", js)
-}
-
-func Test_GetMessage(t *testing.T) {
-	t.Skip()
-	ctx := context.Background()
-	factory := NewFactory()
-	client, err := factory.NewClient(testBaseURL)
-	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
+	if len(msgs) != 1 {
+		t.Fatalf("Wrong returned message count : got %d, want %d", len(msgs), 1)
 	}
 
-	messages, err := client.GetMessages(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", true)
-	if err != nil {
-		t.Fatalf("Failed to get messages : %s", err)
+	messageJS, _ := json.MarshalIndent(msgs[0], "", "  ")
+	t.Logf("Message : %s", messageJS)
+
+	if !bytes.Equal(js, msgs[0].Payload) {
+		t.Errorf("Wrong returned message payload : \ngot  %s\n\nwant %s\n", msgs[0].Payload, js)
 	}
 
-	js, err := json.MarshalIndent(messages, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal messages : %s", err)
+	if msgs[0].ContentType != ContentTypeJSON {
+		t.Errorf("Wrong returned message content type : got %s, want %s", msgs[0].ContentType,
+			ContentTypeJSON)
 	}
 
-	t.Logf("Messages : %s", js)
-}
-
-func Test_GetMaxMessageSequence(t *testing.T) {
-	t.Skip()
-	ctx := context.Background()
-	factory := NewFactory()
-	client, err := factory.NewClient(testBaseURL)
+	maxSequence, err := client.GetMaxMessageSequence(ctx, channel.ID, channel.ReadToken)
 	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
+		t.Fatalf("Failed to get max sequence : %s", err)
 	}
 
-	max, err := client.GetMaxMessageSequence(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd")
-	if err != nil {
-		t.Fatalf("Failed to get max message sequence : %s", err)
+	if maxSequence != 1 {
+		t.Errorf("Wrong max sequence : got %d, want %d", maxSequence, 1)
 	}
 
-	t.Logf("Max Sequence : %d", max)
-}
-
-func Test_MarkMessages(t *testing.T) {
-	t.Skip()
-	ctx := context.Background()
-	factory := NewFactory()
-	client, err := factory.NewClient(testBaseURL)
-	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
+	if err := client.MarkMessages(ctx, channel.ID, channel.ReadToken, 0, true, true); err != nil {
+		t.Fatalf("Failed to mark message as read : %s", err)
 	}
 
-	if err := client.MarkMessages(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", 5, false, true); err != nil {
-		t.Fatalf("Failed to mark messages : %s", err)
+	msgs, err = client.GetMessages(ctx, channel.ID, channel.ReadToken, true, 10)
+	if err != nil {
+		t.Fatalf("Failed to get channel messages : %s", err)
+	}
+
+	if len(msgs) != 0 {
+		t.Fatalf("Wrong returned message count (they should all be read) : got %d, want %d",
+			len(msgs), 0)
+	}
+
+	messageData = MessageData{Data: "Some test data 2"}
+	js, _ = json.Marshal(messageData)
+
+	if err := client.WriteMessage(ctx, channel.ID, channel.WriteToken, ContentTypeJSON,
+		bytes.NewReader(js)); err != nil {
+		t.Fatalf("Failed to write message : %s", err)
+	}
+
+	msgs, err = client.GetMessages(ctx, channel.ID, channel.ReadToken, true, 10)
+	if err != nil {
+		t.Fatalf("Failed to get channel messages : %s", err)
+	}
+
+	if len(msgs) != 1 {
+		t.Fatalf("Wrong returned message count (first should be read) : got %d, want %d",
+			len(msgs), 1)
+	}
+
+	if err := client.DeleteMessage(ctx, channel.ID, channel.ReadToken, 1, true); err != nil {
+		t.Fatalf("Failed to delete message : %s", err)
+	}
+
+	msgs, err = client.GetMessages(ctx, channel.ID, channel.ReadToken, false, 10)
+	if err != nil {
+		t.Fatalf("Failed to get channel messages : %s", err)
+	}
+
+	if len(msgs) != 0 {
+		t.Fatalf("Wrong returned message count (they should all be deleted) : got %d, want %d",
+			len(msgs), 0)
 	}
 }
 
 func Test_ChannelListen(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
+
+	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	if err != nil {
+		t.Fatalf("Failed to create account : %s", err)
+	}
+
+	accountClient := NewHTTPAccountClient(testBaseURL, *accountID, *accountToken)
+
+	channel, err := accountClient.CreateChannel(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create channel : %s", err)
+	}
+
 	factory := NewFactory()
 	client, err := factory.NewClient(testBaseURL)
 	if err != nil {
-		t.Fatalf("Failed to create peer channel client : %s", err)
+		t.Fatalf("Failed to create client : %s", err)
 	}
 
 	incoming := make(chan Message)
@@ -182,17 +219,16 @@ func Test_ChannelListen(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			time.Sleep(1 * time.Second)
 			t.Logf("Sending message %d", i)
-			_, err := client.PostJSONMessage(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-				"480bc60b-c779-450a-8c0b-854cbe856a92", fmt.Sprintf("Test message %d", i))
-			if err != nil {
-				t.Fatalf("Failed to post message : %s", err)
+			msg := fmt.Sprintf("Test message %d", i)
+			if err := client.WriteMessage(ctx, channel.ID, channel.WriteToken, ContentTypeText,
+				bytes.NewReader([]byte(msg))); err != nil {
+				t.Fatalf("Failed to write message : %s", err)
 			}
 		}
 	}()
 
-	if err := client.ChannelListen(ctx, "6f5a5fe3-bf66-4aac-a753-8e33bb77ee99",
-		"d4deef7c-cc6d-4e0a-9f1f-e7e6687d8bfd", true, incoming, interrupt); err != nil {
-		t.Fatalf("Failed to notify messages : %s", err)
+	if err := client.Listen(ctx, channel.ReadToken, true, incoming, interrupt); err != nil {
+		t.Fatalf("Failed to listen : %s", err)
 	}
 	close(incoming)
 

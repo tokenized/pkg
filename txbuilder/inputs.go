@@ -303,8 +303,8 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 	}
 
 	if len(utxos) == 0 {
-		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("no more utxos: %d/%d",
-			inputValue, outputValue+estFeeValue))
+		return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("no more utxos: %d/%d", inputValue,
+			outputValue+estFeeValue))
 	}
 
 	// Calculate additional funding needed. Include cost of first added input.

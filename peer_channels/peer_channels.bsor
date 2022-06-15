@@ -1,0 +1,50 @@
+version 0
+
+Messages []*Message
+
+MessageNotification {
+  1 Sequence    uint64
+  2 Received    binary
+  3 ContentType string
+  4 ChannelID   string
+}
+
+Channel {
+  1 ID           string
+  2 Path         string
+  3 PublicRead   bool
+  4 PublicWrite  bool
+  5 Sequenced    bool
+  6 Locked       bool
+  7 Head         int64
+  8 Retention    Retention
+  9 AccessTokens []AccessToken
+}
+
+Retention {
+  1 MinAgeDays int64
+  2 MaxAgeDays int64
+  3 AutoPrune  bool
+}
+
+AccessToken {
+  1 ID          string
+  2 Token       string
+  3 Description string
+  4 CanRead     bool
+  5 CanWrite    bool
+}
+
+ChannelList {
+  1 Channels []*Channel
+}
+
+Message {
+  1 Sequence    uint64
+  2 Received    binary
+  3 ContentType string
+  4 ChannelID   string
+  5 Payload     binary
+}
+
+

@@ -2,17 +2,15 @@ package peer_channels
 
 import (
 	"context"
-	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/tokenized/pkg/bsor"
-	"github.com/tokenized/pkg/json"
-	"github.com/tokenized/pkg/logger"
-	"github.com/tokenized/pkg/threads"
-
 	"github.com/google/uuid"
+	"github.com/tokenized/pkg/logger"
+
 	"github.com/pkg/errors"
 )
 
@@ -25,7 +23,29 @@ type MockClient struct {
 	accounts map[string]*mockAccount
 	channels map[string]*mockChannel
 
+	notifiers []*mockNotifier
+	listeners []*mockListener
+
 	lock sync.Mutex
+}
+
+type MockAccountClient struct {
+	client *MockClient
+
+	accountID string
+	token     string
+
+	lock sync.Mutex
+}
+
+type mockNotifier struct {
+	token    string
+	incoming chan<- MessageNotification
+}
+
+type mockListener struct {
+	token    string
+	incoming chan<- Message
 }
 
 type mockAccount struct {
@@ -40,8 +60,8 @@ type mockChannel struct {
 	accountID      string
 	readToken      string
 	writeToken     string
-	nextSequence   uint32
-	unreadSequence uint32
+	nextSequence   uint64
+	unreadSequence uint64
 
 	messages Messages
 
@@ -56,11 +76,19 @@ func NewMockClient() *MockClient {
 	}
 }
 
-func (c *MockClient) BaseURL() string {
-	return c.baseURL
+func NewMockAccountClient(client *MockClient, accountID, token string) *MockAccountClient {
+	return &MockAccountClient{
+		client:    client,
+		accountID: accountID,
+		token:     token,
+	}
 }
 
-func (c *MockClient) CreateAccount(ctx context.Context, token string) (*string, *string, error) {
+func (c *MockClient) NewAccountClient(accountID, token string) (AccountClient, error) {
+	return NewMockAccountClient(c, accountID, token), nil
+}
+
+func (c *MockClient) CreateAccount(ctx context.Context) (*string, *string, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -77,112 +105,15 @@ func (c *MockClient) CreateAccount(ctx context.Context, token string) (*string, 
 	return &account.id, &account.token, nil
 }
 
-func (c *MockClient) CreateChannel(ctx context.Context, accountID, token string) (*Channel, error) {
+func (c *MockClient) BaseURL() string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	account, exists := c.accounts[accountID]
-	if !exists {
-		return nil, HTTPError{Status: http.StatusNotFound}
-	}
-
-	account.lock.Lock()
-	defer account.lock.Unlock()
-	if account.token != token {
-		return nil, HTTPError{Status: http.StatusForbidden}
-	}
-
-	channel := &mockChannel{
-		id:         uuid.New().String(),
-		accountID:  accountID,
-		readToken:  uuid.New().String(),
-		writeToken: uuid.New().String(),
-	}
-
-	c.channels[channel.id] = channel
-
-	logger.InfoWithFields(ctx, []logger.Field{
-		logger.String("account_id", account.id),
-		logger.String("channel_id", channel.id),
-	}, "Created peer channel")
-
-	return c.convertMockChannel(channel), nil
+	return c.baseURL
 }
 
-func (c *MockClient) CreatePublicChannel(ctx context.Context,
-	accountID, token string) (*Channel, error) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	account, exists := c.accounts[accountID]
-	if !exists {
-		return nil, HTTPError{Status: http.StatusNotFound}
-	}
-
-	account.lock.Lock()
-	defer account.lock.Unlock()
-	if account.token != token {
-		return nil, HTTPError{Status: http.StatusForbidden}
-	}
-
-	channel := &mockChannel{
-		id:         uuid.New().String(),
-		accountID:  accountID,
-		readToken:  uuid.New().String(),
-		writeToken: "", // no write token means anyone can write
-	}
-
-	c.channels[channel.id] = channel
-
-	logger.InfoWithFields(ctx, []logger.Field{
-		logger.String("account_id", account.id),
-		logger.String("channel_id", channel.id),
-	}, "Created public peer channel")
-
-	return c.convertMockChannel(channel), nil
-}
-
-func (c *MockClient) convertMockChannel(channel *mockChannel) *Channel {
-	result := &Channel{
-		ID:          channel.id,
-		Path:        fmt.Sprintf("%s/api/v1/channel/%s/notify", c.baseURL, channel.id),
-		PublicRead:  false,
-		PublicWrite: false,
-		Sequenced:   true,
-		Locked:      false,
-		Head:        0,
-		Retention: Retention{
-			MinAgeDays: 0,
-			MaxAgeDays: 0,
-			AutoPrune:  true,
-		},
-	}
-
-	if len(channel.readToken) > 0 {
-		result.AccessTokens = append(result.AccessTokens, AccessToken{
-			ID:       channel.readToken,
-			Token:    channel.readToken,
-			CanRead:  true,
-			CanWrite: false,
-		})
-	}
-
-	if len(channel.writeToken) > 0 {
-		result.AccessTokens = append(result.AccessTokens, AccessToken{
-			ID:       channel.writeToken,
-			Token:    channel.writeToken,
-			CanRead:  false,
-			CanWrite: true,
-		})
-	} else {
-		result.PublicWrite = true
-	}
-
-	return result
-}
-
-func (c *MockClient) addMessage(ctx context.Context, channelID, token string, contentType string,
-	payload []byte) (*Message, error) {
+func (c *MockClient) GetChannelMetaData(ctx context.Context,
+	channelID, token string) (*ChannelData, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -193,73 +124,37 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 
 	channel.lock.Lock()
 	defer channel.lock.Unlock()
-	if channel.writeToken != token {
-		return nil, HTTPError{Status: http.StatusForbidden}
+
+	if channel.readToken == token {
+		autoDeleteReadMessages := true
+		return &ChannelData{
+			AutoDeleteReadMessages: &autoDeleteReadMessages,
+		}, nil
 	}
 
-	message := &Message{
-		Received:    time.Now(),
-		ContentType: contentType,
-		Payload:     payload,
-		ChannelID:   channelID,
+	if channel.writeToken == token {
+		maxMessagePayloadSize := uint64(1e9)
+		return &ChannelData{
+			MaxMessagePayloadSize: &maxMessagePayloadSize,
+		}, nil
 	}
 
-	message.Sequence = channel.nextSequence
-	channel.nextSequence++
-	channel.messages = append(channel.messages, message)
-
-	logger.InfoWithFields(ctx, []logger.Field{
-		logger.String("account_id", channel.accountID),
-		logger.String("channel_id", channel.id),
-		logger.String("content_type", contentType),
-		logger.Uint32("sequence", message.Sequence),
-		logger.Int("bytes", len(payload)),
-	}, "Added peer channel message")
-
-	return message, nil
+	return nil, HTTPError{Status: http.StatusForbidden}
 }
 
-func (c *MockClient) PostTextMessage(ctx context.Context, channelID, token string,
-	message string) (*Message, error) {
+func (c *MockClient) WriteMessage(ctx context.Context, channelID, token string, contentType string,
+	payload io.Reader) error {
 
-	return c.addMessage(ctx, channelID, token, ContentTypeText, []byte(message))
-}
-
-func (c *MockClient) PostJSONMessage(ctx context.Context, channelID, token string,
-	message interface{}) (*Message, error) {
-
-	js, err := json.Marshal(message)
+	b, err := ioutil.ReadAll(payload)
 	if err != nil {
-		return nil, errors.Wrap(err, "json")
+		return errors.Wrap(err, "read payload")
 	}
 
-	return c.addMessage(ctx, channelID, token, ContentTypeJSON, js)
+	return c.addMessage(ctx, channelID, token, contentType, b)
 }
 
-func (c *MockClient) PostBinaryMessage(ctx context.Context, channelID, token string,
-	message []byte) (*Message, error) {
-
-	return c.addMessage(ctx, channelID, token, ContentTypeBinary, message)
-}
-
-func (c *MockClient) PostBSORMessage(ctx context.Context, channelID, token string,
-	message interface{}) (*Message, error) {
-
-	scriptItems, err := bsor.Marshal(message)
-	if err != nil {
-		return nil, errors.Wrap(err, "bsor")
-	}
-
-	script, err := scriptItems.Script()
-	if err != nil {
-		return nil, errors.Wrap(err, "script")
-	}
-
-	return c.addMessage(ctx, channelID, token, ContentTypeBinary, script)
-}
-
-func (c *MockClient) GetMessages(ctx context.Context, channelID, token string,
-	unread bool) (Messages, error) {
+func (c *MockClient) GetMessages(ctx context.Context, channelID, token string, unread bool,
+	maxCount uint) (Messages, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -293,7 +188,7 @@ func (c *MockClient) GetMessages(ctx context.Context, channelID, token string,
 }
 
 func (c *MockClient) GetMaxMessageSequence(ctx context.Context,
-	channelID, token string) (uint32, error) {
+	channelID, token string) (uint64, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -315,7 +210,7 @@ func (c *MockClient) GetMaxMessageSequence(ctx context.Context,
 	return channel.messages[len(channel.messages)-1].Sequence, nil
 }
 
-func (c *MockClient) MarkMessages(ctx context.Context, channelID, token string, sequence uint32,
+func (c *MockClient) MarkMessages(ctx context.Context, channelID, token string, sequence uint64,
 	read, older bool) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -339,7 +234,7 @@ func (c *MockClient) MarkMessages(ctx context.Context, channelID, token string, 
 	}
 
 	if !read || !older {
-		return errors.New("Only read=true and older=true is accepted")
+		return errors.New("Only read=true and older=true is supported")
 	}
 
 	if sequence >= channel.nextSequence {
@@ -351,10 +246,409 @@ func (c *MockClient) MarkMessages(ctx context.Context, channelID, token string, 
 	return nil
 }
 
-func (c *MockClient) getUnreadMessagesForAccount(accountID string) Messages {
+func (c *MockClient) DeleteMessage(ctx context.Context, channelID, token string, sequence uint64,
+	older bool) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	channel, exists := c.channels[channelID]
+	if !exists {
+		return HTTPError{Status: http.StatusNotFound}
+	}
+
+	channel.lock.Lock()
+	defer channel.lock.Unlock()
+	if channel.readToken != token {
+		account, exists := c.accounts[channel.accountID]
+		if !exists {
+			return HTTPError{Status: http.StatusForbidden}
+		}
+
+		if account.token != token {
+			return HTTPError{Status: http.StatusForbidden}
+		}
+	}
+
+	if !older {
+		return errors.New("Only older=true is supported")
+	}
+
+	if len(channel.messages) == 0 {
+		return HTTPError{Status: http.StatusNotFound, Message: "No messages"}
+	}
+
+	if channel.messages[0].Sequence > sequence {
+		return HTTPError{Status: http.StatusNotFound, Message: "First message after sequence"}
+	}
+
+	if channel.messages[len(channel.messages)-1].Sequence < sequence {
+		return HTTPError{Status: http.StatusNotFound, Message: "Last message before sequence"}
+	}
+
+	countToDelete := sequence - channel.messages[0].Sequence
+	channel.messages = channel.messages[countToDelete:]
+	return nil
+}
+
+func (c *MockClient) Notify(ctx context.Context, token string, sendUnread bool,
+	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
+
+	var notifier *mockNotifier
+	var newMessages Messages
+
+	c.lock.Lock()
+	for _, account := range c.accounts {
+		if account.token == token {
+			logger.InfoWithFields(ctx, []logger.Field{
+				logger.String("account", account.ID()),
+			}, "Listening to account")
+
+			notifier = &mockNotifier{
+				token:    token,
+				incoming: incoming,
+			}
+
+			if sendUnread {
+				newMessages = c.getUnreadMessagesForAccount(account.ID())
+			}
+
+			break
+		}
+	}
+
+	if notifier == nil {
+		for _, channel := range c.channels {
+			if channel.readToken == token {
+				logger.InfoWithFields(ctx, []logger.Field{
+					logger.String("channel", channel.ID()),
+				}, "Listening to channel")
+
+				notifier = &mockNotifier{
+					token:    token,
+					incoming: incoming,
+				}
+
+				if sendUnread {
+					newMessages = channel.getUnreadMessages()
+				}
+
+				break
+			}
+		}
+	}
+
+	if notifier != nil {
+		c.notifiers = append(c.notifiers, notifier)
+	}
+	c.lock.Unlock()
+
+	if notifier == nil {
+		logger.ErrorWithFields(ctx, []logger.Field{
+			logger.String("token", token),
+		}, "No accounts or channels found for token")
+		close(incoming)
+		return HTTPError{Status: http.StatusNotFound}
+	}
+
+	for _, message := range newMessages {
+		notifier.incoming <- MessageNotification{
+			Sequence:    message.Sequence,
+			Received:    message.Received,
+			ContentType: message.ContentType,
+			ChannelID:   message.ChannelID,
+		}
+	}
+
+	select {
+	case <-interrupt:
+		// remove notifier and close channel
+		c.lock.Lock()
+		for i, item := range c.notifiers {
+			if item == notifier {
+				c.notifiers = append(c.notifiers[:i], c.notifiers[i+1:]...)
+				break
+			}
+		}
+
+		close(incoming)
+		c.lock.Unlock()
+	}
+
+	return nil
+}
+
+func (c *MockClient) Listen(ctx context.Context, token string, sendUnread bool,
+	incoming chan<- Message, interrupt <-chan interface{}) error {
+
+	var listener *mockListener
+	var newMessages Messages
+
+	c.lock.Lock()
+	for _, account := range c.accounts {
+		if account.token == token {
+			logger.InfoWithFields(ctx, []logger.Field{
+				logger.String("account", account.ID()),
+			}, "Listening to account")
+
+			listener = &mockListener{
+				token:    token,
+				incoming: incoming,
+			}
+
+			if sendUnread {
+				newMessages = c.getUnreadMessagesForAccount(account.ID())
+			}
+
+			break
+		}
+	}
+
+	if listener == nil {
+		for _, channel := range c.channels {
+			if channel.readToken == token {
+				logger.InfoWithFields(ctx, []logger.Field{
+					logger.String("channel", channel.ID()),
+				}, "Listening to channel")
+
+				listener = &mockListener{
+					token:    token,
+					incoming: incoming,
+				}
+
+				if sendUnread {
+					newMessages = channel.getUnreadMessages()
+				}
+
+				break
+			}
+		}
+	}
+
+	if listener != nil {
+		c.listeners = append(c.listeners, listener)
+	}
+	c.lock.Unlock()
+
+	if listener == nil {
+		logger.ErrorWithFields(ctx, []logger.Field{
+			logger.String("token", token),
+		}, "No accounts or channels found for token")
+		close(incoming)
+		return HTTPError{Status: http.StatusNotFound}
+	}
+
+	for _, message := range newMessages {
+		listener.incoming <- *message
+	}
+
+	select {
+	case <-interrupt:
+		// remove listener and close channel
+		c.lock.Lock()
+		for i, item := range c.listeners {
+			if item == listener {
+				c.listeners = append(c.listeners[:i], c.listeners[i+1:]...)
+				break
+			}
+		}
+
+		close(incoming)
+		c.lock.Unlock()
+	}
+
+	return nil
+}
+
+func (c *MockAccountClient) BaseURL() string {
+	return c.client.BaseURL()
+}
+
+func (c *MockAccountClient) AccountID() string {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	return c.accountID
+}
+
+func (c *MockAccountClient) Token() string {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	return c.token
+}
+
+// CreatePublicChannel creates a new peer channel that can be written to by anyone.
+func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, error) {
+	c.client.lock.Lock()
+	defer c.client.lock.Unlock()
+
+	account, exists := c.client.accounts[c.AccountID()]
+	if !exists {
+		return nil, HTTPError{Status: http.StatusNotFound}
+	}
+
+	account.lock.Lock()
+	defer account.lock.Unlock()
+	if account.token != c.Token() {
+		return nil, HTTPError{Status: http.StatusForbidden}
+	}
+
+	channel := &mockChannel{
+		id:         uuid.New().String(),
+		accountID:  c.AccountID(),
+		readToken:  uuid.New().String(),
+		writeToken: "", // no write token means anyone can write
+	}
+
+	c.client.channels[channel.id] = channel
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", account.id),
+		logger.String("channel_id", channel.id),
+	}, "Created public peer channel")
+
+	return &Channel{
+		ID:         channel.id,
+		AccountID:  channel.accountID,
+		ReadToken:  channel.readToken,
+		WriteToken: channel.writeToken,
+	}, nil
+}
+
+// CreateChannel creates a new peer channel that can only be written to by someone that knows
+// the write token.
+func (c *MockAccountClient) CreateChannel(ctx context.Context) (*Channel, error) {
+	c.client.lock.Lock()
+	defer c.client.lock.Unlock()
+
+	account, exists := c.client.accounts[c.AccountID()]
+	if !exists {
+		return nil, HTTPError{Status: http.StatusNotFound}
+	}
+
+	account.lock.Lock()
+	defer account.lock.Unlock()
+	if account.token != c.Token() {
+		return nil, HTTPError{Status: http.StatusForbidden}
+	}
+
+	channel := &mockChannel{
+		id:         uuid.New().String(),
+		accountID:  c.AccountID(),
+		readToken:  uuid.New().String(),
+		writeToken: uuid.New().String(),
+	}
+
+	c.client.channels[channel.id] = channel
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", account.id),
+		logger.String("channel_id", channel.id),
+	}, "Created peer channel")
+
+	return &Channel{
+		ID:         channel.id,
+		AccountID:  channel.accountID,
+		ReadToken:  channel.readToken,
+		WriteToken: channel.writeToken,
+	}, nil
+}
+
+// Notify receives incoming messages for the peer channel account.
+func (c *MockAccountClient) Notify(ctx context.Context, sendUnread bool,
+	incoming chan MessageNotification, interrupt <-chan interface{}) error {
+
+	return c.client.Notify(ctx, c.Token(), sendUnread, incoming, interrupt)
+}
+
+// Listen receives incoming messages for the peer channel account.
+func (c *MockAccountClient) Listen(ctx context.Context, sendUnread bool, incoming chan Message,
+	interrupt <-chan interface{}) error {
+
+	return c.client.Listen(ctx, c.Token(), sendUnread, incoming, interrupt)
+}
+
+func (a *mockAccount) ID() string {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	return a.id
+}
+
+func (c *mockChannel) ID() string {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	return c.id
+}
+
+func (c *MockClient) addMessage(ctx context.Context, channelID, token string, contentType string,
+	payload []byte) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	channel, exists := c.channels[channelID]
+	if !exists {
+		return HTTPError{Status: http.StatusNotFound}
+	}
+
+	account, accountExists := c.accounts[channel.accountID]
+	if !accountExists {
+		return HTTPError{Status: http.StatusNotFound}
+	}
+
+	channel.lock.Lock()
+	defer channel.lock.Unlock()
+	if channel.writeToken != token {
+		return HTTPError{Status: http.StatusForbidden}
+	}
+
+	message := &Message{
+		Received:    time.Now(),
+		ContentType: contentType,
+		Payload:     payload,
+		ChannelID:   channelID,
+	}
+
+	message.Sequence = channel.nextSequence
+	channel.nextSequence++
+	channel.messages = append(channel.messages, message)
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.String("account_id", channel.accountID),
+		logger.String("channel_id", channel.id),
+		logger.String("content_type", contentType),
+		logger.Uint64("sequence", message.Sequence),
+		logger.Int("bytes", len(payload)),
+	}, "Added peer channel message")
+
+	for _, notifier := range c.notifiers {
+		if notifier.token != channel.readToken && notifier.token != account.token {
+			continue
+		}
+
+		logger.Info(ctx, "Found notifier for message")
+		notifier.incoming <- MessageNotification{
+			Sequence:    message.Sequence,
+			Received:    message.Received,
+			ContentType: message.ContentType,
+			ChannelID:   message.ChannelID,
+		}
+	}
+
+	for _, listener := range c.listeners {
+		if listener.token != channel.readToken && listener.token != account.token {
+			continue
+		}
+
+		logger.Info(ctx, "Found listener for message")
+		listener.incoming <- *message
+	}
+
+	return nil
+}
+
+func (c *MockClient) getUnreadMessagesForAccount(accountID string) Messages {
 	var result Messages
 	for _, channel := range c.channels {
 		if channel.accountID != accountID {
@@ -375,71 +669,6 @@ func (c *MockClient) getUnreadMessagesForAccount(accountID string) Messages {
 	return result
 }
 
-func (c *MockClient) AccountNotify(ctx context.Context, accountID, token string, autosend bool,
-	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
-	return errors.New("Not Implemented")
-}
-
-func (c *MockClient) AccountListen(ctx context.Context, accountID, token string, autosend bool,
-	incoming chan<- Message, interrupt <-chan interface{}) error {
-
-	c.lock.Lock()
-	account, exists := c.accounts[accountID]
-	if !exists {
-		c.lock.Unlock()
-		return HTTPError{Status: http.StatusNotFound}
-	}
-
-	account.lock.Lock()
-	if account.token != token {
-		account.lock.Unlock()
-		c.lock.Unlock()
-		return HTTPError{Status: http.StatusForbidden}
-	}
-	account.lock.Unlock()
-	c.lock.Unlock()
-
-	stop := threads.NewAtomicFlag()
-	done := make(chan interface{})
-	wait := &sync.WaitGroup{}
-
-	if autosend {
-		wait.Add(1)
-		go func() {
-			defer close(done)
-			for !stop.IsSet() {
-				account.lock.Lock()
-				newMessages := c.getUnreadMessagesForAccount(accountID)
-				account.lock.Unlock()
-
-				for _, message := range newMessages {
-					incoming <- *message
-				}
-
-				time.Sleep(time.Millisecond * 100)
-			}
-			wait.Done()
-		}()
-	}
-
-	wait.Add(1)
-	go func() {
-		select {
-		case <-interrupt:
-			stop.Set()
-		case <-done:
-		}
-		wait.Done()
-	}()
-
-	logger.InfoWithFields(ctx, []logger.Field{
-		logger.String("account", accountID),
-	}, "Listening to account")
-
-	wait.Wait()
-	return nil
-}
-
 func (channel *mockChannel) getUnreadMessages() Messages {
 	channel.lock.Lock()
 	defer channel.lock.Unlock()
@@ -454,63 +683,4 @@ func (channel *mockChannel) getUnreadMessages() Messages {
 	}
 
 	return result
-}
-
-func (c *MockClient) ChannelNotify(ctx context.Context, channelID, token string, autosend bool,
-	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
-	return errors.New("Not Implemented")
-}
-
-func (c *MockClient) ChannelListen(ctx context.Context, channelID, token string, autosend bool,
-	incoming chan<- Message, interrupt <-chan interface{}) error {
-
-	c.lock.Lock()
-	channel, exists := c.channels[channelID]
-	if !exists {
-		c.lock.Unlock()
-		return HTTPError{Status: http.StatusNotFound}
-	}
-
-	channel.lock.Lock()
-	if channel.readToken != token {
-		channel.lock.Unlock()
-		c.lock.Unlock()
-		return HTTPError{Status: http.StatusForbidden}
-	}
-	channel.lock.Unlock()
-	c.lock.Unlock()
-
-	stop := threads.NewAtomicFlag()
-	done := make(chan interface{})
-	wait := &sync.WaitGroup{}
-
-	if autosend {
-		wait.Add(1)
-		go func() {
-			defer close(done)
-			for {
-				newMessages := channel.getUnreadMessages()
-
-				for _, message := range newMessages {
-					incoming <- *message
-				}
-
-				time.Sleep(time.Millisecond * 100)
-			}
-			wait.Done()
-		}()
-	}
-
-	wait.Add(1)
-	go func() {
-		select {
-		case <-interrupt:
-			stop.Set()
-		case <-done:
-		}
-		wait.Done()
-	}()
-
-	wait.Wait()
-	return nil
 }

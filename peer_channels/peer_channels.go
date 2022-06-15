@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -21,36 +22,66 @@ const (
 	InternalBaseURL = "internal://"
 )
 
+var (
+	ErrWrongContentType = errors.New("Wrong Content Type")
+)
+
 type Client interface {
-	CreateAccount(ctx context.Context, token string) (*string, *string, error)
-	CreateChannel(ctx context.Context, accountID, token string) (*Channel, error)
-	CreatePublicChannel(ctx context.Context, accountID, token string) (*Channel, error)
-	PostTextMessage(ctx context.Context, channelID, token string, message string) (*Message, error)
-	PostJSONMessage(ctx context.Context, channelID, token string,
-		message interface{}) (*Message, error)
-	PostBinaryMessage(ctx context.Context, channelID, token string,
-		message []byte) (*Message, error)
-	PostBSORMessage(ctx context.Context, channelID, token string,
-		message interface{}) (*Message, error)
-	GetMessages(ctx context.Context, channelID, token string, unread bool) (Messages, error)
-	GetMaxMessageSequence(ctx context.Context, channelID, token string) (uint32, error)
-	MarkMessages(ctx context.Context, channelID, token string, sequence uint32,
-		read, older bool) error
-
-	AccountNotify(ctx context.Context, accountID, token string, autosend bool,
-		incoming chan<- MessageNotification, interrupt <-chan interface{}) error
-	AccountListen(ctx context.Context, accountID, token string, autosend bool,
-		incoming chan<- Message, interrupt <-chan interface{}) error
-	ChannelNotify(ctx context.Context, channelID, token string, autosend bool,
-		incoming chan<- MessageNotification, interrupt <-chan interface{}) error
-	ChannelListen(ctx context.Context, channelID, token string, autosend bool,
-		incoming chan<- Message, interrupt <-chan interface{}) error
-
 	BaseURL() string
+
+	GetChannelMetaData(ctx context.Context, channelID, token string) (*ChannelData, error)
+	WriteMessage(ctx context.Context, channelID, token string, contentType string,
+		payload io.Reader) error
+
+	GetMessages(ctx context.Context, channelID, token string, unread bool,
+		maxCount uint) (Messages, error)
+	GetMaxMessageSequence(ctx context.Context, channelID, token string) (uint64, error)
+	MarkMessages(ctx context.Context, channelID, token string, sequence uint64,
+		read, older bool) error
+	DeleteMessage(ctx context.Context, channelID, token string, sequence uint64, older bool) error
+
+	// Notify writes message notifications to `incoming` as they are posted to the service.
+	// `incoming` will be closed before it returns.
+	Notify(ctx context.Context, token string, sendUnread bool, incoming chan<- MessageNotification,
+		interrupt <-chan interface{}) error
+
+	// Listen writes messages to `incoming` as they are posted to the service.
+	// `incoming` will be closed before it returns.
+	Listen(ctx context.Context, token string, sendUnread bool, incoming chan<- Message,
+		interrupt <-chan interface{}) error
+}
+
+type ChannelData struct {
+	// When a write token is provided
+	MaxMessagePayloadSize *uint64 `bsor:"1" json:"max_message_payload_size,omitempty"`
+
+	// When a read token is provided.
+	AutoDeleteReadMessages *bool `bsor:"2" json:"auto_delete_read_messages,omitempty"`
+}
+
+type Message struct {
+	Sequence    uint64      `bsor:"1" json:"sequence"`
+	Received    time.Time   `bsor:"2" json:"received"`
+	ContentType string      `bsor:"3" json:"content_type"`
+	ChannelID   string      `bsor:"4" json:"channel_id"`
+	Payload     bitcoin.Hex `bsor:"5" json:"payload"`
+}
+
+type Messages []*Message
+
+type MessageNotification struct {
+	Sequence    uint64    `bsor:"1" json:"sequence"`
+	Received    time.Time `bsor:"2" json:"received"`
+	ContentType string    `bsor:"3" json:"content_type"`
+	ChannelID   string    `bsor:"4" json:"channel_id"`
+}
+
+func (m Message) Hash() bitcoin.Hash32 {
+	return bitcoin.Hash32(sha256.Sum256(m.Payload))
 }
 
 func ParseChannelURL(url string) (string, string, error) {
-	parts := strings.Split(url, apiURLPart)
+	parts := strings.Split(url, apiURLChannelPart)
 	if len(parts) != 2 {
 		return "", "", errors.New("Missing api channel part")
 	}
@@ -68,32 +99,14 @@ func ParseChannelURL(url string) (string, string, error) {
 }
 
 func ChannelURL(baseURL, channelID string) string {
-	return fmt.Sprintf("%s%s%s", baseURL, apiURLPart, channelID)
-}
-
-type Message struct {
-	Sequence    uint32      `bsor:"1" json:"sequence"`
-	Received    time.Time   `bsor:"2" json:"received"`
-	ContentType string      `bsor:"3" json:"content_type"`
-	Payload     bitcoin.Hex `bsor:"4" json:"payload"`
-	ChannelID   string      `bsor:"5" json:"channel_id"`
-}
-
-type Messages []*Message
-
-type MessageNotification struct {
-	Sequence  uint32    `bsor:"1" json:"sequence"`
-	Received  time.Time `bsor:"2" json:"received"`
-	ChannelID string    `bsor:"5" json:"channel_id"`
-}
-
-func (m Message) Hash() bitcoin.Hash32 {
-	return bitcoin.Hash32(sha256.Sum256(m.Payload))
+	return fmt.Sprintf("%s%s%s", baseURL, apiURLChannelPart, channelID)
 }
 
 type Factory struct {
 	mockClient     *MockClient
 	internalClient Client
+
+	internalAccountClientFactory AccountClientFactory
 
 	lock sync.Mutex
 }
@@ -107,6 +120,24 @@ func (f *Factory) SetInternalClient(client Client) {
 	defer f.lock.Unlock()
 
 	f.internalClient = client
+}
+
+func (f *Factory) SetInternalAccountClientFactory(factory AccountClientFactory) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.internalAccountClientFactory = factory
+}
+
+func (f *Factory) MockClient() *MockClient {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	if f.mockClient == nil {
+		f.mockClient = NewMockClient()
+	}
+
+	return f.mockClient
 }
 
 func (f *Factory) NewClient(baseURL string) (Client, error) {
