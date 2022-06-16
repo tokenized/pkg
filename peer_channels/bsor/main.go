@@ -12,7 +12,7 @@ import (
 func main() {
 	defs, err := bsor.BuildDefinitions(
 		reflect.TypeOf(peer_channels.Channel{}),
-		reflect.TypeOf(peer_channels.ChannelList{}),
+		reflect.TypeOf(peer_channels.Channels{}),
 		reflect.TypeOf(peer_channels.Message{}),
 		reflect.TypeOf(peer_channels.Messages{}),
 		reflect.TypeOf(peer_channels.MessageNotification{}),

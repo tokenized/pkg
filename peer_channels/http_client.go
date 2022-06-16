@@ -154,9 +154,13 @@ func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
 	translator := newNotificationTranslator(incoming)
 	defer close(incoming)
 
+	params := url.Values{}
+	params.Add("token", token)
+	params.Add("sendunread", fmt.Sprintf("%t", sendUnread))
+	params.Add("fullmessages", "true")
+
 	token = url.PathEscape(token)
-	url := c.BaseURL() + apiURLPart +
-		fmt.Sprintf("/notify?token=%s&sendunread=%t&fullmessages=%t", token, sendUnread, false)
+	url := c.BaseURL() + apiURLPart + fmt.Sprintf("/notify?%s", params.Encode())
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	return websocketListen(ctx, url, translator, interrupt)
@@ -168,9 +172,14 @@ func (c *HTTPClient) Listen(ctx context.Context, token string, sendUnread bool,
 	translator := newMessageTranslator(incoming)
 	defer close(incoming)
 
+	params := url.Values{}
+	params.Add("token", token)
+	params.Add("sendunread", fmt.Sprintf("%t", sendUnread))
+	params.Add("fullmessages", "true")
+
 	token = url.PathEscape(token)
-	url := c.BaseURL() + apiURLPart +
-		fmt.Sprintf("/notify?token=%s&sendunread=%t&fullmessages=%t", token, sendUnread, true)
+	url := c.BaseURL() + apiURLPart + fmt.Sprintf("notify?%s", params.Encode())
+	url = strings.ReplaceAll(url, "https", "ws")
 	url = strings.ReplaceAll(url, "http", "ws")
 
 	return websocketListen(ctx, url, translator, interrupt)

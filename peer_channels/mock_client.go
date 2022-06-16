@@ -139,7 +139,7 @@ func (c *MockClient) GetChannelMetaData(ctx context.Context,
 		}, nil
 	}
 
-	return nil, HTTPError{Status: http.StatusForbidden}
+	return nil, HTTPError{Status: http.StatusUnauthorized}
 }
 
 func (c *MockClient) WriteMessage(ctx context.Context, channelID, token string, contentType string,
@@ -166,7 +166,7 @@ func (c *MockClient) GetMessages(ctx context.Context, channelID, token string, u
 	channel.lock.Lock()
 	defer channel.lock.Unlock()
 	if channel.readToken != token {
-		return nil, HTTPError{Status: http.StatusForbidden}
+		return nil, HTTPError{Status: http.StatusUnauthorized}
 	}
 
 	if len(channel.messages) == 0 {
@@ -200,7 +200,7 @@ func (c *MockClient) GetMaxMessageSequence(ctx context.Context,
 	channel.lock.Lock()
 	defer channel.lock.Unlock()
 	if channel.readToken != token {
-		return 0, HTTPError{Status: http.StatusForbidden}
+		return 0, HTTPError{Status: http.StatusUnauthorized}
 	}
 
 	if len(channel.messages) == 0 {
@@ -225,11 +225,11 @@ func (c *MockClient) MarkMessages(ctx context.Context, channelID, token string, 
 	if channel.readToken != token {
 		account, exists := c.accounts[channel.accountID]
 		if !exists {
-			return HTTPError{Status: http.StatusForbidden}
+			return HTTPError{Status: http.StatusUnauthorized}
 		}
 
 		if account.token != token {
-			return HTTPError{Status: http.StatusForbidden}
+			return HTTPError{Status: http.StatusUnauthorized}
 		}
 	}
 
@@ -261,11 +261,11 @@ func (c *MockClient) DeleteMessage(ctx context.Context, channelID, token string,
 	if channel.readToken != token {
 		account, exists := c.accounts[channel.accountID]
 		if !exists {
-			return HTTPError{Status: http.StatusForbidden}
+			return HTTPError{Status: http.StatusUnauthorized}
 		}
 
 		if account.token != token {
-			return HTTPError{Status: http.StatusForbidden}
+			return HTTPError{Status: http.StatusUnauthorized}
 		}
 	}
 
@@ -490,7 +490,7 @@ func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, 
 	account.lock.Lock()
 	defer account.lock.Unlock()
 	if account.token != c.Token() {
-		return nil, HTTPError{Status: http.StatusForbidden}
+		return nil, HTTPError{Status: http.StatusUnauthorized}
 	}
 
 	channel := &mockChannel{
@@ -529,7 +529,7 @@ func (c *MockAccountClient) CreateChannel(ctx context.Context) (*Channel, error)
 	account.lock.Lock()
 	defer account.lock.Unlock()
 	if account.token != c.Token() {
-		return nil, HTTPError{Status: http.StatusForbidden}
+		return nil, HTTPError{Status: http.StatusUnauthorized}
 	}
 
 	channel := &mockChannel{
@@ -552,6 +552,74 @@ func (c *MockAccountClient) CreateChannel(ctx context.Context) (*Channel, error)
 		ReadToken:  channel.readToken,
 		WriteToken: channel.writeToken,
 	}, nil
+}
+
+func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*Channel, error) {
+	c.client.lock.Lock()
+	defer c.client.lock.Unlock()
+
+	account, exists := c.client.accounts[c.AccountID()]
+	if !exists {
+		return nil, HTTPError{Status: http.StatusNotFound}
+	}
+
+	account.lock.Lock()
+	if account.token != c.Token() {
+		account.lock.Unlock()
+		return nil, HTTPError{Status: http.StatusUnauthorized}
+	}
+	account.lock.Unlock()
+
+	channel, exists := c.client.channels[channelID]
+	if !exists {
+		return nil, HTTPError{Status: http.StatusNotFound}
+	}
+
+	channel.lock.Lock()
+	defer channel.lock.Unlock()
+
+	if c.AccountID() != channel.accountID {
+		return nil, HTTPError{Status: http.StatusUnauthorized}
+	}
+
+	return &Channel{
+		ID:         channel.id,
+		AccountID:  channel.accountID,
+		ReadToken:  channel.readToken,
+		WriteToken: channel.writeToken,
+	}, nil
+}
+
+func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*Channel, error) {
+	c.client.lock.Lock()
+	defer c.client.lock.Unlock()
+
+	accountID := c.AccountID()
+	account, exists := c.client.accounts[accountID]
+	if !exists {
+		return nil, HTTPError{Status: http.StatusNotFound}
+	}
+
+	account.lock.Lock()
+	if account.token != c.Token() {
+		account.lock.Unlock()
+		return nil, HTTPError{Status: http.StatusUnauthorized}
+	}
+	account.lock.Unlock()
+
+	var result []*Channel
+	for _, channel := range c.client.channels {
+		if channel.accountID == accountID {
+			result = append(result, &Channel{
+				ID:         channel.id,
+				AccountID:  channel.accountID,
+				ReadToken:  channel.readToken,
+				WriteToken: channel.writeToken,
+			})
+		}
+	}
+
+	return result, nil
 }
 
 // Notify receives incoming messages for the peer channel account.
@@ -600,7 +668,7 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 	channel.lock.Lock()
 	defer channel.lock.Unlock()
 	if channel.writeToken != token {
-		return HTTPError{Status: http.StatusForbidden}
+		return HTTPError{Status: http.StatusUnauthorized}
 	}
 
 	message := &Message{

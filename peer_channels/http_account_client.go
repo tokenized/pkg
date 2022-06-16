@@ -18,16 +18,13 @@ type HTTPAccountClient struct {
 
 // HTTPCreateAccount creates a new account on an HTTP peer channel service.
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
-func HTTPCreateAccount(ctx context.Context, baseURL, token string) (*string, *string, error) {
-	var response struct {
-		AccountID string `json:"account_id"`
-		Token     string `json:"token"`
-	}
-	if err := post(ctx, baseURL+apiURLPart+"account", token, "", nil, &response); err != nil {
-		return nil, nil, err
+func HTTPCreateAccount(ctx context.Context, baseURL, token string) (*Account, error) {
+	response := &Account{}
+	if err := post(ctx, baseURL+apiURLPart+"account", token, "", nil, response); err != nil {
+		return nil, err
 	}
 
-	return &response.AccountID, &response.Token, nil
+	return response, nil
 }
 
 func NewHTTPAccountClient(baseURL, accountID, token string) *HTTPAccountClient {
@@ -86,6 +83,29 @@ func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*Channel, error)
 
 	if len(response.WriteToken) == 0 {
 		return response, errors.New("Channel should not be public")
+	}
+
+	return response, nil
+}
+
+func (c *HTTPAccountClient) GetChannel(ctx context.Context, channelID string) (*Channel, error) {
+	url := fmt.Sprintf("%s%saccount/%s/channel/%s", c.BaseURL(), apiURLPart, c.AccountID(),
+		channelID)
+
+	response := &Channel{}
+	if err := get(ctx, url, c.Token(), response); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*Channel, error) {
+	url := fmt.Sprintf("%s%saccount/%s/channels", c.BaseURL(), apiURLPart, c.AccountID())
+
+	var response []*Channel
+	if err := get(ctx, url, c.Token(), &response); err != nil {
+		return nil, err
 	}
 
 	return response, nil

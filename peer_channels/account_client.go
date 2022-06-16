@@ -19,6 +19,9 @@ type AccountClient interface {
 	// the write token.
 	CreateChannel(ctx context.Context) (*Channel, error)
 
+	GetChannel(ctx context.Context, channelID string) (*Channel, error)
+	ListChannels(ctx context.Context) ([]*Channel, error)
+
 	// Notify receives incoming messages for the peer channel account.
 	Notify(ctx context.Context, sendUnread bool, incoming chan MessageNotification,
 		interrupt <-chan interface{}) error
@@ -32,6 +35,11 @@ type AccountClientFactory interface {
 	NewAccountClient(accountID, token string) (AccountClient, error)
 }
 
+type Account struct {
+	AccountID string `bsor:"1" json:"account_id"`
+	Token     string `bsor:"2" json:"token"`
+}
+
 // Note: This is a non-standard structure and might only be implemented by the Tokenized Service.
 type Channel struct {
 	ID         string `bsor:"1" json:"id"`
@@ -39,6 +47,8 @@ type Channel struct {
 	ReadToken  string `bsor:"3" json:"read_token"`
 	WriteToken string `bsor:"4" json:"write_token"`
 }
+
+type Channels []Channel
 
 func (f *Factory) NewAccountClient(baseURL, accountID, token string) (AccountClient, error) {
 	f.lock.Lock()

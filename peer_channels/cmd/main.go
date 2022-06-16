@@ -37,9 +37,6 @@ func main() {
 	case "listen":
 		Listen(ctx, os.Args[2:])
 
-	case "channel_listen":
-		ChannelListen(ctx, os.Args[2:])
-
 	case "post":
 		Post(ctx, os.Args[2:])
 
@@ -56,20 +53,14 @@ func CreateAccount(ctx context.Context, args []string) {
 	url := args[0]
 	token := args[1]
 
-	factory := peer_channels.NewFactory()
-	client, err := factory.NewClient(url)
-	if err != nil {
-		fmt.Printf("Failed to create peer channels client : %s", err)
-		return
-	}
-	accountID, accessToken, err := client.CreateAccount(ctx, token)
+	account, err := peer_channels.HTTPCreateAccount(ctx, url, token)
 	if err != nil {
 		fmt.Printf("Failed to create account : %s\n", err)
 		return
 	}
 
-	fmt.Printf("Created Account : %s\n", *accountID)
-	fmt.Printf("Access Token : %s\n", *accessToken)
+	fmt.Printf("Created Account : %s\n", account.AccountID)
+	fmt.Printf("Access Token : %s\n", account.Token)
 }
 
 func CreateChannel(ctx context.Context, args []string) {
@@ -82,12 +73,13 @@ func CreateChannel(ctx context.Context, args []string) {
 	token := args[2]
 
 	factory := peer_channels.NewFactory()
-	client, err := factory.NewClient(url)
+	accountClient, err := factory.NewAccountClient(url, accountID, token)
 	if err != nil {
 		fmt.Printf("Failed to create peer channels client : %s", err)
 		return
 	}
-	channel, err := client.CreateChannel(ctx, accountID, token)
+
+	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
 		fmt.Printf("Failed to create channel : %s\n", err)
 		return
@@ -119,21 +111,19 @@ func Post(ctx context.Context, args []string) {
 	}, "Posting message to peer channel")
 
 	buf := &bytes.Buffer{}
-	var msg *peer_channels.Message
+	var contentType string
 	if err := json.Indent(buf, []byte(message), "", "  "); err == nil {
-		msg, err = client.PostJSONMessage(ctx, channelID, token, message)
-		if err != nil {
-			logger.Fatal(ctx, "Failed to post message : %s", err)
-		}
+		contentType = peer_channels.ContentTypeJSON
 	} else {
-		msg, err = client.PostTextMessage(ctx, channelID, token, message)
-		if err != nil {
-			logger.Fatal(ctx, "Failed to post message : %s", err)
-		}
+		contentType = peer_channels.ContentTypeText
 	}
 
-	js, _ := json.MarshalIndent(msg, "", "  ")
-	fmt.Printf("Posted message : %s\n", js)
+	if err := client.WriteMessage(ctx, channelID, token, contentType,
+		bytes.NewReader([]byte(message))); err != nil {
+		logger.Fatal(ctx, "Failed to post message : %s", err)
+	}
+
+	fmt.Printf("Posted message\n")
 }
 
 func PostBinary(ctx context.Context, args []string) {
@@ -160,28 +150,25 @@ func PostBinary(ctx context.Context, args []string) {
 		fmt.Printf("Failed to create peer channels client : %s", err)
 		return
 	}
-	msg, err := client.PostBinaryMessage(ctx, channelID, token, message)
-	if err != nil {
+	if err := client.WriteMessage(ctx, channelID, token, peer_channels.ContentTypeBinary,
+		bytes.NewReader(message)); err != nil {
 		logger.Fatal(ctx, "Failed to post message : %s", err)
 	}
 
-	js, _ := json.MarshalIndent(msg, "", "  ")
-	fmt.Printf("Posted message : %s\n", js)
+	fmt.Printf("Posted message\n")
 }
 
 func Listen(ctx context.Context, args []string) {
-	if len(args) != 3 {
-		logger.Fatal(ctx, "Wrong argument count: listen [URL] [Account] [Token]")
+	if len(args) != 2 {
+		logger.Fatal(ctx, "Wrong argument count: listen [URL] [Token]")
 	}
 
 	url := args[0]
-	accountID := args[1]
-	token := args[2]
+	token := args[1]
 
 	logger.InfoWithFields(ctx, []logger.Field{
 		logger.String("url", url),
-		logger.String("account", accountID),
-	}, "Starting listening to peer channel account")
+	}, "Starting listening")
 
 	listenInterrupt := make(chan interface{})
 	listenComplete := make(chan interface{})
@@ -193,8 +180,9 @@ func Listen(ctx context.Context, args []string) {
 		fmt.Printf("Failed to create peer channels client : %s", err)
 		return
 	}
+
 	go func() {
-		if err := client.AccountListen(ctx, accountID, token, true, incoming,
+		if err := client.Listen(ctx, token, true, incoming,
 			listenInterrupt); err != nil {
 			logger.Error(ctx, "Failed to listen : %s", err)
 		}
@@ -211,74 +199,6 @@ func Listen(ctx context.Context, args []string) {
 			// processMessage(ctx, msg)
 
 			if err := client.MarkMessages(ctx, msg.ChannelID, token, msg.Sequence, true,
-				true); err != nil {
-				fmt.Printf("Failed to mark message as read : %s", err)
-			}
-			fmt.Printf("Marked sequence %d as read\n", msg.Sequence)
-		}
-	}()
-
-	osSignals := make(chan os.Signal, 1)
-	signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM)
-
-	select {
-	case <-listenComplete:
-		fmt.Printf("Complete (without interrupt)\n")
-
-	case <-osSignals:
-		close(listenInterrupt)
-
-		select {
-		case <-listenComplete:
-			fmt.Printf("Complete (after interrupt)\n")
-		case <-time.After(3 * time.Second):
-			fmt.Printf("Shut down timed out\n")
-		}
-	}
-}
-
-func ChannelListen(ctx context.Context, args []string) {
-	if len(args) != 3 {
-		logger.Fatal(ctx, "Wrong argument count: listen [URL] [Channel] [Token]")
-	}
-
-	url := args[0]
-	channelID := args[1]
-	token := args[2]
-
-	logger.InfoWithFields(ctx, []logger.Field{
-		logger.String("url", url),
-		logger.String("channel", channelID),
-	}, "Starting listening to peer channel")
-
-	listenInterrupt := make(chan interface{})
-	listenComplete := make(chan interface{})
-	incoming := make(chan peer_channels.Message, 5)
-
-	factory := peer_channels.NewFactory()
-	client, err := factory.NewClient(url)
-	if err != nil {
-		fmt.Printf("Failed to create peer channels client : %s", err)
-		return
-	}
-	go func() {
-		if err := client.ChannelListen(ctx, channelID, token, true, incoming,
-			listenInterrupt); err != nil {
-			logger.Error(ctx, "Failed to listen : %s", err)
-		}
-
-		close(incoming)
-		close(listenComplete)
-	}()
-
-	go func() {
-		for msg := range incoming {
-			js, _ := json.MarshalIndent(msg, "", "  ")
-			fmt.Printf("Received message : %s\n", js)
-
-			// processMessage(ctx, msg)
-
-			if err := client.MarkMessages(ctx, channelID, token, msg.Sequence, true,
 				true); err != nil {
 				fmt.Printf("Failed to mark message as read : %s", err)
 			}

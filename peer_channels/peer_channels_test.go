@@ -7,6 +7,10 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/tokenized/pkg/threads"
+
+	"github.com/pkg/errors"
 )
 
 const testBaseURL = "http://localhost:8080"
@@ -16,34 +20,38 @@ func Test_Interface(t *testing.T) {
 	// Verify that both client implementations fully implement the Client interface. This will not
 	// compile if they don't.
 	checkInterface := func(c Client) {}
-
 	checkInterface(NewHTTPClient(testBaseURL))
 	checkInterface(NewMockClient())
+
+	accountCheckInterface := func(c AccountClient) {}
+	accountCheckInterface(NewHTTPAccountClient(testBaseURL, "", ""))
+	accountCheckInterface(NewMockAccountClient(NewMockClient(), "", ""))
 }
 
 func Test_CreateAccount(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
-	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	account, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
 	if err != nil {
 		t.Fatalf("Failed to create account : %s", err)
 	}
 
-	t.Logf("Account ID : %s", *accountID)
-	t.Logf("Account Token : %s", *accountToken)
+	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
 }
 
 func Test_CreateChannel(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
-	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	account, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
 	if err != nil {
 		t.Fatalf("Failed to create account : %s", err)
 	}
 
-	accountClient := NewHTTPAccountClient(testBaseURL, *accountID, *accountToken)
+	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
+
+	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
@@ -62,12 +70,14 @@ func Test_WriteMessage_JSON(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
-	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	account, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
 	if err != nil {
 		t.Fatalf("Failed to create account : %s", err)
 	}
 
-	accountClient := NewHTTPAccountClient(testBaseURL, *accountID, *accountToken)
+	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
+
+	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
@@ -122,7 +132,8 @@ func Test_WriteMessage_JSON(t *testing.T) {
 		t.Errorf("Wrong max sequence : got %d, want %d", maxSequence, 1)
 	}
 
-	if err := client.MarkMessages(ctx, channel.ID, channel.ReadToken, 0, true, true); err != nil {
+	if err := client.MarkMessages(ctx, channel.ID, channel.ReadToken, msgs[0].Sequence, true,
+		true); err != nil {
 		t.Fatalf("Failed to mark message as read : %s", err)
 	}
 
@@ -154,7 +165,8 @@ func Test_WriteMessage_JSON(t *testing.T) {
 			len(msgs), 1)
 	}
 
-	if err := client.DeleteMessage(ctx, channel.ID, channel.ReadToken, 1, true); err != nil {
+	if err := client.DeleteMessage(ctx, channel.ID, channel.ReadToken, msgs[0].Sequence,
+		true); err != nil {
 		t.Fatalf("Failed to delete message : %s", err)
 	}
 
@@ -173,12 +185,14 @@ func Test_ChannelListen(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()
 
-	accountID, accountToken, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	account, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
 	if err != nil {
 		t.Fatalf("Failed to create account : %s", err)
 	}
 
-	accountClient := NewHTTPAccountClient(testBaseURL, *accountID, *accountToken)
+	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
+
+	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
@@ -193,7 +207,6 @@ func Test_ChannelListen(t *testing.T) {
 
 	incoming := make(chan Message)
 	interrupt := make(chan interface{})
-	complete := make(chan interface{})
 
 	// Receive messages on incoming
 	go func() {
@@ -211,7 +224,7 @@ func Test_ChannelListen(t *testing.T) {
 	go func() {
 		time.Sleep(12 * time.Second)
 		t.Logf("Sending interrupt")
-		interrupt <- true
+		close(interrupt)
 	}()
 
 	// Send a message every second.
@@ -227,15 +240,76 @@ func Test_ChannelListen(t *testing.T) {
 		}
 	}()
 
-	if err := client.Listen(ctx, channel.ReadToken, true, incoming, interrupt); err != nil {
+	if err := client.Listen(ctx, channel.ReadToken, true, incoming, interrupt); err != nil &&
+		errors.Cause(err) != threads.Interrupted {
 		t.Fatalf("Failed to listen : %s", err)
 	}
-	close(incoming)
 
-	select {
-	case <-complete:
-	case <-time.After(time.Second):
-		t.Fatalf("Shut down timed out")
+	t.Logf("Finished Listen")
+}
+
+func Test_AccountListen(t *testing.T) {
+	t.Skip()
+	ctx := context.Background()
+
+	account, err := HTTPCreateAccount(ctx, testBaseURL, testMasterToken)
+	if err != nil {
+		t.Fatalf("Failed to create account : %s", err)
+	}
+
+	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
+
+	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
+
+	channel, err := accountClient.CreateChannel(ctx)
+	if err != nil {
+		t.Fatalf("Failed to create channel : %s", err)
+	}
+
+	factory := NewFactory()
+	client, err := factory.NewClient(testBaseURL)
+	if err != nil {
+		t.Fatalf("Failed to create client : %s", err)
+	}
+
+	incoming := make(chan Message)
+	interrupt := make(chan interface{})
+
+	// Receive messages on incoming
+	go func() {
+		for msg := range incoming {
+			js, err := json.MarshalIndent(msg, "", "  ")
+			if err != nil {
+				t.Fatalf("Failed to marshal message : %s", err)
+			}
+
+			t.Logf("Received : %s", js)
+		}
+	}()
+
+	// Wait 12 seconds, then send interrupt from another thread
+	go func() {
+		time.Sleep(12 * time.Second)
+		t.Logf("Sending interrupt")
+		close(interrupt)
+	}()
+
+	// Send a message every second.
+	go func() {
+		for i := 0; i < 10; i++ {
+			time.Sleep(1 * time.Second)
+			t.Logf("Sending message %d", i)
+			msg := fmt.Sprintf("Test message %d", i)
+			if err := client.WriteMessage(ctx, channel.ID, channel.WriteToken, ContentTypeText,
+				bytes.NewReader([]byte(msg))); err != nil {
+				t.Fatalf("Failed to write message : %s", err)
+			}
+		}
+	}()
+
+	if err := client.Listen(ctx, account.Token, true, incoming, interrupt); err != nil &&
+		errors.Cause(err) != threads.Interrupted {
+		t.Fatalf("Failed to listen : %s", err)
 	}
 
 	t.Logf("Finished Listen")
