@@ -12,13 +12,14 @@ func StreamWrite(ctx context.Context, store StreamWriter, key string, s Serializ
 	var writeErr error
 	buf := NewBuffer()
 
+	serializeErr := s.Serialize(buf)
+
 	wait.Add(1)
 	go func() {
 		writeErr = store.StreamWrite(ctx, key, buf)
 		wait.Done()
 	}()
 
-	serializeErr := s.Serialize(buf)
 	buf.Close()
 	wait.Wait()
 

@@ -80,6 +80,7 @@ func (m Message) Hash() bitcoin.Hash32 {
 	return bitcoin.Hash32(sha256.Sum256(m.Payload))
 }
 
+// ParseChannelURL returns the base URL and the channel ID from a peer channels URL.
 func ParseChannelURL(url string) (string, string, error) {
 	parts := strings.Split(url, apiURLChannelPart)
 	if len(parts) != 2 {
@@ -98,6 +99,7 @@ func ParseChannelURL(url string) (string, string, error) {
 	return parts[0], channelParts[0], nil
 }
 
+// ChannelURL returns a full peer channels URL for the provided base URL and channel ID.
 func ChannelURL(baseURL, channelID string) string {
 	return fmt.Sprintf("%s%s%s", baseURL, apiURLChannelPart, channelID)
 }

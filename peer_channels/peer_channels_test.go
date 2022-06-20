@@ -314,3 +314,45 @@ func Test_AccountListen(t *testing.T) {
 
 	t.Logf("Finished Listen")
 }
+
+func Test_ParseURL(t *testing.T) {
+	tests := []struct {
+		baseURL   string
+		channelID string
+		url       string
+	}{
+		{
+			baseURL:   "https://test.com",
+			channelID: "123456",
+			url:       "https://test.com/api/v1/channel/123456",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			baseURL, channelID, err := ParseChannelURL(tt.url)
+			if err != nil {
+				t.Errorf("Failed to parse channel URL : %s", err)
+			}
+
+			t.Logf("Base URL : %s", baseURL)
+			t.Logf("Channel ID : %s", channelID)
+
+			if baseURL != tt.baseURL {
+				t.Errorf("Wrong base URL : got %s, want %s", baseURL, tt.baseURL)
+			}
+
+			if channelID != tt.channelID {
+				t.Errorf("Wrong channel ID : got %s, want %s", channelID, tt.channelID)
+			}
+
+			url := ChannelURL(tt.baseURL, tt.channelID)
+
+			t.Logf("URL : %s", url)
+
+			if url != tt.url {
+				t.Errorf("Wrong URL : got %s, want %s", url, tt.url)
+			}
+		})
+	}
+}
