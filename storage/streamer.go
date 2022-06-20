@@ -20,6 +20,7 @@ func StreamWrite(ctx context.Context, store StreamWriter, key string, s Serializ
 
 	serializeErr := s.Serialize(buf)
 	if serializeErr != nil {
+		buf.Close()
 		return errors.Wrap(serializeErr, "serialize")
 	}
 
