@@ -161,7 +161,8 @@ func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
 
 	token = url.PathEscape(token)
 	url := c.BaseURL() + apiURLPart + fmt.Sprintf("/notify?%s", params.Encode())
-	url = strings.ReplaceAll(url, "http", "ws")
+	url = strings.ReplaceAll(url, "https://", "wss://")
+	url = strings.ReplaceAll(url, "http://", "ws://")
 
 	return websocketListen(ctx, url, translator, interrupt)
 }
@@ -179,8 +180,8 @@ func (c *HTTPClient) Listen(ctx context.Context, token string, sendUnread bool,
 
 	token = url.PathEscape(token)
 	url := c.BaseURL() + apiURLPart + fmt.Sprintf("notify?%s", params.Encode())
-	url = strings.ReplaceAll(url, "https", "ws")
-	url = strings.ReplaceAll(url, "http", "ws")
+	url = strings.ReplaceAll(url, "https://", "wss://")
+	url = strings.ReplaceAll(url, "http://", "ws://")
 
 	return websocketListen(ctx, url, translator, interrupt)
 }
