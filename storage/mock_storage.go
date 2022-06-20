@@ -71,12 +71,12 @@ func (s *MockStorage) ReadRange(ctx context.Context, key string, start, end int6
 	return buf.Bytes(), nil
 }
 
-func (s *MockStorage) StreamRead(ctx context.Context, key string) (io.Reader, error) {
+func (s *MockStorage) StreamRead(ctx context.Context, key string) (io.ReadCloser, error) {
 	return s.StreamReadRange(ctx, key, 0, 0)
 }
 
 func (s *MockStorage) StreamReadRange(ctx context.Context, key string,
-	start, end int64) (io.Reader, error) {
+	start, end int64) (io.ReadCloser, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -97,7 +97,21 @@ func (s *MockStorage) StreamReadRange(ctx context.Context, key string,
 		end = int64(len(result))
 	}
 
-	return bytes.NewReader(result[start:end]), nil
+	return &nopCloser{
+		r: bytes.NewReader(result[start:end]),
+	}, nil
+}
+
+type nopCloser struct {
+	r io.Reader
+}
+
+func (rc *nopCloser) Read(b []byte) (int, error) {
+	return rc.r.Read(b)
+}
+
+func (rc *nopCloser) Close() error {
+	return nil
 }
 
 // Remove removes the object stored at key, in the S3 Bucket.

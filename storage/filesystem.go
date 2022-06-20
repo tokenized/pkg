@@ -120,12 +120,12 @@ func (f *FilesystemStorage) ReadRange(ctx context.Context, key string,
 	return buf.Bytes(), nil
 }
 
-func (f *FilesystemStorage) StreamRead(ctx context.Context, key string) (io.Reader, error) {
+func (f *FilesystemStorage) StreamRead(ctx context.Context, key string) (io.ReadCloser, error) {
 	return f.StreamReadRange(ctx, key, 0, 0)
 }
 
 func (f *FilesystemStorage) StreamReadRange(ctx context.Context, key string,
-	start, end int64) (io.Reader, error) {
+	start, end int64) (io.ReadCloser, error) {
 
 	filename := f.buildPath(key)
 
@@ -149,10 +149,26 @@ func (f *FilesystemStorage) StreamReadRange(ctx context.Context, key string,
 		return file, nil
 	}
 
-	return &io.LimitedReader{
-		R: file,
-		N: end - start,
+	return &limitedReadCloser{
+		lr: &io.LimitedReader{
+			R: file,
+			N: end - start,
+		},
+		closer: file,
 	}, nil
+}
+
+type limitedReadCloser struct {
+	lr     *io.LimitedReader
+	closer io.Closer
+}
+
+func (lrc *limitedReadCloser) Read(b []byte) (int, error) {
+	return lrc.lr.Read(b)
+}
+
+func (lrc *limitedReadCloser) Close() error {
+	return lrc.closer.Close()
 }
 
 // Remove removes the object stored at key, in the S3 Bucket.

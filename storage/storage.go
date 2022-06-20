@@ -54,11 +54,11 @@ type RangeReader interface {
 }
 
 type StreamReader interface {
-	StreamRead(ctx context.Context, key string) (io.Reader, error)
+	StreamRead(ctx context.Context, key string) (io.ReadCloser, error)
 }
 
 type StreamRangeReader interface {
-	StreamReadRange(ctx context.Context, key string, start, end int64) (io.Reader, error)
+	StreamReadRange(ctx context.Context, key string, start, end int64) (io.ReadCloser, error)
 }
 
 // Writer interface is for adding or updating an item to the store.

@@ -39,6 +39,7 @@ func StreamRead(ctx context.Context, store StreamReader, key string, d Deseriali
 	if err != nil {
 		return errors.Wrap(err, "read")
 	}
+	defer r.Close()
 
 	if err := d.Deserialize(r); err != nil {
 		return errors.Wrap(err, "deserialize")

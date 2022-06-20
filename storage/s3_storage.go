@@ -169,12 +169,12 @@ func (s S3Storage) ReadRange(ctx context.Context, key string, start, end int64) 
 	return b, nil
 }
 
-func (s S3Storage) StreamRead(ctx context.Context, key string) (io.Reader, error) {
+func (s S3Storage) StreamRead(ctx context.Context, key string) (io.ReadCloser, error) {
 	return s.StreamReadRange(ctx, key, 0, 0)
 }
 
 func (s S3Storage) StreamReadRange(ctx context.Context, key string,
-	start, end int64) (io.Reader, error) {
+	start, end int64) (io.ReadCloser, error) {
 
 	svc := s3.New(s.Session)
 
