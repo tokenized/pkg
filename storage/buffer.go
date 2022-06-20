@@ -55,7 +55,7 @@ func (b *Buffer) Seek(offset int64, whence int) (int64, error) {
 	var newOffset int64
 	switch whence {
 	case io.SeekStart:
-		newOffset = b.offset
+		newOffset = offset
 	case io.SeekCurrent:
 		newOffset = b.offset + offset
 	case io.SeekEnd:
@@ -66,7 +66,7 @@ func (b *Buffer) Seek(offset int64, whence int) (int64, error) {
 		return b.offset, io.ErrShortBuffer
 	}
 
-	if newOffset >= length {
+	if newOffset > length {
 		return b.offset, io.ErrShortBuffer
 	}
 

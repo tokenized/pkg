@@ -8,24 +8,23 @@ import (
 )
 
 func StreamWrite(ctx context.Context, store StreamWriter, key string, s Serializer) error {
-	var wait sync.WaitGroup
-	var writeErr error
 	buf := NewBuffer()
 
-	serializeErr := s.Serialize(buf)
-
+	var writeErr error
+	var wait sync.WaitGroup
 	wait.Add(1)
 	go func() {
 		writeErr = store.StreamWrite(ctx, key, buf)
 		wait.Done()
 	}()
 
-	buf.Close()
-	wait.Wait()
-
+	serializeErr := s.Serialize(buf)
 	if serializeErr != nil {
 		return errors.Wrap(serializeErr, "serialize")
 	}
+
+	buf.Close()
+	wait.Wait()
 
 	if writeErr != nil {
 		return errors.Wrap(writeErr, "write")
