@@ -157,7 +157,7 @@ func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
 	params := url.Values{}
 	params.Add("token", token)
 	params.Add("sendunread", fmt.Sprintf("%t", sendUnread))
-	params.Add("fullmessages", "true")
+	params.Add("fullmessages", "false")
 
 	token = url.PathEscape(token)
 	url := c.BaseURL() + apiURLPart + fmt.Sprintf("/notify?%s", params.Encode())
