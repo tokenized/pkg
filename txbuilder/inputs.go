@@ -2,6 +2,7 @@ package txbuilder
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
@@ -104,7 +105,9 @@ func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) 
 //   outpoint reference the output being spent.
 //   lockingScript is the script from the output being spent.
 //   value is the number of satoshis from the output being spent.
-func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockingScript bitcoin.Script, value uint64) error {
+func (tx *TxBuilder) AddInput(outpoint wire.OutPoint, lockingScript bitcoin.Script,
+	value uint64) error {
+
 	// Check that outpoint isn't already an input.
 	for _, input := range tx.MsgTx.TxIn {
 		if input.PreviousOutPoint.Hash.Equal(&outpoint.Hash) &&
@@ -278,7 +281,9 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 	inputValue := tx.InputValue()
 	outputValue := tx.OutputValue(true)
-	estFeeValue := tx.EstimatedFee()
+	estSize := uint64(tx.EstimatedSize())
+	feeRate := float64(tx.FeeRate)
+	estFeeValue := estimatedFeeValue(estSize, feeRate)
 
 	changeFee, _, err := OutputFeeAndDustForAddress(changeAddresses[0].Address,
 		tx.DustFeeRate, tx.FeeRate)
@@ -309,7 +314,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 	// Calculate additional funding needed. Include cost of first added input.
 	// TODO Add support for input scripts other than P2PKH.
-	neededFunding := estFeeValue + outputValue - inputValue
+	neededFunding := estimatedFeeValue(estSize, feeRate) + outputValue - inputValue
 	duplicateValue := uint64(0)
 
 	for _, utxo := range utxos {
@@ -321,11 +326,14 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 			return errors.Wrap(err, "adding input")
 		}
 
-		inputFee, err := UTXOFee(utxo, tx.FeeRate)
+		inputSize, err := InputSize(utxo.LockingScript)
 		if err != nil {
-			return errors.Wrap(err, "utxo fee")
+			return errors.Wrap(err, "input size")
 		}
-		neededFunding += inputFee // Add cost of input
+
+		estSize += uint64(inputSize)
+		neededFunding = estimatedFeeValue(estSize, feeRate) + outputValue - inputValue
+		inputValue += utxo.Value
 
 		if tx.SendMax {
 			continue
@@ -360,7 +368,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		}
 
 		// More UTXOs required
-		neededFunding -= utxo.Value // Subtract the value this input added
+		neededFunding = estimatedFeeValue(estSize, feeRate) + outputValue - inputValue
 	}
 
 	if tx.SendMax {
@@ -375,13 +383,22 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		outputValue+tx.EstimatedFee()))
 }
 
+func estimatedFeeValue(size uint64, feeRate float64) uint64 {
+	result, f := math.Modf(float64(size) * feeRate)
+	if f > 0.1 {
+		result++
+	}
+
+	return uint64(result)
+}
+
 // UTXOFee calculates the tx fee for the input to spend the UTXO.
 func UTXOFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
 	size, err := InputSize(utxo.LockingScript)
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
 	}
-	return uint64(float32(size) * feeRate), nil
+	return estimatedFeeValue(uint64(size), float64(feeRate)), nil
 }
 
 // LockingScriptInputFee returns the tx fee to include an locking script as an output in a tx.
@@ -390,7 +407,7 @@ func LockingScriptInputFee(lockingScript bitcoin.Script, feeRate float32) (uint6
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
 	}
-	return uint64(float32(size) * feeRate), nil
+	return estimatedFeeValue(uint64(size), float64(feeRate)), nil
 }
 
 // AddressOutputFee returns the tx fee to include an address as an output in a tx.
@@ -406,5 +423,5 @@ func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 // LockingScriptOutputFee returns the tx fee to include an locking script as an output in a tx.
 func LockingScriptOutputFee(lockingScript bitcoin.Script, feeRate float32) uint64 {
 	txout := wire.TxOut{LockingScript: lockingScript}
-	return uint64(float32(txout.SerializeSize()) * feeRate)
+	return estimatedFeeValue(uint64(txout.SerializeSize()), float64(feeRate))
 }

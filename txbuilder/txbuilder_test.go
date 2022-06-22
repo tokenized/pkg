@@ -527,3 +527,74 @@ func TestSendMax(t *testing.T) {
 		t.Fatalf("Incorrect fee : got %f, want %f", fee, estimatedFee)
 	}
 }
+
+func Test_LowFeeFunding(t *testing.T) {
+	sendKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+
+	sendLockingScript, err := sendKey.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create locking script : %s", err)
+	}
+
+	receiveKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+
+	receiveLockingScript, err := receiveKey.LockingScript()
+	if err != nil {
+		t.Fatalf("Failed to create locking script : %s", err)
+	}
+
+	changeAddresses := make([]AddressKeyID, 5)
+	for i := range changeAddresses {
+		changeKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+		if err != nil {
+			t.Fatalf("Failed to generate key : %s", err)
+		}
+
+		ra, err := changeKey.RawAddress()
+		if err != nil {
+			t.Fatalf("Failed to create address : %s", err)
+		}
+
+		changeAddresses[i] = AddressKeyID{
+			Address: ra,
+		}
+	}
+
+	utxos := []bitcoin.UTXO{
+		{
+			Index:         0,
+			Value:         10000,
+			LockingScript: sendLockingScript,
+		},
+	}
+	rand.Read(utxos[0].Hash[:])
+
+	scriptString := "OP_FALSE OP_RETURN 0xbd01 OP_1 0x49 0x11 OP_FALSE OP_4 OP_3 OP_1 OP_1 OP_1 OP_2 OP_1 0x7374616e64617264 OP_2 OP_1 OP_2 0xe803 OP_3 0x743fb262 OP_4 0x844db262"
+	script, err := bitcoin.StringToScript(scriptString)
+	if err != nil {
+		t.Fatalf("Failed to parse script : %s", err)
+	}
+
+	tx := NewTxBuilder(0.05, 0.05)
+
+	tx.AddOutput(receiveLockingScript, 1000, false, false)
+	tx.AddOutput(script, 0, false, false)
+
+	if err := tx.AddFundingBreakChange(utxos, 10000, changeAddresses); err != nil {
+		t.Fatalf("Failed to add funding : %s", err)
+	}
+
+	t.Logf(tx.String(bitcoin.MainNet))
+	t.Logf("Fee : %d", tx.Fee())
+	t.Logf("Estimated Fee : %d", tx.EstimatedFee())
+
+	if tx.Fee() != tx.EstimatedFee() {
+		t.Fatalf("Wrong fee : got %d, want %d", tx.Fee(), tx.EstimatedFee())
+	}
+}

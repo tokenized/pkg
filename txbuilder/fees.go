@@ -187,7 +187,7 @@ func (tx *TxBuilder) EstimatedSize() int {
 }
 
 func (tx *TxBuilder) EstimatedFee() uint64 {
-	return uint64(float32(tx.EstimatedSize()) * tx.FeeRate)
+	return estimatedFeeValue(uint64(tx.EstimatedSize()), float64(tx.FeeRate))
 }
 
 func (tx *TxBuilder) CalculateFee() error {
