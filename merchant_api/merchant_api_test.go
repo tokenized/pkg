@@ -14,16 +14,28 @@ func TestGetFeeQuote(t *testing.T) {
 	tests := []struct {
 		name string
 		url  string
+		auth string
 	}{
 		// {
 		// 	name: "Taal",
 		// 	url:  "https://merchantapi.taal.com/",
+		// 	auth: "",
+		// },
+		// {
+		// 	name: "Taal",
+		// 	url:  "https://api.taal.com/",
+		// 	auth: "",
+		// },
+		// {
+		// 	name: "GorillaPool",
+		// 	url:  "https://mapi.gorillapool.io/",
+		// 	auth: "",
 		// },
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fees, err := GetFeeQuote(ctx, tt.url)
+			fees, err := GetFeeQuoteWithAuth(ctx, tt.url, tt.auth)
 			if err != nil {
 				t.Fatalf("Failed to get fees : %s", err)
 			}

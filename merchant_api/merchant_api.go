@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -259,11 +260,12 @@ func (str SubmitTxResponse) Success() error {
 		return nil
 	}
 
-	if str.Result == "failure" && str.ResultDescription == "Transaction already in the mempool" {
+	if str.Result == "failure" &&
+		strings.Contains(str.ResultDescription, "Transaction already in the mempool") {
 		return AlreadyInMempool
 	}
 
-	if str.Result == "failure" && str.ResultDescription == "Missing inputs" {
+	if str.Result == "failure" && strings.Contains(str.ResultDescription, "Missing inputs") {
 		return MissingInputs
 	}
 
