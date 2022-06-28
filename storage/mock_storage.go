@@ -7,11 +7,14 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 )
 
 // MockStorage implements the Storage interface for but just holds the data in memory.
 type MockStorage struct {
 	Data map[string][]byte
+
+	readDelay time.Duration
 
 	sync.Mutex
 }
@@ -21,6 +24,13 @@ func NewMockStorage() *MockStorage {
 	return &MockStorage{
 		Data: make(map[string][]byte),
 	}
+}
+
+func (s *MockStorage) SetReadDelay(delay time.Duration) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.readDelay = delay
 }
 
 // Write will write the data to the key in the S3 Bucket.
@@ -49,6 +59,10 @@ func (s *MockStorage) StreamWrite(ctx context.Context, key string, r io.ReadSeek
 func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 	s.Lock()
 	defer s.Unlock()
+
+	if s.readDelay > 0 {
+		time.Sleep(s.readDelay)
+	}
 
 	result, exists := s.Data[key]
 	if !exists {
@@ -79,6 +93,10 @@ func (s *MockStorage) StreamReadRange(ctx context.Context, key string,
 	start, end int64) (io.ReadCloser, error) {
 	s.Lock()
 	defer s.Unlock()
+
+	if s.readDelay > 0 {
+		time.Sleep(s.readDelay)
+	}
 
 	result, exists := s.Data[key]
 	if !exists {
