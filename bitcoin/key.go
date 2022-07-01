@@ -253,6 +253,17 @@ func (k Key) AddHash(hash Hash32) (Key, error) {
 	return KeyFromNumber(b, k.Network())
 }
 
+// Subtract subtracts one key from the other and returns the hash that can be passed into AddHash of
+// the baseKey to create the first key.
+func (k Key) Subtract(baseKey Key) (Hash32, error) {
+	hash, err := NewHash32(subtractPrivateKeys(k.value.Bytes(), baseKey.value.Bytes()))
+	if err != nil {
+		return Hash32{}, errors.Wrap(err, "hash")
+	}
+
+	return *hash, nil
+}
+
 // MarshalJSONMasked outputs "masked" data that is safe for "masked" configs that are output to logs
 // and shouldn't contain any private data.
 func (k Key) MarshalJSONMasked() ([]byte, error) {
@@ -331,6 +342,23 @@ func addPrivateKeys(key1 []byte, key2 []byte) []byte {
 	key2Int.SetBytes(key2)
 
 	key1Int.Add(&key1Int, &key2Int)
+	key1Int.Mod(&key1Int, curveS256Params.N)
+
+	b := key1Int.Bytes()
+	if len(b) < 32 {
+		extra := make([]byte, 32-len(b))
+		b = append(extra, b...)
+	}
+	return b
+}
+
+func subtractPrivateKeys(key1 []byte, key2 []byte) []byte {
+	var key1Int big.Int
+	var key2Int big.Int
+	key1Int.SetBytes(key1)
+	key2Int.SetBytes(key2)
+
+	key1Int.Sub(&key1Int, &key2Int)
 	key1Int.Mod(&key1Int, curveS256Params.N)
 
 	b := key1Int.Bytes()
