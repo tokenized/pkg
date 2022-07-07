@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"strconv"
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -11,6 +12,65 @@ import (
 
 	"github.com/pkg/errors"
 )
+
+func Test_DustLimit(t *testing.T) {
+	tests := []struct {
+		dustFeeRateString string
+		dustFeeRate       float32
+		dust              uint64
+	}{
+		{
+			dustFeeRateString: "0.0",
+			dustFeeRate:       0,
+			dust:              1,
+		},
+		{
+			dustFeeRateString: "0",
+			dustFeeRate:       0,
+			dust:              1,
+		},
+		{
+			dustFeeRateString: "0.25",
+			dustFeeRate:       0.25,
+			dust:              136,
+		},
+		{
+			dustFeeRateString: "0.5",
+			dustFeeRate:       0.5,
+			dust:              273,
+		},
+		{
+			dustFeeRateString: "1.0",
+			dustFeeRate:       1.0,
+			dust:              546,
+		},
+		{
+			dustFeeRateString: "1",
+			dustFeeRate:       1,
+			dust:              546,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dustFeeRateString, func(t *testing.T) {
+			dustFeeRate64, err := strconv.ParseFloat(tt.dustFeeRateString, 32)
+			if err != nil {
+				return
+			}
+
+			dustFeeRate := float32(dustFeeRate64)
+
+			if dustFeeRate != tt.dustFeeRate {
+				t.Errorf("Wrong dust fee rate : got %f, want %f", dustFeeRate, tt.dustFeeRate)
+			}
+
+			dust := DustLimit(P2PKHOutputSize, dustFeeRate)
+			if dust != tt.dust {
+				t.Errorf("Wrong dust : got %d, want %d", dust, tt.dust)
+			}
+		})
+	}
+}
 
 func TestBasic(t *testing.T) {
 	key, err := bitcoin.GenerateKey(bitcoin.TestNet)

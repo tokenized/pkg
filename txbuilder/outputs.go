@@ -9,7 +9,14 @@ import (
 
 // DustLimit calculates the dust limit
 func DustLimit(outputSize int, feeRate float32) uint64 {
+	if feeRate == 0 {
+		return uint64(1)
+	}
+
 	dust := float32((outputSize+DustInputSize)*3) * feeRate
+	if dust < 1 {
+		return uint64(1)
+	}
 	return uint64(dust)
 }
 
