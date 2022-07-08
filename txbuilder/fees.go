@@ -272,17 +272,26 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 	} else {
 		// Decrease fee, transfer to change
 		if changeOutputIndex == 0xffffffff {
+			if len(tx.ChangeScript) == 0 {
+				return false, errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
+					uint64(-amount)))
+			}
+
+			// Adjust amount of fee adjustment for new output being added.
+			currentSize := uint64(tx.EstimatedSize())
+			currentFee := estimatedFeeValue(currentSize, float64(tx.FeeRate))
+
+			newSize := currentSize + uint64(OutputSize(tx.ChangeScript))
+			newFee := estimatedFeeValue(newSize, float64(tx.FeeRate))
+
+			adjustment := uint64(-amount) - (newFee - currentFee)
+
 			// Add a change output if it would be more than the dust limit plus the fee to add the
 			// output
-			changeFee, dustLimit := OutputFeeAndDustForLockingScript(tx.ChangeScript,
-				tx.DustFeeRate, tx.FeeRate)
-			if uint64(-amount) > dustLimit+changeFee {
-				if len(tx.ChangeScript) == 0 {
-					return false, errors.Wrap(ErrChangeAddressNeeded, fmt.Sprintf("Remaining: %d",
-						uint64(-amount)))
-				}
-				err := tx.AddOutput(tx.ChangeScript, uint64(-amount)-changeFee, true, false)
-				if err != nil {
+			dustLimit := DustLimitForLockingScript(tx.ChangeScript, tx.DustFeeRate)
+
+			if adjustment > dustLimit {
+				if err := tx.AddOutput(tx.ChangeScript, adjustment, true, false); err != nil {
 					return false, err
 				}
 				tx.Outputs[len(tx.Outputs)-1].KeyID = tx.ChangeKeyID

@@ -11,6 +11,168 @@ import (
 	"github.com/tokenized/pkg/wire"
 )
 
+func Test_LowFeeSettlementSign(t *testing.T) {
+	contractKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	contractAddress, _ := contractKey.RawAddress()
+	contractLockingScript, _ := contractKey.LockingScript()
+
+	senderKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	senderAddress, _ := senderKey.RawAddress()
+
+	receiverKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	receiverAddress, _ := receiverKey.RawAddress()
+
+	feeKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	feeAddress, _ := feeKey.RawAddress()
+
+	feeRate := float32(0.05)
+	dustFeeRate := float32(0.0)
+	txb := NewTxBuilder(feeRate, dustFeeRate)
+	txb.SetChangeAddress(contractAddress, "")
+
+	var inputHash bitcoin.Hash32
+	rand.Read(inputHash[:])
+	utxo := bitcoin.UTXO{
+		Hash:          inputHash,
+		Index:         0,
+		Value:         2073,
+		LockingScript: contractLockingScript,
+	}
+
+	if err := txb.AddInputUTXO(utxo); err != nil {
+		t.Fatalf("Failed to add input : %s", err)
+	}
+
+	if err := txb.AddPaymentOutput(senderAddress, 1, false); err != nil {
+		t.Fatalf("Failed to add output : %s", err)
+	}
+
+	if err := txb.AddPaymentOutput(receiverAddress, 1, false); err != nil {
+		t.Fatalf("Failed to add output : %s", err)
+	}
+
+	if err := txb.AddPaymentOutput(feeAddress, 2000, false); err != nil {
+		t.Fatalf("Failed to add output : %s", err)
+	}
+
+	settlementScript, _ := hex.DecodeString("006a02bd015108746573742e544b4e530100025432300a2412034343591a140d3c8e864bd937f69aa7657495c1143eed67797222002205080110ce141092c88dd3dccefbff16")
+	if err := txb.AddOutput(bitcoin.Script(settlementScript), 0, false, false); err != nil {
+		t.Fatalf("Failed to add settlement script : %s", err)
+	}
+
+	estFee := txb.EstimatedFee()
+	t.Logf("Tx : %s", txb.String(bitcoin.MainNet))
+	t.Logf("EstimatedSize : %d", txb.EstimatedSize())
+	t.Logf("EstimatedFee : %d", estFee)
+
+	if _, err := txb.Sign([]bitcoin.Key{contractKey}); err != nil {
+		t.Fatalf("Failed to sign tx : %s", err)
+	}
+
+	estFee = txb.EstimatedFee()
+	t.Logf("Tx : %s", txb.String(bitcoin.MainNet))
+	t.Logf("Size : %d", txb.MsgTx.SerializeSize())
+	t.Logf("Fee : %d", txb.Fee())
+
+	actualFeeRate := float32(txb.Fee()) / float32(txb.MsgTx.SerializeSize())
+	t.Logf("Fee Rate : %f", actualFeeRate)
+
+	if actualFeeRate < feeRate {
+		t.Logf("Fee rate too low : got %f, want %f", actualFeeRate, feeRate)
+	}
+}
+
+func Test_LowFeeSettlementCalculate(t *testing.T) {
+	contractKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	contractAddress, _ := contractKey.RawAddress()
+	contractLockingScript, _ := contractKey.LockingScript()
+
+	senderKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	senderAddress, _ := senderKey.RawAddress()
+
+	receiverKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	receiverAddress, _ := receiverKey.RawAddress()
+
+	feeKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		t.Fatalf("Failed to generate key : %s", err)
+	}
+	feeAddress, _ := feeKey.RawAddress()
+
+	feeRate := float32(0.05)
+	dustFeeRate := float32(0.0)
+	txb := NewTxBuilder(feeRate, dustFeeRate)
+	txb.SetChangeAddress(contractAddress, "")
+
+	var inputHash bitcoin.Hash32
+	rand.Read(inputHash[:])
+	utxo := bitcoin.UTXO{
+		Hash:          inputHash,
+		Index:         0,
+		Value:         2073,
+		LockingScript: contractLockingScript,
+	}
+
+	if err := txb.AddInputUTXO(utxo); err != nil {
+		t.Fatalf("Failed to add input : %s", err)
+	}
+
+	if err := txb.AddPaymentOutput(senderAddress, 1, false); err != nil {
+		t.Fatalf("Failed to add output : %s", err)
+	}
+
+	if err := txb.AddPaymentOutput(receiverAddress, 1, false); err != nil {
+		t.Fatalf("Failed to add output : %s", err)
+	}
+
+	if err := txb.AddPaymentOutput(feeAddress, 2000, false); err != nil {
+		t.Fatalf("Failed to add output : %s", err)
+	}
+
+	settlementScript, _ := hex.DecodeString("006a02bd015108746573742e544b4e530100025432300a2412034343591a140d3c8e864bd937f69aa7657495c1143eed67797222002205080110ce141092c88dd3dccefbff16")
+	if err := txb.AddOutput(bitcoin.Script(settlementScript), 0, false, false); err != nil {
+		t.Fatalf("Failed to add settlement script : %s", err)
+	}
+
+	if err := txb.CalculateFee(); err != nil {
+		t.Fatalf("Failed to calculate fee : %s", err)
+	}
+
+	estSize := txb.EstimatedSize()
+	estFee := txb.EstimatedFee()
+	t.Logf("Tx : %s", txb.String(bitcoin.MainNet))
+	t.Logf("EstimatedSize : %d", estSize)
+	t.Logf("EstimatedFee : %d", estFee)
+
+	estFeeRate := float32(estFee) / float32(estSize)
+	t.Logf("Fee Rate : %f", estFeeRate)
+
+	if estFeeRate < feeRate {
+		t.Logf("Fee rate too low : got %f, want %f", estFeeRate, feeRate)
+	}
+}
+
 func Test_estimatedFeeValue(t *testing.T) {
 	tests := []struct {
 		feeRateString string

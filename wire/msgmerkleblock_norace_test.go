@@ -1,4 +1,5 @@
 // Exclude from tests when -race is on because it times out --ce
+//go:build !race
 // +build !race
 
 package wire

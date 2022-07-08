@@ -108,7 +108,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 		}
 
 		// Check fee and adjust if too low
-		targetFee := int64(float32(tx.MsgTx.SerializeSize()) * tx.FeeRate)
+		targetFee := int64(estimatedFeeValue(uint64(tx.MsgTx.SerializeSize()), float64(tx.FeeRate)))
 		inputValue = tx.InputValue()
 		outputValue = tx.OutputValue(false)
 		changeValue := tx.changeSum()
