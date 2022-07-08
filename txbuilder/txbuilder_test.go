@@ -651,6 +651,7 @@ func Test_LowFeeFunding(t *testing.T) {
 	}
 
 	t.Logf(tx.String(bitcoin.MainNet))
+	t.Logf("Estimated Size : %d", tx.EstimatedSize())
 	t.Logf("Fee : %d", tx.Fee())
 	t.Logf("Estimated Fee : %d", tx.EstimatedFee())
 

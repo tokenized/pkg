@@ -323,3 +323,13 @@ func VarIntSerializeSize(val uint64) int {
 	// Discriminant 1 byte plus 8 bytes for the uint64.
 	return 9
 }
+
+func estimatedFeeValue(size uint64, feeRate float64) uint64 {
+	i, r := math.Modf(float64(size) * feeRate)
+	result := uint64(i)
+	if r > 0.01 {
+		result++
+	}
+
+	return result
+}

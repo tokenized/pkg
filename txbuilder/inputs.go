@@ -2,7 +2,6 @@ package txbuilder
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
@@ -279,9 +278,19 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		break
 	}
 
+	firstChangeOutputSize := uint64(0)
+	if !remainderIncluded && len(changeAddresses) > 0 {
+		lockingScript, err := changeAddresses[0].Address.LockingScript()
+		if err != nil {
+			return errors.Wrap(err, "first change locking script")
+		}
+
+		firstChangeOutputSize = uint64(OutputSize(lockingScript))
+	}
+
 	inputValue := tx.InputValue()
 	outputValue := tx.OutputValue(true)
-	estSize := uint64(tx.EstimatedSize())
+	estSize := uint64(tx.EstimatedSize()) + firstChangeOutputSize
 	feeRate := float64(tx.FeeRate)
 	estFeeValue := estimatedFeeValue(estSize, feeRate)
 
@@ -314,7 +323,8 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 	// Calculate additional funding needed. Include cost of first added input.
 	// TODO Add support for input scripts other than P2PKH.
-	neededFunding := estimatedFeeValue(estSize, feeRate) + outputValue - inputValue
+	estFeeValue = estimatedFeeValue(estSize, feeRate)
+	neededFunding := estFeeValue + outputValue - inputValue
 	duplicateValue := uint64(0)
 
 	for _, utxo := range utxos {
@@ -332,7 +342,8 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		}
 
 		estSize += uint64(inputSize)
-		neededFunding = estimatedFeeValue(estSize, feeRate) + outputValue - inputValue
+		estFeeValue = estimatedFeeValue(estSize, feeRate)
+		neededFunding = estFeeValue + outputValue - inputValue
 		inputValue += utxo.Value
 
 		if tx.SendMax {
@@ -341,7 +352,11 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 		if neededFunding <= utxo.Value {
 			// Funding complete
-			changeValue := utxo.Value - neededFunding
+			// Re-calculate fee without estimating first change output because BreakValue will take
+			// the fees out of the values.
+			finalFeeValue := estimatedFeeValue(estSize-firstChangeOutputSize, feeRate)
+			finalNeededFunding := finalFeeValue + outputValue - inputValue + utxo.Value
+			changeValue := utxo.Value - finalNeededFunding
 
 			if remainderIncluded {
 				for i, output := range tx.Outputs {
@@ -362,13 +377,19 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 				}
 
 				tx.AddOutputs(outputs)
+				if len(outputs) > 1 {
+					for _, output := range outputs[1:] {
+						estSize += uint64(output.TxOut.SerializeSize())
+					}
+				}
 			}
 
 			return nil
 		}
 
 		// More UTXOs required
-		neededFunding = estimatedFeeValue(estSize, feeRate) + outputValue - inputValue
+		estFeeValue = estimatedFeeValue(estSize, feeRate)
+		neededFunding = estFeeValue + outputValue - inputValue
 	}
 
 	if tx.SendMax {
@@ -381,15 +402,6 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 	}
 	return errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", available,
 		outputValue+tx.EstimatedFee()))
-}
-
-func estimatedFeeValue(size uint64, feeRate float64) uint64 {
-	result, f := math.Modf(float64(size) * feeRate)
-	if f > 0.1 {
-		result++
-	}
-
-	return uint64(result)
 }
 
 // UTXOFee calculates the tx fee for the input to spend the UTXO.

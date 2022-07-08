@@ -4,11 +4,69 @@ import (
 	"bytes"
 	"encoding/hex"
 	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 )
+
+func Test_estimatedFeeValue(t *testing.T) {
+	tests := []struct {
+		feeRateString string
+		feeRate       float32
+		size, fee     uint64
+	}{
+		{
+			feeRateString: "0.05",
+			feeRate:       0.05,
+			size:          360,
+			fee:           18,
+		},
+		{
+			feeRateString: "0.05",
+			feeRate:       0.05,
+			size:          361,
+			fee:           19,
+		},
+		{
+			feeRateString: "0.05",
+			feeRate:       0.05,
+			size:          400,
+			fee:           20,
+		},
+		{
+			feeRateString: "0.05",
+			feeRate:       0.05,
+			size:          401,
+			fee:           21,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.feeRateString, func(t *testing.T) {
+			feeRate64, err := strconv.ParseFloat(tt.feeRateString, 32)
+			if err != nil {
+				return
+			}
+			feeRate := float32(feeRate64)
+
+			if feeRate != tt.feeRate {
+				t.Errorf("Wrong fee rate : got %f, want %f", feeRate, tt.feeRate)
+			}
+
+			t.Logf("size: %d", tt.size)
+
+			fee := estimatedFeeValue(tt.size, float64(tt.feeRate))
+
+			t.Logf("fee: %d", fee)
+
+			if fee != tt.fee {
+				t.Errorf("Wrong fee : got %d, want %d", fee, tt.fee)
+			}
+		})
+	}
+}
 
 func Test_InputSize(t *testing.T) {
 	var hash bitcoin.Hash32
