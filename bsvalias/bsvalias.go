@@ -46,6 +46,12 @@ const (
 	// https://github.com/bitcoin-sv-specs/brfc-paymail/blob/master/src/05-verify-public-key-owner.md
 	// (Not Implemented) URLNameVerifyPublicKey = "a9f510c16bde"
 	// :https://test.com/api/bsvalias/verifypubkey/{alias}@{domain.tld}/{pubkey}
+
+	// URLNameNegotiationTransaction is the name used to identify the URL used to post a negotiation
+	// tx.
+	URLNameNegotiationTransaction = "27d8bd77c113"
+
+	URLNameMerkleProof = "b38a1b09c3ce"
 )
 
 var (
@@ -64,6 +70,9 @@ var (
 	// ErrWrongOutputCount means that the outputs supplied with a payment request do not match the
 	// number of inputs.
 	ErrWrongOutputCount = errors.New("Wrong Output Count")
+
+	// ErrNotSupported means that a requested feature or protocol was not supported.
+	ErrNotSupported = errors.New("Not Supported")
 )
 
 // Factory is the interface for creating new bsvalias clients.
@@ -107,4 +116,9 @@ type Client interface {
 
 	// GetPublicProfile returns the public profile for this paymail handle.
 	GetPublicProfile(ctx context.Context) (*PublicProfile, error)
+
+	PostNegotiationTx(ctx context.Context,
+		tx *NegotiationTransaction) (*NegotiationTransaction, error)
+
+	PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error
 }

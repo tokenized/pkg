@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/expanded_tx"
+	"github.com/tokenized/pkg/merkle_proof"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -237,3 +239,11 @@ type PublicProfile struct {
 	// to return an image of width and height `s`
 	AvatarURL *string `json:"avatar,omitempty"`
 }
+
+type NegotiationTransaction struct {
+	ID     string                  `json:"id"`          // Unique ID for negotiation. Respond with same ID.
+	Tx     *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
+	Handle string                  `json:"handle"`      // Paymail handle to respond to.
+}
+
+type MerkleProofs []*merkle_proof.MerkleProof

@@ -22,8 +22,8 @@ import (
 )
 
 type Config struct {
-	FeeRate     float32 `default:"0.5" envconfig:"FEE_RATE" json:"fee_rate"`
-	DustFeeRate float32 `default:"0.25" envconfig:"DUST_FEE_RATE" json:"dust_fee_rate"`
+	FeeRate     float32 `default:"0.05" envconfig:"FEE_RATE" json:"fee_rate"`
+	DustFeeRate float32 `default:"0.0" envconfig:"DUST_FEE_RATE" json:"dust_fee_rate"`
 }
 
 func main() {

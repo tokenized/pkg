@@ -293,6 +293,30 @@ func TestBRFCID(t *testing.T) {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f12f968c92d6")
 	}
 	t.Logf("Public Profile BRFC ID : %s", hash.String()[:12])
+
+	// Paymail for a full tx used to negotiate a payment or payment request transaction BRFC ID
+	title = "Negotiation Transaction"
+	author = "Curtis Ellis (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "27d8bd77c113" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "27d8bd77c113")
+	}
+	t.Logf("Negotiation Transaction BRFC ID : %s", hash.String()[:12])
+
+	// Paymail for providing a merkle proof BRFC ID
+	title = "Merkle Proofs"
+	author = "Curtis Ellis (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "b38a1b09c3ce" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "b38a1b09c3ce")
+	}
+	t.Logf("Merkle Proofs BRFC ID : %s", hash.String()[:12])
 }
 
 func TestMessageSignature(t *testing.T) {

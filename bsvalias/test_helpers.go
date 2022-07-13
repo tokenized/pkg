@@ -222,3 +222,12 @@ func (c *MockClient) ListTokenizedInstruments(ctx context.Context) ([]Instrument
 func (c *MockClient) GetPublicProfile(ctx context.Context) (*PublicProfile, error) {
 	return nil, errors.New("Not implemented")
 }
+
+func (c *MockClient) PostNegotiationTx(ctx context.Context,
+	tx *NegotiationTransaction) (*NegotiationTransaction, error) {
+	return nil, errors.New("Not implemented")
+}
+
+func (c *MockClient) PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error {
+	return errors.New("Not implemented")
+}
