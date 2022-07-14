@@ -173,7 +173,7 @@ func Test_LowFeeSettlementCalculate(t *testing.T) {
 	}
 }
 
-func Test_estimatedFeeValue(t *testing.T) {
+func Test_EstimatedFeeValue(t *testing.T) {
 	tests := []struct {
 		feeRateString string
 		feeRate       float32
@@ -182,25 +182,25 @@ func Test_estimatedFeeValue(t *testing.T) {
 		{
 			feeRateString: "0.05",
 			feeRate:       0.05,
-			size:          360,
+			size:          359,
 			fee:           18,
 		},
 		{
 			feeRateString: "0.05",
 			feeRate:       0.05,
-			size:          361,
+			size:          360,
 			fee:           19,
 		},
 		{
 			feeRateString: "0.05",
 			feeRate:       0.05,
-			size:          400,
+			size:          399,
 			fee:           20,
 		},
 		{
 			feeRateString: "0.05",
 			feeRate:       0.05,
-			size:          401,
+			size:          400,
 			fee:           21,
 		},
 	}
@@ -219,7 +219,7 @@ func Test_estimatedFeeValue(t *testing.T) {
 
 			t.Logf("size: %d", tt.size)
 
-			fee := estimatedFeeValue(tt.size, float64(tt.feeRate))
+			fee := EstimatedFeeValue(tt.size, float64(tt.feeRate))
 
 			t.Logf("fee: %d", fee)
 

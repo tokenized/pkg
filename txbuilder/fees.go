@@ -187,7 +187,7 @@ func (tx *TxBuilder) EstimatedSize() int {
 }
 
 func (tx *TxBuilder) EstimatedFee() uint64 {
-	return estimatedFeeValue(uint64(tx.EstimatedSize()), float64(tx.FeeRate))
+	return EstimatedFeeValue(uint64(tx.EstimatedSize()), float64(tx.FeeRate))
 }
 
 func (tx *TxBuilder) CalculateFee() error {
@@ -279,10 +279,10 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 
 			// Adjust amount of fee adjustment for new output being added.
 			currentSize := uint64(tx.EstimatedSize())
-			currentFee := estimatedFeeValue(currentSize, float64(tx.FeeRate))
+			currentFee := EstimatedFeeValue(currentSize, float64(tx.FeeRate))
 
 			newSize := currentSize + uint64(OutputSize(tx.ChangeScript))
-			newFee := estimatedFeeValue(newSize, float64(tx.FeeRate))
+			newFee := EstimatedFeeValue(newSize, float64(tx.FeeRate))
 
 			adjustment := uint64(-amount) - (newFee - currentFee)
 
@@ -333,12 +333,6 @@ func VarIntSerializeSize(val uint64) int {
 	return 9
 }
 
-func estimatedFeeValue(size uint64, feeRate float64) uint64 {
-	i, r := math.Modf(float64(size) * feeRate)
-	result := uint64(i)
-	if r > 0.01 {
-		result++
-	}
-
-	return result
+func EstimatedFeeValue(size uint64, feeRate float64) uint64 {
+	return uint64(math.Ceil(float64(size) * feeRate))
 }

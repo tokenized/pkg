@@ -65,7 +65,7 @@ func (tx *TxBuilder) SignP2PKHInput(index int, key bitcoin.Key, hashCache *SigHa
 // TODO Upgrade to sign more than just P2PKH inputs.
 func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 	// Update fee to estimated amount
-	estimatedFee := estimatedFeeValue(uint64(tx.EstimatedSize()), float64(tx.FeeRate))
+	estimatedFee := EstimatedFeeValue(uint64(tx.EstimatedSize()), float64(tx.FeeRate))
 	inputValue := tx.InputValue()
 	outputValue := tx.OutputValue(true)
 	shc := SigHashCache{}
@@ -108,7 +108,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 		}
 
 		// Check fee and adjust if too low
-		targetFee := int64(estimatedFeeValue(uint64(tx.MsgTx.SerializeSize()), float64(tx.FeeRate)))
+		targetFee := int64(EstimatedFeeValue(uint64(tx.MsgTx.SerializeSize()), float64(tx.FeeRate)))
 		inputValue = tx.InputValue()
 		outputValue = tx.OutputValue(false)
 		changeValue := tx.changeSum()

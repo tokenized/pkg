@@ -55,7 +55,7 @@ func OutputFeeAndDustForLockingScript(lockingScript bitcoin.Script,
 	}
 	outputSize := output.SerializeSize()
 
-	return estimatedFeeValue(uint64(outputSize), float64(feeRate)), DustLimit(outputSize, dustFeeRate)
+	return EstimatedFeeValue(uint64(outputSize), float64(feeRate)), DustLimit(outputSize, dustFeeRate)
 }
 
 // OutputFeeAndDustForAddress returns the tx fee required to include the address as an output in a

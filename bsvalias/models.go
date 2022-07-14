@@ -6,6 +6,7 @@ import (
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/expanded_tx"
+	"github.com/tokenized/pkg/fees"
 	"github.com/tokenized/pkg/merkle_proof"
 	"github.com/tokenized/pkg/wire"
 
@@ -241,9 +242,10 @@ type PublicProfile struct {
 }
 
 type NegotiationTransaction struct {
-	ID     string                  `json:"id"`          // Unique ID for negotiation. Respond with same ID.
+	ID     string                  `json:"id"`     // Unique ID for negotiation. Respond with same ID.
+	Handle string                  `json:"handle"` // Paymail handle to respond to.
+	Fees   fees.FeeRequirements    `json:"fees"`
 	Tx     *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
-	Handle string                  `json:"handle"`      // Paymail handle to respond to.
 }
 
 type MerkleProofs []*merkle_proof.MerkleProof

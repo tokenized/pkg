@@ -292,7 +292,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 	outputValue := tx.OutputValue(true)
 	estSize := uint64(tx.EstimatedSize()) + firstChangeOutputSize
 	feeRate := float64(tx.FeeRate)
-	estFeeValue := estimatedFeeValue(estSize, feeRate)
+	estFeeValue := EstimatedFeeValue(estSize, feeRate)
 
 	changeFee, _, err := OutputFeeAndDustForAddress(changeAddresses[0].Address,
 		tx.DustFeeRate, tx.FeeRate)
@@ -323,7 +323,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 
 	// Calculate additional funding needed. Include cost of first added input.
 	// TODO Add support for input scripts other than P2PKH.
-	estFeeValue = estimatedFeeValue(estSize, feeRate)
+	estFeeValue = EstimatedFeeValue(estSize, feeRate)
 	neededFunding := estFeeValue + outputValue - inputValue
 	duplicateValue := uint64(0)
 
@@ -342,7 +342,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		}
 
 		estSize += uint64(inputSize)
-		estFeeValue = estimatedFeeValue(estSize, feeRate)
+		estFeeValue = EstimatedFeeValue(estSize, feeRate)
 		neededFunding = estFeeValue + outputValue - inputValue
 		inputValue += utxo.Value
 
@@ -354,7 +354,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 			// Funding complete
 			// Re-calculate fee without estimating first change output because BreakValue will take
 			// the fees out of the values.
-			finalFeeValue := estimatedFeeValue(estSize-firstChangeOutputSize, feeRate)
+			finalFeeValue := EstimatedFeeValue(estSize-firstChangeOutputSize, feeRate)
 			finalNeededFunding := finalFeeValue + outputValue - inputValue + utxo.Value
 			changeValue := utxo.Value - finalNeededFunding
 
@@ -388,7 +388,7 @@ func (tx *TxBuilder) AddFundingBreakChange(utxos []bitcoin.UTXO, breakValue uint
 		}
 
 		// More UTXOs required
-		estFeeValue = estimatedFeeValue(estSize, feeRate)
+		estFeeValue = EstimatedFeeValue(estSize, feeRate)
 		neededFunding = estFeeValue + outputValue - inputValue
 	}
 
@@ -410,7 +410,7 @@ func UTXOFee(utxo bitcoin.UTXO, feeRate float32) (uint64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
 	}
-	return estimatedFeeValue(uint64(size), float64(feeRate)), nil
+	return EstimatedFeeValue(uint64(size), float64(feeRate)), nil
 }
 
 // LockingScriptInputFee returns the tx fee to include an locking script as an output in a tx.
@@ -419,7 +419,7 @@ func LockingScriptInputFee(lockingScript bitcoin.Script, feeRate float32) (uint6
 	if err != nil {
 		return 0, errors.Wrap(err, "unlock size")
 	}
-	return estimatedFeeValue(uint64(size), float64(feeRate)), nil
+	return EstimatedFeeValue(uint64(size), float64(feeRate)), nil
 }
 
 // AddressOutputFee returns the tx fee to include an address as an output in a tx.
@@ -435,5 +435,5 @@ func AddressOutputFee(ra bitcoin.RawAddress, feeRate float32) (uint64, error) {
 // LockingScriptOutputFee returns the tx fee to include an locking script as an output in a tx.
 func LockingScriptOutputFee(lockingScript bitcoin.Script, feeRate float32) uint64 {
 	txout := wire.TxOut{LockingScript: lockingScript}
-	return estimatedFeeValue(uint64(txout.SerializeSize()), float64(feeRate))
+	return EstimatedFeeValue(uint64(txout.SerializeSize()), float64(feeRate))
 }
