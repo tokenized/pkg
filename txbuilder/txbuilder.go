@@ -2,11 +2,12 @@ package txbuilder
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -59,6 +60,18 @@ type TxBuilder struct {
 	ChangeKeyID string
 }
 
+type TransactionWithOutputs interface {
+	TxID() bitcoin.Hash32
+	MsgTx() *wire.MsgTx
+
+	InputCount() int
+	Input(index int) *wire.TxIn
+	InputOutput(index int) (*wire.TxOut, error) // The output being spent by the input
+
+	OutputCount() int
+	Output(index int) *wire.TxOut
+}
+
 // NewTxBuilder returns a new TxBuilder with the specified change address.
 func NewTxBuilder(feeRate, dustFeeRate float32) *TxBuilder {
 	tx := wire.MsgTx{Version: DefaultVersion, LockTime: 0}
@@ -68,6 +81,40 @@ func NewTxBuilder(feeRate, dustFeeRate float32) *TxBuilder {
 		DustFeeRate: dustFeeRate,
 	}
 	return &result
+}
+
+func NewTxBuilderFromTransactionWithOutputs(feeRate, dustFeeRate float32,
+	tx TransactionWithOutputs) (*TxBuilder, error) {
+
+	inputCount := tx.InputCount()
+	result := TxBuilder{
+		MsgTx:       tx.MsgTx(),
+		FeeRate:     feeRate,
+		DustFeeRate: dustFeeRate,
+		Inputs:      make([]*InputSupplement, inputCount),
+	}
+
+	// Setup inputs
+	var missingErr error
+	for index := 0; index < inputCount; index++ {
+		output, err := tx.InputOutput(index)
+		if err != nil {
+			return nil, errors.Wrapf(err, "input %d output", index)
+		}
+
+		result.Inputs[index] = &InputSupplement{
+			LockingScript: output.LockingScript,
+			Value:         output.Value,
+		}
+	}
+
+	// Setup outputs
+	result.Outputs = make([]*OutputSupplement, len(result.MsgTx.TxOut))
+	for index := range result.Outputs {
+		result.Outputs[index] = &OutputSupplement{}
+	}
+
+	return &result, missingErr
 }
 
 // NewTxBuilderFromWire returns a new TxBuilder from a wire.MsgTx and the input txs.

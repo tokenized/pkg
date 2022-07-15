@@ -150,9 +150,9 @@ func (txs AncestorTxs) GetTxs() []*wire.MsgTx {
 
 func (txs AncestorTxs) String() string {
 	result := &bytes.Buffer{}
-	result.Write([]byte(fmt.Sprintf("  %d Ancestors\n", len(txs))))
+	result.Write([]byte(fmt.Sprintf("Ancestors: %d\n", len(txs))))
 	for _, ancestor := range txs {
-		result.Write([]byte(fmt.Sprintf("    %s\n", ancestor.String())))
+		result.Write([]byte(fmt.Sprintf("  %s\n", ancestor.String())))
 	}
 
 	return string(result.Bytes())
@@ -160,9 +160,9 @@ func (txs AncestorTxs) String() string {
 
 func (txs AncestorTxs) StringWithAddresses(net bitcoin.Network) string {
 	result := &bytes.Buffer{}
-	result.Write([]byte(fmt.Sprintf("  %d Ancestors\n", len(txs))))
+	result.Write([]byte(fmt.Sprintf("Ancestors: %d\n", len(txs))))
 	for _, ancestor := range txs {
-		result.Write([]byte(fmt.Sprintf("    %s\n", ancestor.StringWithAddresses(net))))
+		result.Write([]byte(fmt.Sprintf("  %s\n", ancestor.StringWithAddresses(net))))
 	}
 
 	return string(result.Bytes())

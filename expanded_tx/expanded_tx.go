@@ -70,6 +70,14 @@ func (etx ExpandedTx) String() string {
 		result.Write([]byte(fmt.Sprintf("%s\n", etx.Tx.String())))
 	}
 
+	fee, err := etx.CalculateFee()
+	if err == nil {
+		result.Write([]byte(fmt.Sprintf("Fee: %d (%04f sat/byte)\n", fee,
+			float32(fee)/float32(etx.Tx.SerializeSize()))))
+	} else {
+		result.Write([]byte(fmt.Sprintf("Fee: %s\n", err)))
+	}
+
 	result.Write([]byte(etx.Ancestors.String()))
 
 	if len(etx.SpentOutputs) > 0 {
@@ -213,6 +221,41 @@ func (etx ExpandedTx) InputValue(index int) (uint64, error) {
 	}
 
 	return tx.TxOut[txin.PreviousOutPoint.Index].Value, nil
+}
+
+func (etx ExpandedTx) MsgTx() *wire.MsgTx {
+	return etx.Tx
+}
+
+func (etx ExpandedTx) InputOutput(index int) (*wire.TxOut, error) {
+	if index >= len(etx.Tx.TxIn) {
+		return nil, errors.New("Index out of range")
+	}
+
+	if index < len(etx.SpentOutputs) {
+		return &wire.TxOut{
+			LockingScript: etx.SpentOutputs[index].LockingScript,
+			Value:         etx.SpentOutputs[index].Value,
+		}, nil
+	}
+
+	txin := etx.Tx.TxIn[index]
+
+	parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
+	if parentTx == nil {
+		return nil, errors.Wrap(MissingInput, "parent:"+txin.PreviousOutPoint.Hash.String())
+	}
+
+	tx := parentTx.GetTx()
+	if tx == nil {
+		return nil, errors.Wrap(MissingInput, "parent tx:"+txin.PreviousOutPoint.Hash.String())
+	}
+
+	if txin.PreviousOutPoint.Index >= uint32(len(tx.TxOut)) {
+		return nil, errors.Wrap(MissingInput, txin.PreviousOutPoint.String())
+	}
+
+	return tx.TxOut[txin.PreviousOutPoint.Index], nil
 }
 
 func (etx ExpandedTx) OutputCount() int {
