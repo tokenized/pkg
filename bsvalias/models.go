@@ -242,10 +242,18 @@ type PublicProfile struct {
 }
 
 type NegotiationTransaction struct {
-	ID     string                  `json:"id"`     // Unique ID for negotiation. Respond with same ID.
-	Handle string                  `json:"handle"` // Paymail handle to respond to.
-	Fees   fees.FeeRequirements    `json:"fees"`
-	Tx     *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
+	ID string `json:"id"` // Unique ID for negotiation. Respond with same ID.
+
+	Fees fees.FeeRequirements    `json:"fees"`
+	Tx   *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
+
+	Handle       string        `json:"handle"`        // Paymail handle to respond or callback to.
+	PeerChannels []PeerChannel `json:"peer_channels"` // Peer channels to respond or callback to.
+}
+
+type PeerChannel struct {
+	URL        string `json:"url"`
+	WriteToken string `json:"write_token,omitempty"`
 }
 
 type MerkleProofs []*merkle_proof.MerkleProof

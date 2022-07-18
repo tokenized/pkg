@@ -13,7 +13,21 @@
 | Version  | 1                        |
 | BRFCID   | 27d8bd77c113             |
 
-Negotiation Transaction is a dynamic endpoint that can be used to negotiate transfers of any sort. It enables conversations by tagging messages with a unique ID and enables delayed responses via a provided callback paymail handle. The initiator of the conversation is expected to post an incomplete transaction to the other party's paymail service.
+Negotiation Transaction is a dynamic endpoint that can be used to negotiate transfers of any sort.
+
+Features:
+
+# Conversations
+
+By tagging messages with a unique ID several messages can be exchanged and linked to the same conversation "thread".
+
+# Delayed Responses
+
+By including a paymail handle and/or peer channels the paymail service doesn't have to provide the response immediately. The paymail service can provide the message to the user and let the user respond.
+
+# Callbacks
+
+Tokenized (T2) settlements, merkle proofs, and other data needed after a transaction is complete can be provided via the included paymail handle and peer channels.
 
 ### HTTP Response Codes
 
@@ -28,8 +42,7 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 
 ```
 {
-	"id": "Unique Conversation Identifier"
-	"handle": "Callback Paymail Handle",
+	"id": "Unique Conversation Identifier",
 	"fees":[
 		{
 			// The minimum number of satoshis per the number of bytes for the specified fee type.
@@ -57,7 +70,14 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 				"locking_script": "hex encoded locking script",
 			}
 		]
-	}
+	},
+	"handle": "Callback Paymail Handle",
+	"peer_channels": [
+		{
+			"url": "peer channel post URL including channel id",
+			"write_token": "HTTP auth header that allows posting messages"
+		}
+	]
 }
 ```
 
