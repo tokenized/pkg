@@ -63,6 +63,18 @@ func NewHTTPClient(ctx context.Context, handle string) (*HTTPClient, error) {
 	return &result, nil
 }
 
+func (c *HTTPClient) IsCapable(url string) (bool, error) {
+	if _, err := c.Site.Capabilities.GetURL(URLNamePKI); err != nil {
+		if errors.Cause(err) == ErrNotCapable {
+			return false, nil
+		}
+
+		return false, errors.Wrap(err, "capability url")
+	}
+
+	return true, nil
+}
+
 // GetPublicKey gets the identity public key for the handle.
 func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error) {
 

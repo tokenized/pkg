@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/google/uuid"
@@ -97,6 +98,10 @@ func (f *MockFactory) GenerateMockUser(host string,
 
 	f.users = append(f.users, result)
 	return &result.handle, &pk, &ra, nil
+}
+
+func (c *MockClient) IsCapable(url string) (bool, error) {
+	return true, nil
 }
 
 // GetPublicKey gets the identity public key for the handle.
@@ -224,8 +229,17 @@ func (c *MockClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 }
 
 func (c *MockClient) PostNegotiationTx(ctx context.Context,
-	tx *NegotiationTransaction) (*NegotiationTransaction, error) {
-	return nil, errors.New("Not implemented")
+	negotiationTx *NegotiationTransaction) (*NegotiationTransaction, error) {
+
+	if err := negotiationTx.Tx.VerifyInputs(); err != nil {
+		return nil, errors.Wrap(err, "verify inputs")
+	}
+
+	logger.InfoWithFields(ctx, []logger.Field{
+		logger.Stringer("posted_txid", negotiationTx.Tx.Tx.TxHash()),
+	}, "Posted negotiation tx")
+
+	return nil, nil
 }
 
 func (c *MockClient) PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error {

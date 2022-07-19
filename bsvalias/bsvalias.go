@@ -51,6 +51,7 @@ const (
 	// tx.
 	URLNameNegotiationTransaction = "27d8bd77c113"
 
+	// URLNameMerkleProof is the name used to identify the URL used to post merkle proofs to peers.
 	URLNameMerkleProof = "b38a1b09c3ce"
 )
 
@@ -84,6 +85,9 @@ type Factory interface {
 
 // Client is the interface for interacting with an bsvalias oracle service.
 type Client interface {
+	// IsCapable returns true if the specified URL is supported by the paymail host.
+	IsCapable(url string) (bool, error)
+
 	// GetPublicKey gets the identity public key for the handle.
 	GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error)
 
