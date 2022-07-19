@@ -17,6 +17,18 @@ var (
 	ErrNegativeFee = errors.New("Negative Fee")
 )
 
+type TransactionWithOutputs interface {
+	TxID() bitcoin.Hash32
+	GetMsgTx() *wire.MsgTx
+
+	InputCount() int
+	Input(index int) *wire.TxIn
+	InputOutput(index int) (*wire.TxOut, error) // The output being spent by the input
+
+	OutputCount() int
+	Output(index int) *wire.TxOut
+}
+
 // ExpandedTx is a Bitcoin transaction with ancestor information.
 // All ancestor transactions back to merkle proofs should be provided.
 type ExpandedTx struct {
@@ -62,6 +74,32 @@ func (o *Output) UnmarshalText(text []byte) error {
 	o.LockingScript = script
 
 	return nil
+}
+
+// NewExpandedTxFromTransactionWithOutputs creates a simple expanded tx from a
+// TransactionWithOutputs interface. It will only have spent outputs and not ancestors.
+func NewExpandedTxFromTransactionWithOutputs(tx TransactionWithOutputs) (*ExpandedTx, error) {
+	inputCount := tx.InputCount()
+	result := &ExpandedTx{
+		Tx:           tx.GetMsgTx(),
+		SpentOutputs: make([]*Output, inputCount),
+	}
+
+	// Setup inputs
+	var missingErr error
+	for index := 0; index < inputCount; index++ {
+		output, err := tx.InputOutput(index)
+		if err != nil {
+			return nil, errors.Wrapf(err, "input %d output", index)
+		}
+
+		result.SpentOutputs[index] = &Output{
+			LockingScript: output.LockingScript,
+			Value:         output.Value,
+		}
+	}
+
+	return result, missingErr
 }
 
 func (etx ExpandedTx) String() string {
@@ -223,7 +261,7 @@ func (etx ExpandedTx) InputValue(index int) (uint64, error) {
 	return tx.TxOut[txin.PreviousOutPoint.Index].Value, nil
 }
 
-func (etx ExpandedTx) MsgTx() *wire.MsgTx {
+func (etx ExpandedTx) GetMsgTx() *wire.MsgTx {
 	return etx.Tx
 }
 

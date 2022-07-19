@@ -62,7 +62,7 @@ type TxBuilder struct {
 
 type TransactionWithOutputs interface {
 	TxID() bitcoin.Hash32
-	MsgTx() *wire.MsgTx
+	GetMsgTx() *wire.MsgTx
 
 	InputCount() int
 	Input(index int) *wire.TxIn
@@ -88,7 +88,7 @@ func NewTxBuilderFromTransactionWithOutputs(feeRate, dustFeeRate float32,
 
 	inputCount := tx.InputCount()
 	result := TxBuilder{
-		MsgTx:       tx.MsgTx(),
+		MsgTx:       tx.GetMsgTx(),
 		FeeRate:     feeRate,
 		DustFeeRate: dustFeeRate,
 		Inputs:      make([]*InputSupplement, inputCount),
