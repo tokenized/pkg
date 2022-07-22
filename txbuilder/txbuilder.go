@@ -258,3 +258,39 @@ func (tx *TxBuilder) String(net bitcoin.Network) string {
 	result += fmt.Sprintf("  LockTime: %d\n", tx.MsgTx.LockTime)
 	return result
 }
+
+func (tx *TxBuilder) TxID() bitcoin.Hash32 {
+	return *tx.MsgTx.TxHash()
+}
+
+func (tx *TxBuilder) GetMsgTx() *wire.MsgTx {
+	return tx.MsgTx
+}
+
+func (tx *TxBuilder) InputCount() int {
+	return len(tx.MsgTx.TxIn)
+}
+
+func (tx *TxBuilder) Input(index int) *wire.TxIn {
+	return tx.MsgTx.TxIn[index]
+}
+
+func (tx *TxBuilder) InputOutput(index int) (*wire.TxOut, error) {
+	if index >= len(tx.Inputs) {
+		return nil, errors.New("Missing input output")
+	}
+
+	input := tx.Inputs[index]
+	return &wire.TxOut{
+		LockingScript: input.LockingScript,
+		Value:         input.Value,
+	}, nil
+}
+
+func (tx *TxBuilder) OutputCount() int {
+	return len(tx.MsgTx.TxOut)
+}
+
+func (tx *TxBuilder) Output(index int) *wire.TxOut {
+	return tx.MsgTx.TxOut[index]
+}

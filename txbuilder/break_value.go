@@ -26,7 +26,12 @@ func BreakValue(value, breakValue uint64, addresses []AddressKeyID,
 	// Choose random multiples of breakValue until the value is taken up.
 
 	// Find the average value to break the value into the provided addresses
-	average := 2 * (value / uint64(len(addresses)-1))
+	var average uint64
+	if len(addresses) == 1 {
+		average = value
+	} else {
+		average = 2 * (value / uint64(len(addresses)-1))
+	}
 
 	// Find the power to use for choosing random values
 	factor := average / breakValue

@@ -4,6 +4,20 @@
 
 * BRFC (Bitcoin Request For Comments) is used to specify paymail features and endpoints. The BRFCID is used to uniquely identify paymail features.
 
+## Warnings
+
+There is the risk that during exchange and modification of the negotiation transaction that the other party could try to get you to sign something that you don't want to.
+
+### Examples
+
+* If the other party knows your UTXOs, they could try to add your UTXOs as inputs and if you don't check you could sign it simply because your wallet recognizes it as yours and it is in the transaction. Depending on how your wallet does signing.
+* The other party could add some higher level protocol data that your wallet doesn't recognize to the transaction like agreeing to a legal contract or signing for a token protocol not supported by your software.
+
+### Safety Guidelines
+
+* Keep track of which inputs you add to the tx and make sure your wallet only signs those.
+* If there are any unrecognized output locking script formats, especially `OP_FALSE OP_RETURN`, then abort the negotiation with a 406 (Not Acceptable).
+
 ## Negotiation Transaction BRFC
 
 | Field    | Value                    |
