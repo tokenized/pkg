@@ -8,6 +8,7 @@ import (
 	"github.com/tokenized/pkg/expanded_tx"
 	"github.com/tokenized/pkg/fees"
 	"github.com/tokenized/pkg/merkle_proof"
+	"github.com/tokenized/pkg/peer_channels"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -247,13 +248,8 @@ type NegotiationTransaction struct {
 	Fees fees.FeeRequirements    `json:"fees"`
 	Tx   *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
 
-	Handle       string        `json:"handle"`        // Paymail handle to respond or callback to.
-	PeerChannels []PeerChannel `json:"peer_channels"` // Peer channels to respond or callback to.
+	Handle       string                     `json:"handle"`        // Paymail handle to respond or callback to.
+	PeerChannels peer_channels.PeerChannels `json:"peer_channels"` // Peer channels to respond or callback to.
 }
 
-type PeerChannel struct {
-	URL        string `json:"url"`
-	WriteToken string `json:"write_token,omitempty"`
-}
-
-type MerkleProofs []*merkle_proof.MerkleProof
+type MerkleProofs merkle_proof.MerkleProofs

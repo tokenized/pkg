@@ -40,6 +40,8 @@ type MerkleProof struct {
 	depth int
 }
 
+type MerkleProofs []*MerkleProof
+
 // NewMerkleProof creates a new merkle proof with a specified transaction id.
 func NewMerkleProof(txid bitcoin.Hash32) *MerkleProof {
 	return &MerkleProof{

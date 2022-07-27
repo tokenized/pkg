@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,13 @@ type Client interface {
 	Listen(ctx context.Context, token string, sendUnread bool, incoming chan<- Message,
 		interrupt <-chan interface{}) error
 }
+
+type PeerChannel struct {
+	URL   string
+	Token string
+}
+
+type PeerChannels []*PeerChannel
 
 type ChannelData struct {
 	// When a write token is provided
@@ -167,4 +175,72 @@ func (f *Factory) NewClient(baseURL string) (Client, error) {
 	}
 
 	return NewHTTPClient(baseURL), nil
+}
+
+func NewPeerChannel(channelURL, token string) (*PeerChannel, error) {
+	if _, err := url.Parse(channelURL); err != nil {
+		return nil, errors.Wrap(err, "url")
+	}
+
+	return &PeerChannel{
+		URL:   channelURL,
+		Token: token,
+	}, nil
+}
+
+func (v PeerChannel) MarshalText() ([]byte, error) {
+	fullURL, err := url.Parse(v.URL)
+	if err != nil {
+		return nil, errors.Wrap(err, "url")
+	}
+
+	query := fullURL.Query()
+	query.Add("token", url.PathEscape(v.Token))
+	fullURL.RawQuery = query.Encode()
+
+	return []byte(fullURL.String()), nil
+}
+
+func (v *PeerChannel) UnmarshalText(text []byte) error {
+	return v.SetString(string(text))
+}
+
+func (v *PeerChannel) SetString(s string) error {
+	fullURL, err := url.Parse(s)
+	if err != nil {
+		return errors.Wrap(err, "url")
+	}
+
+	query := fullURL.Query()
+	token := query.Get("token")
+	query.Del("token")
+
+	fullURL.RawQuery = query.Encode()
+
+	v.URL = fullURL.String()
+	v.Token = token
+	return nil
+}
+
+func (v PeerChannel) String() string {
+	b, err := v.MarshalText()
+	if err != nil {
+		return ""
+	}
+
+	return string(b)
+}
+
+// Scan converts from a database column.
+func (v *PeerChannel) Scan(data interface{}) error {
+	s, ok := data.(string)
+	if !ok {
+		return errors.New("Peer Channel value not string")
+	}
+
+	if err := v.SetString(s); err != nil {
+		return errors.Wrap(err, "set string")
+	}
+
+	return nil
 }

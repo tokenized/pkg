@@ -28,6 +28,44 @@ func Test_Interface(t *testing.T) {
 	accountCheckInterface(NewMockAccountClient(NewMockClient(), "", ""))
 }
 
+func Test_PeerChannels_String(t *testing.T) {
+	tests := []struct {
+		url   string
+		token string
+		full  string
+	}{
+		{
+			url:   "https://mock.tokenized.id" + apiURLChannelPart + "123456",
+			token: "abcedfg",
+			full:  "https://mock.tokenized.id" + apiURLChannelPart + "123456?token=abcedfg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.full, func(t *testing.T) {
+			var peerChannel PeerChannel
+			if err := peerChannel.SetString(tt.full); err != nil {
+				t.Fatalf("Failed to set string : %s", err)
+			}
+
+			if peerChannel.URL != tt.url {
+				t.Errorf("Wrong url : got %s, want %s", peerChannel.URL, tt.url)
+			}
+
+			if peerChannel.Token != tt.token {
+				t.Errorf("Wrong token : got %s, want %s", peerChannel.Token, tt.token)
+			}
+
+			full := peerChannel.String()
+			t.Logf("Full URL : %s", full)
+
+			if full != tt.full {
+				t.Errorf("Wrong full url : got %s, want %s", full, tt.full)
+			}
+		})
+	}
+}
+
 func Test_CreateAccount(t *testing.T) {
 	t.Skip()
 	ctx := context.Background()

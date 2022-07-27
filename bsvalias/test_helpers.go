@@ -255,7 +255,7 @@ func (c *MockClient) PostNegotiationTx(ctx context.Context,
 
 func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) (*NegotiationTransaction, error) {
 	inputValue := uint64(0)
-	for i:=0;i<negotiationTx.Tx.InputCount();i++ {
+	for i := 0; i < negotiationTx.Tx.InputCount(); i++ {
 		output, err := negotiationTx.Tx.InputOutput(i)
 		if err != nil {
 			return nil, errors.Wrapf(err, "input %d", i)
@@ -265,7 +265,7 @@ func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) (
 	}
 
 	outputValue := uint64(0)
-	for i:=0;i<negotiationTx.Tx.OutputCount();i++ {
+	for i := 0; i < negotiationTx.Tx.OutputCount(); i++ {
 		outputValue += negotiationTx.Tx.Output(i).Value
 	}
 
