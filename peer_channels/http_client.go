@@ -152,7 +152,6 @@ func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
 	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 
 	translator := newNotificationTranslator(incoming)
-	defer close(incoming)
 
 	params := url.Values{}
 	params.Add("token", token)
@@ -171,7 +170,6 @@ func (c *HTTPClient) Listen(ctx context.Context, token string, sendUnread bool,
 	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	translator := newMessageTranslator(incoming)
-	defer close(incoming)
 
 	params := url.Values{}
 	params.Add("token", token)

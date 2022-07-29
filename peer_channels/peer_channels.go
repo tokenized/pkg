@@ -42,12 +42,12 @@ type Client interface {
 	DeleteMessage(ctx context.Context, channelID, token string, sequence uint64, older bool) error
 
 	// Notify writes message notifications to `incoming` as they are posted to the service.
-	// `incoming` will be closed before it returns.
+	// `incoming` will not be closed by this function.
 	Notify(ctx context.Context, token string, sendUnread bool, incoming chan<- MessageNotification,
 		interrupt <-chan interface{}) error
 
 	// Listen writes messages to `incoming` as they are posted to the service.
-	// `incoming` will be closed before it returns.
+	// `incoming` will not be closed by this function.
 	Listen(ctx context.Context, token string, sendUnread bool, incoming chan<- Message,
 		interrupt <-chan interface{}) error
 }

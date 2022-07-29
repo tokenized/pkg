@@ -346,7 +346,6 @@ func (c *MockClient) Notify(ctx context.Context, token string, sendUnread bool,
 		logger.ErrorWithFields(ctx, []logger.Field{
 			logger.String("token", token),
 		}, "No accounts or channels found for token")
-		close(incoming)
 		return HTTPError{Status: http.StatusNotFound}
 	}
 
@@ -370,7 +369,6 @@ func (c *MockClient) Notify(ctx context.Context, token string, sendUnread bool,
 			}
 		}
 
-		close(incoming)
 		c.lock.Unlock()
 	}
 
@@ -433,7 +431,6 @@ func (c *MockClient) Listen(ctx context.Context, token string, sendUnread bool,
 		logger.ErrorWithFields(ctx, []logger.Field{
 			logger.String("token", token),
 		}, "No accounts or channels found for token")
-		close(incoming)
 		return HTTPError{Status: http.StatusNotFound}
 	}
 
@@ -452,7 +449,6 @@ func (c *MockClient) Listen(ctx context.Context, token string, sendUnread bool,
 			}
 		}
 
-		close(incoming)
 		c.lock.Unlock()
 	}
 
