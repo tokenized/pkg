@@ -231,6 +231,14 @@ func (v PeerChannel) String() string {
 	return string(b)
 }
 
+func (v PeerChannel) MarshalBinary() ([]byte, error) {
+	return []byte(v.String()), nil
+}
+
+func (v *PeerChannel) UnmarshalBinary(data []byte) error {
+	return v.SetString(string(data))
+}
+
 // Scan converts from a database column.
 func (v *PeerChannel) Scan(data interface{}) error {
 	s, ok := data.(string)
