@@ -38,7 +38,7 @@ type ExpandedTx struct {
 	// SpentOutputs are the outputs spent by the inputs of Tx. If any outputs are specified then the
 	// length of the slice must match the number of inputs and the indexes must align. For example,
 	// the second output must correspond to the second input of Tx.
-	SpentOutputs []*Output `bsor:"4" json:"spent_outputs,omitempty"`
+	SpentOutputs []*Output `bsor:"3" json:"spent_outputs,omitempty"`
 }
 
 // Output represents an output in a bitcoin transaction.

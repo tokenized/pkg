@@ -28,6 +28,37 @@ func Test_Interface(t *testing.T) {
 	accountCheckInterface(NewMockAccountClient(NewMockClient(), "", ""))
 }
 
+func Test_PeerChannels_JSON(t *testing.T) {
+	js := `{
+		"peer_channel": "mock://mock_peer_channels/api/v1/channel/123456?token=abcdef"
+	}`
+
+	var config struct {
+		PeerChannel *PeerChannel `json:"peer_channel"`
+	}
+
+	if err := json.Unmarshal([]byte(js), &config); err != nil {
+		t.Fatalf("Failed to unmarshal : %s", err)
+	}
+
+	if config.PeerChannel == nil {
+		t.Fatalf("Peer channel should not be nil")
+	}
+
+	t.Logf("Peer channel url : %s", config.PeerChannel.URL)
+	t.Logf("Peer channel token : %s", config.PeerChannel.Token)
+
+	if config.PeerChannel.URL != "mock://mock_peer_channels/api/v1/channel/123456" {
+		t.Errorf("Wrong peer channel url : got %s, want %s", config.PeerChannel.URL,
+			"mock://mock_peer_channels/api/v1/channel/123456")
+	}
+
+	if config.PeerChannel.Token != "abcdef" {
+		t.Errorf("Wrong peer channel token : got %s, want %s", config.PeerChannel.URL,
+			"abcdef")
+	}
+}
+
 func Test_PeerChannels_String(t *testing.T) {
 	tests := []struct {
 		url   string

@@ -188,6 +188,24 @@ func NewPeerChannel(channelURL, token string) (*PeerChannel, error) {
 	}, nil
 }
 
+func NewPeerChannelFromString(s string) (*PeerChannel, error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, errors.Wrap(err, "url")
+	}
+
+	query := u.Query()
+	token := query.Get("token")
+	query.Del("token")
+
+	u.RawQuery = query.Encode()
+
+	return &PeerChannel{
+		URL:   u.String(),
+		Token: token,
+	}, nil
+}
+
 func (v PeerChannel) MarshalText() ([]byte, error) {
 	fullURL, err := url.Parse(v.URL)
 	if err != nil {
@@ -251,4 +269,8 @@ func (v *PeerChannel) Scan(data interface{}) error {
 	}
 
 	return nil
+}
+
+func (v PeerChannel) MarshalJSONMasked() ([]byte, error) {
+	return []byte("\"URL:" + v.URL + "\""), nil
 }
