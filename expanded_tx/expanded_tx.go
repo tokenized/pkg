@@ -17,16 +17,22 @@ var (
 	ErrNegativeFee = errors.New("Negative Fee")
 )
 
-type TransactionWithOutputs interface {
+// Transaction is a transaction with only the wire encoded data provided.
+type Transaction interface {
 	TxID() bitcoin.Hash32
 	GetMsgTx() *wire.MsgTx
 
 	InputCount() int
 	Input(index int) *wire.TxIn
-	InputOutput(index int) (*wire.TxOut, error) // The output being spent by the input
 
 	OutputCount() int
 	Output(index int) *wire.TxOut
+}
+
+// TransactionWithOutputs is a transaction with spent outputs provided.
+type TransactionWithOutputs interface {
+	Transaction
+	InputOutput(index int) (*wire.TxOut, error) // The output being spent by the input
 }
 
 // ExpandedTx is a Bitcoin transaction with ancestor information.

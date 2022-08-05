@@ -984,3 +984,27 @@ func (tx MsgTx) Bytes() []byte {
 	tx.Serialize(buf)
 	return buf.Bytes()
 }
+
+func (tx *MsgTx) TxID() bitcoin.Hash32 {
+	return *tx.TxHash()
+}
+
+func (tx *MsgTx) InputCount() int {
+	return len(tx.TxIn)
+}
+
+func (tx *MsgTx) Input(index int) *TxIn {
+	return tx.TxIn[index]
+}
+
+func (tx *MsgTx) GetMsgTx() *MsgTx {
+	return tx
+}
+
+func (tx *MsgTx) OutputCount() int {
+	return len(tx.TxOut)
+}
+
+func (tx *MsgTx) Output(index int) *TxOut {
+	return tx.TxOut[index]
+}
