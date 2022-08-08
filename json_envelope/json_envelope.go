@@ -4,8 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/pkg/bitcoin"
+
+	"github.com/pkg/errors"
 )
 
 var (

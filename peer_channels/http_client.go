@@ -622,6 +622,7 @@ func websocketListen(ctx context.Context, url string, translator Translator,
 				return errors.Wrap(err, "send close")
 			}
 
+			conn.Close()
 			wait()
 			return threads.Interrupted
 		}
