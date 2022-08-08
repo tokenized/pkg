@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/pkg/threads"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -450,9 +451,9 @@ func (c *MockClient) Listen(ctx context.Context, token string, sendUnread bool,
 		}
 
 		c.lock.Unlock()
-	}
 
-	return nil
+		return threads.Interrupted
+	}
 }
 
 func (c *MockAccountClient) BaseURL() string {
