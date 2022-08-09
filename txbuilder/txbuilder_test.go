@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -658,4 +659,117 @@ func Test_LowFeeFunding(t *testing.T) {
 	if tx.Fee() != tx.EstimatedFee() {
 		t.Fatalf("Wrong fee : got %d, want %d", tx.Fee(), tx.EstimatedFee())
 	}
+}
+
+func Test_Sign_LowFeeChange(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		if err := test_Sign_LowFeeChange(t); err != nil {
+			t.Errorf("Failed test %d : %s", i, err)
+		}
+	}
+}
+
+func test_Sign_LowFeeChange(t *testing.T) error {
+	contractKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	contractLockingScript, err := contractKey.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	changeKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	changeLockingScript, err := changeKey.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	receiver1Key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	receiver1LockingScript, err := receiver1Key.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	receiver2Key, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	receiver2LockingScript, err := receiver2Key.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	feeKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	feeLockingScript, err := feeKey.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	utxo := bitcoin.UTXO{
+		Index:         0,
+		Value:         2021,
+		LockingScript: contractLockingScript,
+	}
+	rand.Read(utxo.Hash[:])
+
+	settlementScriptString := "OP_0 OP_RETURN 0xbd01 OP_1 \"test.TKN\" OP_3 0x00 \"T2\" 0x0a2b12034343591a14fa26cd2b12baee089cb5cc00fb52489974231424220710f8a8dbc3f4022205080110882710d9f3effde8e9eb8417"
+	settlementScript, err := bitcoin.StringToScript(settlementScriptString)
+	if err != nil {
+		return errors.Wrap(err, "parse script")
+	}
+
+	tx := NewTxBuilder(0.05, 0.00)
+	tx.SetChangeLockingScript(changeLockingScript, "")
+
+	tx.AddInputUTXO(utxo)
+
+	tx.AddOutput(receiver1LockingScript, 1, false, false)
+	tx.AddOutput(receiver2LockingScript, 1, false, false)
+	tx.AddOutput(feeLockingScript, 2000, false, false)
+	tx.AddOutput(settlementScript, 0, false, false)
+
+	if _, err := tx.Sign([]bitcoin.Key{contractKey}); err != nil {
+		return errors.Wrap(err, "sign")
+	}
+
+	for i, txout := range tx.MsgTx.TxOut {
+		if txout.Value != 0 {
+			continue
+		}
+
+		if txout.LockingScript[0] == bitcoin.OP_FALSE {
+			continue
+		}
+
+		t.Logf(tx.String(bitcoin.MainNet))
+		return fmt.Errorf("Zero output : %d", i)
+	}
+
+	t.Logf(tx.String(bitcoin.MainNet))
+	t.Logf("Estimated Size : %d", tx.EstimatedSize())
+	t.Logf("Fee : %d", tx.Fee())
+	t.Logf("Estimated Fee : %d", tx.EstimatedFee())
+
+	fee := tx.Fee()
+	estimatedFee := tx.EstimatedFee()
+	if fee != estimatedFee && fee != estimatedFee+1 {
+		return fmt.Errorf("Wrong fee : got %d, want %d", tx.Fee(), tx.EstimatedFee())
+	}
+
+	return nil
 }

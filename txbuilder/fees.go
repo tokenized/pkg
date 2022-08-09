@@ -264,8 +264,10 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 				// Don't remove outputs unless they were added by fee adjustment
 				return false, errors.Wrap(ErrInsufficientValue, "Not enough change for tx fee")
 			}
+
 			// Remove change output since it is less than dust. Dust will go to miner.
-			tx.MsgTx.TxOut = append(tx.MsgTx.TxOut[:changeOutputIndex], tx.MsgTx.TxOut[changeOutputIndex+1:]...)
+			tx.MsgTx.TxOut = append(tx.MsgTx.TxOut[:changeOutputIndex],
+				tx.MsgTx.TxOut[changeOutputIndex+1:]...)
 			tx.Outputs = append(tx.Outputs[:changeOutputIndex], tx.Outputs[changeOutputIndex+1:]...)
 			done = true
 		}
@@ -284,7 +286,13 @@ func (tx *TxBuilder) adjustFee(amount int64) (bool, error) {
 			newSize := currentSize + uint64(OutputSize(tx.ChangeScript))
 			newFee := EstimatedFeeValue(newSize, float64(tx.FeeRate))
 
-			adjustment := uint64(-amount) - (newFee - currentFee)
+			changeOutputFee := newFee - currentFee
+
+			if changeOutputFee > uint64(-amount) {
+				return true, nil // adding a change output would make the adjustment negative
+			}
+
+			adjustment := uint64(-amount) - changeOutputFee
 
 			// Add a change output if it would be more than the dust limit plus the fee to add the
 			// output
