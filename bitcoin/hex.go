@@ -13,6 +13,12 @@ var (
 // default for json.
 type Hex []byte
 
+func (b Hex) String() string {
+	result := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(result, b)
+	return string(result)
+}
+
 func (b Hex) MarshalJSON() ([]byte, error) {
 	return ConvertBytesToJSONHex(b)
 }
