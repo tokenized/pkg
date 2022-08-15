@@ -2,6 +2,7 @@ package expanded_tx
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -53,6 +54,12 @@ type Output struct {
 	LockingScript bitcoin.Script `bsor:"2" json:"locking_script"`
 }
 
+// jsonOutput is used to override the text marshalers when encoding and decoding Outputs.
+type jsonOutput struct {
+	Value         uint64         `bsor:"1" json:"value"`
+	LockingScript bitcoin.Script `bsor:"2" json:"locking_script"`
+}
+
 func (o Output) String() string {
 	return fmt.Sprintf("%d: %s", o.Value, o.LockingScript)
 }
@@ -78,6 +85,28 @@ func (o *Output) UnmarshalText(text []byte) error {
 		return errors.Wrap(err, "locking script")
 	}
 	o.LockingScript = script
+
+	return nil
+}
+
+// MarshalJSON converts to json.
+func (o Output) MarshalJSON() ([]byte, error) {
+	jo := jsonOutput{
+		Value:         o.Value,
+		LockingScript: o.LockingScript,
+	}
+	return json.Marshal(jo)
+}
+
+// UnmarshalJSON converts from json.
+func (o *Output) UnmarshalJSON(data []byte) error {
+	jo := &jsonOutput{}
+	if err := json.Unmarshal(data, jo); err != nil {
+		return err
+	}
+
+	o.Value = jo.Value
+	o.LockingScript = jo.LockingScript
 
 	return nil
 }

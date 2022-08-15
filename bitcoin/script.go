@@ -626,7 +626,7 @@ func (s Script) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON converts from json.
 func (s *Script) UnmarshalJSON(data []byte) error {
 	if len(data) < 2 {
-		return fmt.Errorf("Too short for RawAddress hex data : %d", len(data))
+		return fmt.Errorf("Too short for Script hex data : %d", len(data))
 	}
 
 	if len(data) == 2 {
