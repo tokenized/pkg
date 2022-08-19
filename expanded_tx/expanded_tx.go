@@ -214,6 +214,10 @@ func (etx ExpandedTx) Input(index int) *wire.TxIn {
 
 // VerifyInputs returns MissingInput error if all spent outputs are not included in the tx.
 func (etx ExpandedTx) VerifyInputs() error {
+	if etx.Tx == nil {
+		return errors.Wrap(MissingInput, "missing tx")
+	}
+
 	for index := range etx.Tx.TxIn {
 		if index < len(etx.SpentOutputs) {
 			continue // output in spent outputs

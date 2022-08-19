@@ -37,6 +37,9 @@ var (
 	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks. The "status"
 	// endpoint should be checked to verify the tx is valid.
 	MissingInputs = errors.New("Missing Inputs")
+
+	// InsufficientFee means the tx fee is too low to be mined.
+	InsufficientFee = errors.New("Insufficient Fee")
 )
 
 const (
@@ -256,20 +259,46 @@ func (str SubmitTxResponse) Success() error {
 		return errors.Wrapf(ErrDoubleSpend, "%+v", txids)
 	}
 
-	if str.Result == "success" {
+	return translateResult(str.Result, str.ResultDescription)
+}
+
+func translateResult(result, description string) error {
+	if result == "success" {
 		return nil
 	}
 
-	if str.Result == "failure" &&
-		strings.Contains(str.ResultDescription, "Transaction already in the mempool") {
-		return AlreadyInMempool
+	if result == "failure" {
+		if strings.Contains(description, "Transaction already in the mempool") {
+			return errors.Wrap(AlreadyInMempool, description)
+		}
+
+		if strings.Contains(description, "Missing inputs") {
+			return errors.Wrap(MissingInputs, description)
+		}
+
+		if strings.Contains(description, "Not enough fees") {
+			return errors.Wrap(InsufficientFee, description)
+		}
 	}
 
-	if str.Result == "failure" && strings.Contains(str.ResultDescription, "Missing inputs") {
-		return MissingInputs
+	return errors.Wrap(ErrFailure, result)
+}
+
+func translateHTTPError(err error) error {
+	httpError, ok := errors.Cause(err).(HTTPError)
+	if !ok {
+		return err
 	}
 
-	return errors.Wrap(ErrFailure, str.Result)
+	if httpError.Status != 400 { // HTTP 400 Bad Request
+		return err
+	}
+
+	if strings.Contains(httpError.Message, "Insufficient fees") {
+		return errors.Wrap(InsufficientFee, err.Error())
+	}
+
+	return err
 }
 
 // SubmitTxCallbackResponse is the message posted to the SPV channel specified in the
@@ -299,11 +328,18 @@ func SubmitTx(ctx context.Context, baseURL string,
 	return SubmitTxWithAuth(ctx, baseURL, request, "")
 }
 
-func SubmitTxWithAuth(ctx context.Context, baseURL string,
-	request SubmitTxRequest, authToken string) (*SubmitTxResponse, error) {
+func SubmitTxWithAuth(ctx context.Context, baseURL string, request SubmitTxRequest,
+	authToken string) (*SubmitTxResponse, error) {
+
+	_, response, err := SubmitTxFull(ctx, baseURL, request, authToken)
+	return response, err
+}
+
+func SubmitTxFull(ctx context.Context, baseURL string, request SubmitTxRequest,
+	authToken string) (*json_envelope.JSONEnvelope, *SubmitTxResponse, error) {
 
 	if len(baseURL) == 0 {
-		return nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
+		return nil, nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
 	}
 
 	if baseURL[len(baseURL)-1:] == "/" {
@@ -312,23 +348,23 @@ func SubmitTxWithAuth(ctx context.Context, baseURL string,
 
 	envelope := &json_envelope.JSONEnvelope{}
 	if err := post(ctx, baseURL+"/mapi/tx", authToken, request, envelope); err != nil {
-		return nil, errors.Wrap(err, "http post")
+		return nil, nil, translateHTTPError(errors.Wrap(err, "http post"))
 	}
 
 	if envelope.MimeType != "application/json" {
-		return nil, fmt.Errorf("MIME Type not JSON : %s", envelope.MimeType)
+		return envelope, nil, fmt.Errorf("MIME Type not JSON : %s", envelope.MimeType)
 	}
 
 	result := &SubmitTxResponse{}
 	if err := json.Unmarshal([]byte(envelope.Payload), result); err != nil {
-		return nil, errors.Wrap(err, "json unmarshal")
+		return envelope, nil, errors.Wrap(err, "json unmarshal")
 	}
 
 	if envelope.PublicKey != nil && !result.MinerID.Equal(*envelope.PublicKey) {
-		return nil, ErrWrongPublicKey
+		return envelope, result, ErrWrongPublicKey
 	}
 
-	return result, envelope.Verify()
+	return envelope, result, envelope.Verify()
 }
 
 type GetTxStatusResponse struct {
@@ -345,11 +381,7 @@ type GetTxStatusResponse struct {
 }
 
 func (str GetTxStatusResponse) Success() error {
-	if str.Result != "success" {
-		return errors.Wrap(ErrFailure, str.Result)
-	}
-
-	return nil
+	return translateResult(str.Result, str.ResultDescription)
 }
 
 // GetTxStatus returns the status of a tx. If it is confirmed it will return valid.
@@ -361,8 +393,15 @@ func GetTxStatus(ctx context.Context, baseURL string,
 func GetTxStatusWithAuth(ctx context.Context, baseURL string,
 	txid bitcoin.Hash32, authToken string) (*GetTxStatusResponse, error) {
 
+	_, response, err := GetTxStatusFull(ctx, baseURL, txid, authToken)
+	return response, err
+}
+
+func GetTxStatusFull(ctx context.Context, baseURL string, txid bitcoin.Hash32,
+	authToken string) (*json_envelope.JSONEnvelope, *GetTxStatusResponse, error) {
+
 	if len(baseURL) == 0 {
-		return nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
+		return nil, nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
 	}
 
 	if baseURL[len(baseURL)-1:] == "/" {
@@ -371,23 +410,23 @@ func GetTxStatusWithAuth(ctx context.Context, baseURL string,
 
 	envelope := &json_envelope.JSONEnvelope{}
 	if err := get(ctx, baseURL+"/mapi/tx/"+txid.String(), authToken, envelope); err != nil {
-		return nil, errors.Wrap(err, "http get")
+		return nil, nil, translateHTTPError(errors.Wrap(err, "http get"))
 	}
 
 	if envelope.MimeType != "application/json" {
-		return nil, fmt.Errorf("MIME Type not JSON : %s", envelope.MimeType)
+		return envelope, nil, fmt.Errorf("MIME Type not JSON : %s", envelope.MimeType)
 	}
 
 	result := &GetTxStatusResponse{}
 	if err := json.Unmarshal([]byte(envelope.Payload), result); err != nil {
-		return nil, errors.Wrap(err, "json unmarshal")
+		return envelope, nil, errors.Wrap(err, "json unmarshal")
 	}
 
 	if envelope.PublicKey != nil && !result.MinerID.Equal(*envelope.PublicKey) {
-		return nil, ErrWrongPublicKey
+		return envelope, nil, ErrWrongPublicKey
 	}
 
-	return result, envelope.Verify()
+	return envelope, result, envelope.Verify()
 }
 
 // post sends a request to the HTTP server using the POST method.
