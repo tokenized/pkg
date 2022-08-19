@@ -262,6 +262,16 @@ func (str SubmitTxResponse) Success() error {
 	return translateResult(str.Result, str.ResultDescription)
 }
 
+// GeneralResponse can be used to check the success of submit tx and tx status response payloads.
+type GeneralResponse struct {
+	Result            string `json:"returnResult"`
+	ResultDescription string `json:"resultDescription"`
+}
+
+func (r GeneralResponse) Error() error {
+	return translateResult(r.Result, r.ResultDescription)
+}
+
 func translateResult(result, description string) error {
 	if result == "success" {
 		return nil
