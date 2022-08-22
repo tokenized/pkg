@@ -400,6 +400,8 @@ func (s S3Storage) List(ctx context.Context, path string) ([]string, error) {
 		keys, err = s.findKeys(ctx, path)
 		if err == nil {
 			return keys, nil
+		} else if errors.Cause(err) == ErrNotFound {
+			return nil, nil
 		}
 
 		logger.Error(ctx, "S3CallFailed to search %v : %v", path, err)
@@ -426,6 +428,12 @@ func (s S3Storage) findKeys(ctx context.Context, path string) ([]string, error) 
 
 		out, err := svc.ListObjectsV2(input)
 		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() == s3.ErrCodeNoSuchKey {
+					// specifically handle the "not found" case
+					return nil, ErrNotFound
+				}
+			}
 			return nil, err
 		}
 
