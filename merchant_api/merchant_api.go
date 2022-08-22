@@ -20,7 +20,6 @@ import (
 )
 
 var (
-	ErrFailure        = errors.New("Failure")
 	ErrDoubleSpend    = errors.New("Double Spend")
 	ErrHTTPNotFound   = errors.New("HTTP Not Found")
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
@@ -40,6 +39,10 @@ var (
 
 	// InsufficientFee means the tx fee is too low to be mined.
 	InsufficientFee = errors.New("Insufficient Fee")
+
+	// ErrUnsupportedFailure means the merchant api returned a "failure" with an unrecognized
+	// message.
+	ErrUnsupportedFailure = errors.New("Unsupported failure")
 )
 
 const (
@@ -55,6 +58,15 @@ const (
 	// FeeTypeData only applies to bytes in scripts that start with OP_RETURN or OP_FALSE, OP_RETURN.
 	FeeTypeData = FeeType(1)
 )
+
+func IsRejectError(err error) bool {
+	switch errors.Cause(err) {
+	case MissingInputs, InsufficientFee, ErrDoubleSpend, ErrUnsupportedFailure:
+		return true
+	default:
+		return false
+	}
+}
 
 type FeeType uint8
 
@@ -192,6 +204,11 @@ func GetFeeQuote(ctx context.Context, baseURL string) (*FeeQuoteResponse, error)
 
 func GetFeeQuoteWithAuth(ctx context.Context,
 	baseURL, authToken string) (*FeeQuoteResponse, error) {
+	return GetFeeQuoteFull(ctx, baseURL, authToken, time.Second*10)
+}
+
+func GetFeeQuoteFull(ctx context.Context, baseURL, authToken string,
+	timeout time.Duration) (*FeeQuoteResponse, error) {
 
 	if len(baseURL) == 0 {
 		return nil, fmt.Errorf("Invalid Base URL : %s", baseURL)
@@ -202,7 +219,7 @@ func GetFeeQuoteWithAuth(ctx context.Context,
 	}
 
 	envelope := &json_envelope.JSONEnvelope{}
-	if err := get(ctx, baseURL+"/mapi/feeQuote", authToken, envelope); err != nil {
+	if err := get(ctx, timeout, baseURL+"/mapi/feeQuote", authToken, envelope); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
 
@@ -291,7 +308,7 @@ func translateResult(result, description string) error {
 		}
 	}
 
-	return errors.Wrap(ErrFailure, result)
+	return errors.Wrap(ErrUnsupportedFailure, result)
 }
 
 func translateHTTPError(err error) error {
@@ -341,11 +358,12 @@ func SubmitTx(ctx context.Context, baseURL string,
 func SubmitTxWithAuth(ctx context.Context, baseURL string, request SubmitTxRequest,
 	authToken string) (*SubmitTxResponse, error) {
 
-	_, response, err := SubmitTxFull(ctx, baseURL, request, authToken)
+	_, response, err := SubmitTxFull(ctx, baseURL, time.Second*10, request, authToken)
 	return response, err
 }
 
-func SubmitTxFull(ctx context.Context, baseURL string, request SubmitTxRequest,
+func SubmitTxFull(ctx context.Context, baseURL string, timeout time.Duration,
+	request SubmitTxRequest,
 	authToken string) (*json_envelope.JSONEnvelope, *SubmitTxResponse, error) {
 
 	if len(baseURL) == 0 {
@@ -357,7 +375,7 @@ func SubmitTxFull(ctx context.Context, baseURL string, request SubmitTxRequest,
 	}
 
 	envelope := &json_envelope.JSONEnvelope{}
-	if err := post(ctx, baseURL+"/mapi/tx", authToken, request, envelope); err != nil {
+	if err := post(ctx, timeout, baseURL+"/mapi/tx", authToken, request, envelope); err != nil {
 		return nil, nil, translateHTTPError(errors.Wrap(err, "http post"))
 	}
 
@@ -403,11 +421,12 @@ func GetTxStatus(ctx context.Context, baseURL string,
 func GetTxStatusWithAuth(ctx context.Context, baseURL string,
 	txid bitcoin.Hash32, authToken string) (*GetTxStatusResponse, error) {
 
-	_, response, err := GetTxStatusFull(ctx, baseURL, txid, authToken)
+	_, response, err := GetTxStatusFull(ctx, baseURL, time.Second*10, txid, authToken)
 	return response, err
 }
 
-func GetTxStatusFull(ctx context.Context, baseURL string, txid bitcoin.Hash32,
+func GetTxStatusFull(ctx context.Context, baseURL string, timeout time.Duration,
+	txid bitcoin.Hash32,
 	authToken string) (*json_envelope.JSONEnvelope, *GetTxStatusResponse, error) {
 
 	if len(baseURL) == 0 {
@@ -419,7 +438,8 @@ func GetTxStatusFull(ctx context.Context, baseURL string, txid bitcoin.Hash32,
 	}
 
 	envelope := &json_envelope.JSONEnvelope{}
-	if err := get(ctx, baseURL+"/mapi/tx/"+txid.String(), authToken, envelope); err != nil {
+	if err := get(ctx, timeout, baseURL+"/mapi/tx/"+txid.String(), authToken,
+		envelope); err != nil {
 		return nil, nil, translateHTTPError(errors.Wrap(err, "http get"))
 	}
 
@@ -440,7 +460,9 @@ func GetTxStatusFull(ctx context.Context, baseURL string, txid bitcoin.Hash32,
 }
 
 // post sends a request to the HTTP server using the POST method.
-func post(ctx context.Context, url, authToken string, request, response interface{}) error {
+func post(ctx context.Context, timeout time.Duration, url, authToken string,
+	request, response interface{}) error {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -449,7 +471,7 @@ func post(ctx context.Context, url, authToken string, request, response interfac
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   timeout,
 		Transport: transport,
 	}
 
@@ -513,7 +535,9 @@ func post(ctx context.Context, url, authToken string, request, response interfac
 }
 
 // get sends a request to the HTTP server using the GET method.
-func get(ctx context.Context, url, authToken string, response interface{}) error {
+func get(ctx context.Context, timeout time.Duration, url, authToken string,
+	response interface{}) error {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -522,7 +546,7 @@ func get(ctx context.Context, url, authToken string, response interface{}) error
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   timeout,
 		Transport: transport,
 	}
 
