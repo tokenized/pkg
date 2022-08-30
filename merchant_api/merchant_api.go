@@ -26,9 +26,12 @@ var (
 	ErrTimeout        = errors.New("Timeout")
 
 	// AlreadyInMempool can be returned when submitting a tx that the miner has already seen. It
-	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks. The "status"
-	// endpoint should be checked to verify the tx is valid.
+	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks.
 	AlreadyInMempool = errors.New("Already In Mempool")
+
+	// ExistingTx can be returned when submitting a tx that the miner has already seen. It
+	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks.
+	ExistingTx = errors.New("Existing Tx")
 
 	// MissingInputs can be returned when you are submitting a tx and the inputs are already spent,
 	// or don't exist. One scenario is when submitting a tx that was included in a block a while ago
@@ -295,6 +298,10 @@ func translateResult(result, description string) error {
 	}
 
 	if result == "failure" {
+		if strings.Contains(description, "txn-already-known") {
+			return errors.Wrap(ExistingTx, description)
+		}
+
 		if strings.Contains(description, "Transaction already in the mempool") {
 			return errors.Wrap(AlreadyInMempool, description)
 		}

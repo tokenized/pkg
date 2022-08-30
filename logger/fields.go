@@ -223,7 +223,11 @@ func (f BoolField) Name() string {
 }
 
 func (f BoolField) ValueJSON() string {
-	return fmt.Sprintf("%t", f.value)
+	if f.value {
+		return "true"
+	} else {
+		return "false"
+	}
 }
 
 func Bool(name string, value bool) *BoolField {

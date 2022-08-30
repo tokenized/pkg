@@ -389,6 +389,8 @@ func (s S3Storage) Clear(ctx context.Context, query map[string]string) error {
 	return nil
 }
 
+// List returns all paths that start with "path". If you want to list a specific directory then add
+// a slash at the end, but then you still have to watch for sub-directories being listed.
 func (s S3Storage) List(ctx context.Context, path string) ([]string, error) {
 	var err error
 	var keys []string
