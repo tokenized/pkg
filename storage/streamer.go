@@ -19,6 +19,7 @@ func StreamWrite(ctx context.Context, store StreamWriter, key string, s Serializ
 			return store.StreamWrite(ctx, key, buf)
 		})
 	writeThread.SetWait(&wait)
+	writeThread.Start(ctx)
 
 	serializeErr := s.Serialize(buf)
 	if serializeErr != nil {
