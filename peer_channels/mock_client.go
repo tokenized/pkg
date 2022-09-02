@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tokenized/pkg/logger"
-	"github.com/tokenized/pkg/threads"
+	"github.com/tokenized/logger"
+	"github.com/tokenized/threads"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"

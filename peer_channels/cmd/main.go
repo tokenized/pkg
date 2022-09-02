@@ -8,15 +8,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
-	"time"
 
+	"github.com/pkg/errors"
+	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/json_envelope"
-	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/merchant_api"
 	"github.com/tokenized/pkg/merkle_proof"
 	"github.com/tokenized/pkg/peer_channels"
+	"github.com/tokenized/threads"
 )
 
 func main() {
@@ -170,8 +172,6 @@ func Listen(ctx context.Context, args []string) {
 		logger.String("url", url),
 	}, "Starting listening")
 
-	listenInterrupt := make(chan interface{})
-	listenComplete := make(chan interface{})
 	incoming := make(chan peer_channels.Message, 5)
 
 	factory := peer_channels.NewFactory()
@@ -181,48 +181,51 @@ func Listen(ctx context.Context, args []string) {
 		return
 	}
 
-	go func() {
-		if err := client.Listen(ctx, token, true, incoming,
-			listenInterrupt); err != nil {
-			logger.Error(ctx, "Failed to listen : %s", err)
-		}
+	var wait sync.WaitGroup
 
-		close(incoming)
-		close(listenComplete)
-	}()
+	listenThread, listenComplete := threads.NewInterruptableThreadComplete("Listen",
+		func(ctx context.Context, interrupt <-chan interface{}) error {
+			return client.Listen(ctx, token, true, incoming, interrupt)
+		}, &wait)
 
-	go func() {
-		for msg := range incoming {
-			js, _ := json.MarshalIndent(msg, "", "  ")
-			fmt.Printf("Received message : %s\n", js)
+	handleThread, handleComplete := threads.NewUninterruptableThreadComplete("Handle",
+		func(ctx context.Context) error {
+			for msg := range incoming {
+				js, _ := json.MarshalIndent(msg, "", "  ")
+				fmt.Printf("Received message : %s\n", js)
 
-			// processMessage(ctx, msg)
+				// processMessage(ctx, msg)
 
-			if err := client.MarkMessages(ctx, msg.ChannelID, token, msg.Sequence, true,
-				true); err != nil {
-				fmt.Printf("Failed to mark message as read : %s", err)
+				if err := client.MarkMessages(ctx, msg.ChannelID, token, msg.Sequence, true,
+					true); err != nil {
+					return errors.Wrap(err, "mark message")
+				}
+				fmt.Printf("Marked sequence %d as read\n", msg.Sequence)
 			}
-			fmt.Printf("Marked sequence %d as read\n", msg.Sequence)
-		}
-	}()
+
+			return nil
+		}, &wait)
 
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM)
 
+	listenThread.Start(ctx)
+	handleThread.Start(ctx)
+
 	select {
 	case <-listenComplete:
-		fmt.Printf("Complete (without interrupt)\n")
+		fmt.Printf("Listen complete (without interrupt)\n")
+
+	case <-handleComplete:
+		fmt.Printf("Handle complete (without interrupt)\n")
 
 	case <-osSignals:
-		close(listenInterrupt)
-
-		select {
-		case <-listenComplete:
-			fmt.Printf("Complete (after interrupt)\n")
-		case <-time.After(3 * time.Second):
-			fmt.Printf("Shut down timed out\n")
-		}
 	}
+
+	listenThread.Stop(ctx)
+	close(incoming)
+
+	wait.Wait()
 }
 
 func processMerchantAPIMessage(ctx context.Context, msg peer_channels.Message) {

@@ -9,8 +9,8 @@ import (
 	"os"
 
 	"github.com/tokenized/config"
+	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/bitcoin"
-	"github.com/tokenized/pkg/logger"
 	"github.com/tokenized/pkg/merchant_api"
 	"github.com/tokenized/pkg/wire"
 )

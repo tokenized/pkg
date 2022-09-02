@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tokenized/pkg/threads"
+	"github.com/tokenized/threads"
 
 	"github.com/pkg/errors"
 )

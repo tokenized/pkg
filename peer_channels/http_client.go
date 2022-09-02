@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/bsor"
 	"github.com/tokenized/pkg/json"
-	"github.com/tokenized/pkg/logger"
-	"github.com/tokenized/pkg/threads"
+	"github.com/tokenized/threads"
 
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
@@ -527,6 +527,38 @@ type websocketMessage struct {
 	Bytes []byte
 }
 
+func handleMessages(ctx context.Context, conn *websocket.Conn, translator Translator) error {
+	for {
+		messageType, messageBytes, err := conn.ReadMessage()
+		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure,
+				websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				logger.Info(ctx, "Websocket close : %s", err)
+			} else {
+				logger.Info(ctx, "Failed to read websocket message : %s", err)
+				if err := conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseAbnormalClosure,
+						"read failed")); err != nil {
+					logger.Warn(ctx, "Failed to send abnormal websocket close : %s", err)
+				}
+			}
+
+			conn.Close()
+			return errors.Wrap(err, "read")
+		}
+
+		if err := translator.Translate(ctx, websocketMessage{
+			Type:  messageType,
+			Bytes: messageBytes,
+		}); err != nil {
+			conn.Close()
+			return errors.Wrap(err, "translate")
+		}
+	}
+
+	return nil
+}
+
 func websocketListen(ctx context.Context, url string, translator Translator,
 	interrupt <-chan interface{}) error {
 
@@ -550,39 +582,13 @@ func websocketListen(ctx context.Context, url string, translator Translator,
 	}
 
 	// Listen for messages in separate thread.
-	done := make(chan interface{})
-	go func() {
-		for {
-			messageType, messageBytes, err := conn.ReadMessage()
-			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure,
-					websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					logger.Info(ctx, "Websocket close : %s", err)
-				} else {
-					logger.Info(ctx, "Failed to read websocket message : %s", err)
-					if err := conn.WriteMessage(websocket.CloseMessage,
-						websocket.FormatCloseMessage(websocket.CloseAbnormalClosure,
-							"read failed")); err != nil {
-						logger.Warn(ctx, "Failed to send abnormal websocket close : %s", err)
-					}
-				}
+	readThread := threads.NewUninterruptableThread("Peer Channel Read",
+		func(ctx context.Context) error {
+			return handleMessages(ctx, conn, translator)
+		})
+	readComplete := readThread.GetCompleteChannel()
 
-				conn.Close()
-				break
-			}
-
-			if err := translator.Translate(ctx, websocketMessage{
-				Type:  messageType,
-				Bytes: messageBytes,
-			}); err != nil {
-				conn.Close()
-				break
-			}
-		}
-
-		logger.Info(ctx, "Finished listening for messages")
-		close(done)
-	}()
+	readThread.Start(ctx)
 
 	wait := func() {
 		start := time.Now()
@@ -594,7 +600,7 @@ func websocketListen(ctx context.Context, url string, translator Translator,
 					logger.MillisecondsFromNano("elapsed_ms", time.Since(start).Nanoseconds()),
 				}, "Waiting for: Websocket Listen")
 
-			case <-done:
+			case <-readComplete:
 				return
 			}
 		}
@@ -610,7 +616,7 @@ func websocketListen(ctx context.Context, url string, translator Translator,
 				return errors.Wrap(err, "send ping")
 			}
 
-		case <-done:
+		case <-readComplete:
 			return nil
 
 		case <-interrupt:

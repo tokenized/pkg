@@ -4,19 +4,21 @@ import (
 	"context"
 	"sync"
 
+	"github.com/tokenized/threads"
+
 	"github.com/pkg/errors"
 )
 
 func StreamWrite(ctx context.Context, store StreamWriter, key string, s Serializer) error {
 	buf := NewBuffer()
 
-	var writeErr error
 	var wait sync.WaitGroup
-	wait.Add(1)
-	go func() {
-		writeErr = store.StreamWrite(ctx, key, buf)
-		wait.Done()
-	}()
+
+	writeThread := threads.NewUninterruptableThread("Stream Write",
+		func(ctx context.Context) error {
+			return store.StreamWrite(ctx, key, buf)
+		})
+	writeThread.SetWait(&wait)
 
 	serializeErr := s.Serialize(buf)
 	if serializeErr != nil {
@@ -27,8 +29,8 @@ func StreamWrite(ctx context.Context, store StreamWriter, key string, s Serializ
 	buf.Close()
 	wait.Wait()
 
-	if writeErr != nil {
-		return errors.Wrap(writeErr, "write")
+	if err := writeThread.Error(); err != nil {
+		return errors.Wrap(err, "write")
 	}
 
 	return nil
