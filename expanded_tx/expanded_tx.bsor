@@ -1,0 +1,28 @@
+version 0
+
+ExpandedTx {
+  1 Tx           *binary
+  2 Ancestors    []*AncestorTx
+  3 SpentOutputs []*Output
+}
+
+AncestorTx {
+  1 Tx             *binary
+  2 MerkleProofs   []*binary
+  3 MinerResponses []JSONEnvelope
+}
+
+JSONEnvelope {
+  1 Payload   string
+  2 Signature *binary
+  3 PublicKey *binary(33)
+  4 Encoding  string
+  5 MimeType  string
+}
+
+Output {
+  1 Value         uint64
+  2 LockingScript binary
+}
+
+
