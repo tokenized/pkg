@@ -11,7 +11,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/json_envelope"
@@ -19,6 +18,8 @@ import (
 	"github.com/tokenized/pkg/merkle_proof"
 	"github.com/tokenized/pkg/peer_channels"
 	"github.com/tokenized/threads"
+
+	"github.com/pkg/errors"
 )
 
 func main() {

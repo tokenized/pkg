@@ -25,6 +25,9 @@ var (
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
 	ErrTimeout        = errors.New("Timeout")
 
+	// ErrNotFound means the tx is not known by the service. Most likely from a tx status request.
+	ErrNotFound = errors.New("Not Found")
+
 	// AlreadyInMempool can be returned when submitting a tx that the miner has already seen. It
 	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks.
 	AlreadyInMempool = errors.New("Already In Mempool")
@@ -42,6 +45,13 @@ var (
 
 	// InsufficientFee means the tx fee is too low to be mined.
 	InsufficientFee = errors.New("Insufficient Fee")
+
+	// ErrServiceFailure means that the service failed to process the request.
+	ErrServiceFailure = errors.New("Service Failure")
+
+	// ErrSafeMode seems to mean that there is a pending block chain fork and the service can't
+	// currently verify the transaction as valid.
+	ErrSafeMode = errors.New("Safe Mode")
 
 	// ErrUnsupportedFailure means the merchant api returned a "failure" with an unrecognized
 	// message.
@@ -62,9 +72,11 @@ const (
 	FeeTypeData = FeeType(1)
 )
 
+// IsRejectError returns true if the error represents the node actually rejecting the tx and saying
+// it will not be mined.
 func IsRejectError(err error) bool {
 	switch errors.Cause(err) {
-	case MissingInputs, InsufficientFee, ErrDoubleSpend, ErrUnsupportedFailure:
+	case MissingInputs, InsufficientFee, ErrDoubleSpend:
 		return true
 	default:
 		return false
@@ -312,6 +324,18 @@ func translateResult(result, description string) error {
 
 		if strings.Contains(description, "Not enough fees") {
 			return errors.Wrap(InsufficientFee, description)
+		}
+
+		if strings.Contains(description, "Error while submitting") {
+			return errors.Wrap(ErrServiceFailure, description)
+		}
+
+		if strings.Contains(description, "Safe mode") {
+			return errors.Wrap(ErrSafeMode, description)
+		}
+
+		if strings.Contains(description, "No such mempool or blockchain transaction") {
+			return errors.Wrap(ErrNotFound, description)
 		}
 	}
 
