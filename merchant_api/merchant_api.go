@@ -25,8 +25,8 @@ var (
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
 	ErrTimeout        = errors.New("Timeout")
 
-	// ErrNotFound means the tx is not known by the service. Most likely from a tx status request.
-	ErrNotFound = errors.New("Not Found")
+	// NotFound means the tx is not known by the service. Most likely from a tx status request.
+	NotFound = errors.New("Not Found")
 
 	// AlreadyInMempool can be returned when submitting a tx that the miner has already seen. It
 	// doesn't mean the tx is invalid, but it does mean you will not get the callbacks.
@@ -335,7 +335,7 @@ func translateResult(result, description string) error {
 		}
 
 		if strings.Contains(description, "No such mempool or blockchain transaction") {
-			return errors.Wrap(ErrNotFound, description)
+			return errors.Wrap(NotFound, description)
 		}
 	}
 

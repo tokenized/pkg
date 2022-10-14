@@ -94,9 +94,14 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 		var result []bitcoin.Key
 
 		// Sign all inputs
+		missingKey := false
 		for index, _ := range tx.Inputs {
 			keys, err := tx.signInput(index, keys, shc)
 			if err != nil {
+				if errors.Cause(err) == ErrMissingPrivateKey {
+					missingKey = true
+					continue
+				}
 				return nil, errors.Wrap(err, fmt.Sprintf("sign input %d", index))
 			}
 
@@ -104,6 +109,9 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 		}
 
 		if done || attempt == 0 {
+			if missingKey {
+				return result, ErrMissingPrivateKey
+			}
 			return result, nil
 		}
 
@@ -120,6 +128,9 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 		currentFee = int64(inputValue) - int64(outputValue) - int64(changeValue)
 		if currentFee >= targetFee && float32(currentFee-targetFee)/float32(targetFee) < 0.05 {
 			// Within 5% of target fee
+			if missingKey {
+				return result, ErrMissingPrivateKey
+			}
 			return result, nil
 		}
 
@@ -141,6 +152,7 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 	shc := SigHashCache{}
 	var result []bitcoin.Key
+	missingKey := false
 	for index, _ := range tx.Inputs {
 		if len(tx.MsgTx.TxIn[index].UnlockingScript) > 0 {
 			continue // already signed
@@ -148,12 +160,19 @@ func (tx *TxBuilder) SignOnly(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 
 		keys, err := tx.signInput(index, keys, shc)
 		if err != nil {
+			if errors.Cause(err) == ErrMissingPrivateKey {
+				missingKey = true
+				continue
+			}
 			return nil, errors.Wrap(err, fmt.Sprintf("sign input %d", index))
 		}
 
 		result = appendKeys(result, keys...)
 	}
 
+	if missingKey {
+		return result, ErrMissingPrivateKey
+	}
 	return result, nil
 }
 
