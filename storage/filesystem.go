@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // FilesystemStorage implements the Storage interface for interacting with
@@ -180,6 +182,49 @@ func (f *FilesystemStorage) Remove(ctx context.Context, key string) error {
 		return ErrNotFound
 	}
 	return err
+}
+
+func (f *FilesystemStorage) Copy(ctx context.Context, fromKey, toKey string) error {
+
+	fromFilename := f.buildPath(fromKey)
+
+	// check for existence of file
+	if _, err := os.Stat(fromFilename); os.IsNotExist(err) {
+		return ErrNotFound
+	}
+
+	fromFile, err := os.Open(fromFilename)
+	if err != nil {
+		return errors.Wrap(err, "open source")
+	}
+
+	toFilename := f.buildPath(toKey)
+
+	// make sure directory exists.
+	dir := filepath.Dir(toFilename)
+
+	if err := f.ensureExists(dir, nil); err != nil {
+		return errors.Wrap(err, "destination directory")
+	}
+
+	toFile, err := os.Create(toFilename)
+	if err != nil {
+		return errors.Wrap(err, "open destination")
+	}
+
+	if _, err := toFile.ReadFrom(fromFile); err != nil {
+		return errors.Wrap(err, "write")
+	}
+
+	if err := toFile.Close(); err != nil {
+		return errors.Wrap(err, "close destination")
+	}
+
+	if err := fromFile.Close(); err != nil {
+		return errors.Wrap(err, "close source")
+	}
+
+	return nil
 }
 
 // All returns all objects in the store, from a given path.

@@ -145,6 +145,19 @@ func (s *MockStorage) Remove(ctx context.Context, key string) error {
 	return nil
 }
 
+func (s *MockStorage) Copy(ctx context.Context, fromKey, toKey string) error {
+	s.Lock()
+	defer s.Unlock()
+
+	item, exists := s.Data[fromKey]
+	if !exists {
+		return ErrNotFound
+	}
+
+	s.Data[toKey] = item
+	return nil
+}
+
 // All returns all objects in the store, from a given path.
 //
 // The path can be empty.

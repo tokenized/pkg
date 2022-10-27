@@ -80,11 +80,11 @@ func (s S3Storage) Write(ctx context.Context,
 			return nil
 		}
 
-		logger.Error(ctx, "S3CallFailed to write to %s : %s", key, err)
+		logger.Warn(ctx, "S3CallFailed to write: %s : %s", key, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted write to %s : %s", key, err)
+		logger.Error(ctx, "S3CallAborted write: %s : %s", key, err)
 		return errors.Wrapf(err, "key: %s", key)
 	}
 	return nil
@@ -149,13 +149,13 @@ func (s S3Storage) ReadRange(ctx context.Context, key string, start, end int64) 
 				}
 			}
 
-			logger.Error(ctx, "S3CallFailed to read from %s : %s", key, err)
+			logger.Warn(ctx, "S3CallFailed to read: %s : %s", key, err)
 			continue
 		}
 
 		b, err = ioutil.ReadAll(document.Body)
 		if err != nil {
-			logger.Error(ctx, "S3CallFailed to read from %s : %s", key, err)
+			logger.Warn(ctx, "S3CallFailed to read: %s : %s", key, err)
 			continue
 		}
 
@@ -163,7 +163,7 @@ func (s S3Storage) ReadRange(ctx context.Context, key string, start, end int64) 
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted read from %s : %s", key, err)
+		logger.Error(ctx, "S3CallAborted read: %s : %s", key, err)
 		return nil, errors.Wrapf(err, "key: %s", key)
 	}
 	return b, nil
@@ -215,7 +215,7 @@ func (s S3Storage) StreamReadRange(ctx context.Context, key string,
 			}
 		}
 
-		logger.Error(ctx, "S3CallFailed to read from %s : %s", key, err)
+		logger.Warn(ctx, "S3CallFailed to read: %s : %s", key, err)
 	}
 
 	return nil, errors.Wrapf(lastErr, "key: %s", key)
@@ -248,12 +248,49 @@ func (s S3Storage) Remove(ctx context.Context, key string) error {
 			}
 		}
 
-		logger.Error(ctx, "S3CallFailed to delete object at %v : %v", key, err)
+		logger.Warn(ctx, "S3CallFailed to delete object: %s : %s", key, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted delete object at %v : %v", key, err)
-		return errors.Wrap(err, fmt.Sprintf("Failed to delete object at %v", key))
+		logger.Error(ctx, "S3CallAborted delete object: %s : %s", key, err)
+		return errors.Wrapf(err, "delete object: %s", key)
+	}
+	return nil
+}
+
+func (s S3Storage) Copy(ctx context.Context, fromKey, toKey string) error {
+	svc := s3.New(s.Session)
+
+	input := &s3.CopyObjectInput{
+		Bucket:     aws.String(s.Config.Bucket),
+		CopySource: aws.String(fromKey),
+		Key:        aws.String(toKey),
+	}
+
+	var err error
+	for i := 0; i <= s.Config.MaxRetries; i++ {
+		if i != 0 {
+			time.Sleep(time.Duration(s.Config.RetryDelay) * time.Millisecond)
+		}
+
+		_, err = svc.CopyObject(input)
+		if err == nil {
+			return nil
+		}
+
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == s3.ErrCodeNoSuchKey {
+				// specifically handle the "not found" case
+				return ErrNotFound
+			}
+		}
+
+		logger.Warn(ctx, "S3CallFailed to copy object: \"%s\" -> \"%s\" : %s", fromKey, toKey, err)
+	}
+
+	if err != nil {
+		logger.Error(ctx, "S3CallAborted copy object: \"%s\" -> \"%s\" : %s", fromKey, toKey, err)
+		return errors.Wrapf(err, "copy object: \"%s\" -> \"%s\"", fromKey, toKey)
 	}
 	return nil
 }
@@ -275,12 +312,12 @@ func (s S3Storage) Search(ctx context.Context,
 			break
 		}
 
-		logger.Error(ctx, "S3CallFailed to search %v : %v", path, err)
+		logger.Warn(ctx, "S3CallFailed to search: %s : %s", path, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted search %v : %v", path, err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to search %v", path))
+		logger.Error(ctx, "S3CallAborted search: %s : %s", path, err)
+		return nil, errors.Wrapf(err, "search: %s", path)
 	}
 
 	svc := s3manager.NewDownloader(s.Session)
@@ -315,12 +352,12 @@ func (s S3Storage) Search(ctx context.Context,
 			break
 		}
 
-		logger.Error(ctx, "S3CallFailed to download with iterator %v : %v", path, err)
+		logger.Warn(ctx, "S3CallFailed to download with iterator %s : %s", path, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted download with iterator %v : %v", path, err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to download with iterator %v", path))
+		logger.Error(ctx, "S3CallAborted download with iterator %s : %s", path, err)
+		return nil, errors.Wrapf(err, "download with iterator: %s", path)
 	}
 
 	return buf.objects(), nil
@@ -341,12 +378,12 @@ func (s S3Storage) Clear(ctx context.Context, query map[string]string) error {
 			break
 		}
 
-		logger.Error(ctx, "S3CallFailed to search %v : %v", path, err)
+		logger.Warn(ctx, "S3CallFailed to search: %s : %s", path, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted search %v : %v", path, err)
-		return errors.Wrap(err, fmt.Sprintf("Failed to search %v", path))
+		logger.Error(ctx, "S3CallAborted search: %s : %s", path, err)
+		return errors.Wrapf(err, "search: %s", path)
 	}
 
 	svc := s3manager.NewBatchDelete(s.Session)
@@ -378,12 +415,12 @@ func (s S3Storage) Clear(ctx context.Context, query map[string]string) error {
 			return nil
 		}
 
-		logger.Error(ctx, "S3CallFailed to delete %v : %v", path, err)
+		logger.Warn(ctx, "S3CallFailed to delete: %s : %s", path, err)
 	}
 
 	if err != nil {
-		logger.Error(ctx, "S3CallAborted delete %v : %v", path, err)
-		return errors.Wrap(err, fmt.Sprintf("Failed to delete %v", path))
+		logger.Error(ctx, "S3CallAborted delete: %s : %s", path, err)
+		return errors.Wrapf(err, "delete: %s", path)
 	}
 
 	return nil
@@ -406,15 +443,14 @@ func (s S3Storage) List(ctx context.Context, path string) ([]string, error) {
 			return nil, nil
 		}
 
-		logger.Error(ctx, "S3CallFailed to search %v : %v", path, err)
+		logger.Warn(ctx, "S3CallFailed to search: %s : %s", path, err)
 	}
 
-	logger.Error(ctx, "S3CallAborted search %v : %v", path, err)
-	return nil, errors.Wrap(err, fmt.Sprintf("Failed to search %v", path))
+	logger.Error(ctx, "S3CallAborted search: %s : %s", path, err)
+	return nil, errors.Wrapf(err, "search: %s", path)
 }
 
 func (s S3Storage) findKeys(ctx context.Context, path string) ([]string, error) {
-
 	svc := s3.New(s.Session)
 	var last *string
 	var result []string

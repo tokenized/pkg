@@ -22,6 +22,7 @@ type Storage interface {
 	Searcher
 	Clearer
 	List
+	Copy
 }
 
 type StreamStorage interface {
@@ -31,6 +32,7 @@ type StreamStorage interface {
 	Searcher
 	Clearer
 	List
+	Copy
 }
 
 // ReadWriter interface combines the Reader and Writer interface.
@@ -42,6 +44,11 @@ type ReadWriter interface {
 type StreamReadWriter interface {
 	StreamReader
 	StreamWriter
+}
+
+type CopyList interface {
+	List
+	Copy
 }
 
 // Reader interface is for retrieving items from the store.
@@ -89,6 +96,10 @@ type Clearer interface {
 // List interface is for returning a list of items in the store from the given key.
 type List interface {
 	List(context.Context, string) ([]string, error)
+}
+
+type Copy interface {
+	Copy(ctx context.Context, fromKey, toKey string) error
 }
 
 // CreateStorage builds an appropriate Storage from the details.
