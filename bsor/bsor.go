@@ -59,13 +59,7 @@ func Unmarshal(scriptItems bitcoin.ScriptItems, object interface{}) (bitcoin.Scr
 		return nil, errors.New("Unmarshal object is nil")
 	}
 
-	// objectType = objectType.Elem()
-	objectValue = objectValue.Elem()
-	// if objectType.Kind() != reflect.Struct {
-	// 	return nil, fmt.Errorf("Unmarshal object is not a struct: %s", objectType.Kind())
-	// }
-
-	if err := unmarshalObject(&scriptItems, objectValue, 0, false); err != nil {
+	if err := unmarshalObject(&scriptItems, objectValue.Elem(), 0, false); err != nil {
 		return nil, errors.Wrap(err, "object")
 	}
 

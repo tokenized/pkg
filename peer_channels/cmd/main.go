@@ -18,8 +18,6 @@ import (
 	"github.com/tokenized/pkg/merkle_proof"
 	"github.com/tokenized/pkg/peer_channels"
 	"github.com/tokenized/threads"
-
-	"github.com/pkg/errors"
 )
 
 func main() {

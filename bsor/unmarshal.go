@@ -110,10 +110,7 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixe
 		typ = typ.Elem()
 		kind = typ.Kind()
 
-		val := reflect.New(typ)
-		ifacePtr := val.Interface()
-		_, isBinaryUnmarshaler := ifacePtr.(encoding.BinaryUnmarshaler)
-		if inArray || isBinaryUnmarshaler {
+		if inArray {
 			notNil, err := readUnsignedInteger(scriptItems)
 			if err != nil {
 				return errors.Wrap(err, "number")
@@ -188,14 +185,26 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixe
 		}
 
 		field := typ.Field(fieldIndex.Index)
-		fieldValue := reflect.New(field.Type) // must use elem to be "assignable"
+		fieldType := field.Type
+		if field.Type.Kind() == reflect.Ptr {
+			println("is ptr")
+			// If I use .Elem() here then other objects work, but not binary marshaler objects
+			fieldType = fieldType.Elem()
+		} else {
+			println("is not ptr")
+		}
+		fieldValue := reflect.New(fieldType) // must use elem to be "assignable"
 
-		if err := unmarshalField(scriptItems, field, fieldValue.Elem(),
-			fieldIndex.FixedSize); err != nil {
+		if err := unmarshalField(scriptItems, field, fieldValue.Elem(), fieldIndex.FixedSize); err != nil {
 			return errors.Wrapf(err, "unmarshal field: %s (id %d) (%s)", field.Name, id,
 				typeName(field.Type))
 		}
-		newValue.Field(fieldIndex.Index).Set(fieldValue.Elem())
+
+		if field.Type.Kind() == reflect.Ptr {
+			newValue.Field(fieldIndex.Index).Set(fieldValue)
+		} else {
+			newValue.Field(fieldIndex.Index).Set(fieldValue.Elem())
+		}
 	}
 
 	if isPtr {
@@ -207,6 +216,7 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixe
 
 func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 	fieldValue reflect.Value, fixedSize uint) error {
+	println("unmarshalField:", field.Name, typeName(field.Type))
 
 	if !fieldValue.CanInterface() {
 		return nil // not exported, "private" lower case field name
@@ -215,9 +225,9 @@ func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 	kind := field.Type.Kind()
 	if kind == reflect.Ptr {
 		elem := field.Type.Elem()
-		value := reflect.New(elem)
+		value := reflect.New(elem).Elem() // must use elem to be "assignable"
 
-		if err := unmarshalObject(scriptItems, value.Elem(), fixedSize, false); err != nil {
+		if err := unmarshalObject(scriptItems, value, fixedSize, false); err != nil {
 			return errors.Wrap(err, "ptr object")
 		}
 
@@ -320,6 +330,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, f
 		return errors.Wrapf(ErrValueConversion, "struct: %s", typeName(typ))
 
 	case reflect.Array:
+		println("Array")
 		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte array (Binary Data)
@@ -350,6 +361,7 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, f
 		return nil
 
 	case reflect.Slice:
+		println("Slice")
 		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte slice (Binary Data)

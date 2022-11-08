@@ -19,18 +19,17 @@ func marshalObject(object interface{}, inArray bool) (bitcoin.ScriptItems, error
 	kind := typ.Kind()
 	var result bitcoin.ScriptItems
 	if kind == reflect.Ptr {
-		typ = typ.Elem()
-		kind = typ.Kind()
-
 		if value.IsNil() {
 			return bitcoin.ScriptItems{bitcoin.NewOpCodeScriptItem(bitcoin.OP_FALSE)}, nil
 		}
 
-		if inArray || isBinaryMarshaler {
+		typ = typ.Elem()
+		kind = typ.Kind()
+		value = value.Elem()
+
+		if inArray {
 			result = append(result, bitcoin.NewOpCodeScriptItem(bitcoin.OP_TRUE))
 		}
-
-		value = value.Elem()
 	}
 
 	if isBinaryMarshaler {
@@ -146,7 +145,7 @@ func marshalField(field reflect.StructField,
 
 		result := bitcoin.ScriptItems{bitcoin.PushNumberScriptItem(int64(id))}
 
-		objectScriptItems, err := marshalObject(elem.Interface(), false)
+		objectScriptItems, err := marshalObject(fieldValue.Interface(), false)
 		if err != nil {
 			return nil, errors.Wrap(err, "ptr object")
 		}
