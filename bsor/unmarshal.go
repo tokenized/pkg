@@ -187,11 +187,8 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixe
 		field := typ.Field(fieldIndex.Index)
 		fieldType := field.Type
 		if field.Type.Kind() == reflect.Ptr {
-			println("is ptr")
 			// If I use .Elem() here then other objects work, but not binary marshaler objects
 			fieldType = fieldType.Elem()
-		} else {
-			println("is not ptr")
 		}
 		fieldValue := reflect.New(fieldType) // must use elem to be "assignable"
 
@@ -216,7 +213,6 @@ func unmarshalObject(scriptItems *bitcoin.ScriptItems, value reflect.Value, fixe
 
 func unmarshalField(scriptItems *bitcoin.ScriptItems, field reflect.StructField,
 	fieldValue reflect.Value, fixedSize uint) error {
-	println("unmarshalField:", field.Name, typeName(field.Type))
 
 	if !fieldValue.CanInterface() {
 		return nil // not exported, "private" lower case field name
@@ -330,7 +326,6 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, f
 		return errors.Wrapf(ErrValueConversion, "struct: %s", typeName(typ))
 
 	case reflect.Array:
-		println("Array")
 		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte array (Binary Data)
@@ -361,7 +356,6 @@ func unmarshalPrimitive(scriptItems *bitcoin.ScriptItems, value reflect.Value, f
 		return nil
 
 	case reflect.Slice:
-		println("Slice")
 		elem := typ.Elem()
 		switch elem.Kind() {
 		case reflect.Uint8: // byte slice (Binary Data)
