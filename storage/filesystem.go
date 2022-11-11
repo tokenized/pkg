@@ -212,9 +212,25 @@ func (f *FilesystemStorage) Copy(ctx context.Context, fromKey, toKey string) err
 		return errors.Wrap(err, "open destination")
 	}
 
-	if _, err := toFile.ReadFrom(fromFile); err != nil {
-		return errors.Wrap(err, "write")
+	chunk := make([]byte, 1024)
+	for {
+		n, err := fromFile.Read(chunk)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return errors.Wrap(err, "read")
+		}
+
+		if _, err := toFile.Write(chunk[:n]); err != nil {
+			return errors.Wrap(err, "write")
+		}
 	}
+
+	// Added in go1.15
+	// if _, err := toFile.ReadFrom(fromFile); err != nil {
+	// 	return errors.Wrap(err, "write")
+	// }
 
 	if err := toFile.Close(); err != nil {
 		return errors.Wrap(err, "close destination")
