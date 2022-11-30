@@ -237,7 +237,39 @@ func (etx ExpandedTx) VerifyInputs() error {
 		}
 
 		if txin.PreviousOutPoint.Index >= uint32(len(tx.TxOut)) {
-			return errors.Wrap(MissingInput, txin.PreviousOutPoint.String())
+			return errors.Wrapf(MissingInput, "outpoint index out of range: %s",
+				txin.PreviousOutPoint)
+		}
+	}
+
+	return nil
+}
+
+// VerifyAncestors returns a wrapped MissingInput error if ancestors are not provided for all inputs
+// in the tx. Note that it will return in error even if spent outputs are provided since they are
+// harder to verify.
+func (etx ExpandedTx) VerifyAncestors() error {
+	if etx.Tx == nil {
+		return errors.Wrap(MissingInput, "missing tx")
+	}
+
+	for index := range etx.Tx.TxIn {
+		// Check for spent output in ancestors
+		txin := etx.Tx.TxIn[index]
+
+		parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
+		if parentTx == nil {
+			return errors.Wrap(MissingInput, "parent: "+txin.PreviousOutPoint.Hash.String())
+		}
+
+		tx := parentTx.GetTx()
+		if tx == nil {
+			return errors.Wrap(MissingInput, "parent tx: "+txin.PreviousOutPoint.Hash.String())
+		}
+
+		if txin.PreviousOutPoint.Index >= uint32(len(tx.TxOut)) {
+			return errors.Wrapf(MissingInput, "outpoint index out of range: %s",
+				txin.PreviousOutPoint)
 		}
 	}
 
