@@ -11,6 +11,14 @@ import (
 	"github.com/scottjbarr/redis"
 )
 
+func testIsStorage(store Storage) {}
+
+func Test_Redis_Interface(t *testing.T) {
+	store := NewRedisStorage(nil)
+
+	testIsStorage(store)
+}
+
 func TestRedis_ReadWriteDelete(t *testing.T) {
 	ctx := context.Background()
 

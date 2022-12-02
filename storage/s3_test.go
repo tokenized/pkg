@@ -12,6 +12,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+func Test_S3_Interface(t *testing.T) {
+	store := NewS3Storage(Config{
+		Bucket:     "s3-bucket-name",
+		MaxRetries: 10,
+		RetryDelay: 100,
+	})
+
+	testIsStorage(store)
+}
+
 func Test_S3_ListLimit(t *testing.T) {
 	t.Skip() // Must be run manually with a valid bucket name
 
