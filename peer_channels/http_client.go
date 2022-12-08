@@ -527,12 +527,23 @@ type websocketMessage struct {
 	Bytes []byte
 }
 
+func isConnectionCloseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Cause(err) == io.EOF || errors.Cause(err) == io.ErrUnexpectedEOF ||
+		strings.Contains(err.Error(), "Closed") ||
+		strings.Contains(err.Error(), "use of closed network connection") ||
+		strings.Contains(err.Error(), "connection reset by peer")
+}
+
 func handleMessages(ctx context.Context, conn *websocket.Conn, translator Translator) error {
 	for {
 		messageType, messageBytes, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure,
-				websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				websocket.CloseGoingAway, websocket.CloseAbnormalClosure) ||
+				isConnectionCloseError(err) {
 				logger.Info(ctx, "Websocket close : %s", err)
 			} else {
 				logger.Info(ctx, "Failed to read websocket message : %s", err)
