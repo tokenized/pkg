@@ -16,6 +16,7 @@ const (
 	ScriptItemTypePushData = ScriptItemType(0x02)
 
 	PublicKeyHashSize = 20
+	SigHashAll        = 0x01
 
 	OP_FALSE = byte(0x00)
 	OP_TRUE  = byte(0x51)
@@ -572,6 +573,46 @@ func (s Script) MultiPKHCounts() (uint32, uint32, error) {
 	}
 
 	return uint32(requiredSigners), total, nil
+}
+
+// IsSigHashAll returns true if all valid signatures in this unlocking script have the sighashall
+// flag set. It ignores invalid signatures as that would be caught by the transaction validation.
+// This function is concerned with a valid transaction when an input is not signed sig hash all, so
+// parts of the transaction were not signed by this unlocking script.
+func (s Script) IsSigHashAll() (bool, error) {
+	items, err := ParseScriptItems(bytes.NewReader(s), -1)
+	if err != nil {
+		return false, errors.Wrap(err, "parse")
+	}
+
+	for _, item := range items {
+		if item.Type != ScriptItemTypePushData {
+			continue
+		}
+
+		l := len(item.Data)
+		if l < 2 {
+			continue // not a valid signature, so ignore it
+		}
+
+		sigHashType := item.Data[l-1]
+		sig := item.Data[:l-1]
+
+		signature, err := SignatureFromBytes(sig)
+		if err != nil {
+			continue // not a valid signature, so ignore it
+		}
+
+		if err := signature.Validate(); err != nil {
+			continue // not a valid signature, so ignore it
+		}
+
+		if sigHashType&SigHashAll == 0 {
+			return false, nil // sig hash type does not have sig hash all flag set
+		}
+	}
+
+	return true, nil
 }
 
 func (s Script) Equal(r Script) bool {
