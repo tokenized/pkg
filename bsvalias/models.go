@@ -248,8 +248,8 @@ type NegotiationTransaction struct {
 	Fees fees.FeeRequirements    `json:"fees"`
 	Tx   *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
 
-	Handle       string                     `json:"handle"`        // Paymail handle to respond or callback to.
-	PeerChannels peer_channels.PeerChannels `json:"peer_channels"` // Peer channels to respond or callback to.
+	Handle       string                 `json:"handle"`        // Paymail handle to respond or callback to.
+	PeerChannels peer_channels.Channels `json:"peer_channels"` // Peer channels to respond or callback to.
 }
 
 type MerkleProofs merkle_proof.MerkleProofs

@@ -475,7 +475,7 @@ func (c *MockAccountClient) Token() string {
 }
 
 // CreatePublicChannel creates a new peer channel that can be written to by anyone.
-func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, error) {
+func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*AccountChannel, error) {
 	c.client.lock.Lock()
 	defer c.client.lock.Unlock()
 
@@ -504,7 +504,7 @@ func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, 
 		logger.String("channel_id", channel.id),
 	}, "Created public peer channel")
 
-	return &Channel{
+	return &AccountChannel{
 		ID:         channel.id,
 		AccountID:  channel.accountID,
 		ReadToken:  channel.readToken,
@@ -514,7 +514,7 @@ func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, 
 
 // CreateChannel creates a new peer channel that can only be written to by someone that knows
 // the write token.
-func (c *MockAccountClient) CreateChannel(ctx context.Context) (*Channel, error) {
+func (c *MockAccountClient) CreateChannel(ctx context.Context) (*AccountChannel, error) {
 	c.client.lock.Lock()
 	defer c.client.lock.Unlock()
 
@@ -543,7 +543,7 @@ func (c *MockAccountClient) CreateChannel(ctx context.Context) (*Channel, error)
 		logger.String("channel_id", channel.id),
 	}, "Created peer channel")
 
-	return &Channel{
+	return &AccountChannel{
 		ID:         channel.id,
 		AccountID:  channel.accountID,
 		ReadToken:  channel.readToken,
@@ -551,7 +551,7 @@ func (c *MockAccountClient) CreateChannel(ctx context.Context) (*Channel, error)
 	}, nil
 }
 
-func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*Channel, error) {
+func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*AccountChannel, error) {
 	c.client.lock.Lock()
 	defer c.client.lock.Unlock()
 
@@ -579,7 +579,7 @@ func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*
 		return nil, HTTPError{Status: http.StatusUnauthorized}
 	}
 
-	return &Channel{
+	return &AccountChannel{
 		ID:         channel.id,
 		AccountID:  channel.accountID,
 		ReadToken:  channel.readToken,
@@ -587,7 +587,7 @@ func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*
 	}, nil
 }
 
-func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*Channel, error) {
+func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel, error) {
 	c.client.lock.Lock()
 	defer c.client.lock.Unlock()
 
@@ -604,10 +604,10 @@ func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*Channel, error
 	}
 	account.lock.Unlock()
 
-	var result []*Channel
+	var result []*AccountChannel
 	for _, channel := range c.client.channels {
 		if channel.accountID == accountID {
-			result = append(result, &Channel{
+			result = append(result, &AccountChannel{
 				ID:         channel.id,
 				AccountID:  channel.accountID,
 				ReadToken:  channel.readToken,
@@ -617,6 +617,18 @@ func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*Channel, error
 	}
 
 	return result, nil
+}
+
+func (c *MockAccountClient) MarkMessages(ctx context.Context, channelID string, sequence uint64,
+	read, older bool) error {
+
+	return c.client.MarkMessages(ctx, channelID, c.Token(), sequence, read, older)
+}
+
+func (c *MockAccountClient) DeleteMessage(ctx context.Context, channelID string, sequence uint64,
+	older bool) error {
+
+	return c.client.DeleteMessage(ctx, channelID, c.Token(), sequence, older)
 }
 
 // Notify receives incoming messages for the peer channel account.

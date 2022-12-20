@@ -20,7 +20,7 @@ type HTTPAccountClient struct {
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
 func HTTPCreateAccount(ctx context.Context, baseURL, token string) (*Account, error) {
 	response := &Account{}
-	if err := post(ctx, baseURL+apiURLPart+"account", token, "", nil, response); err != nil {
+	if err := post(ctx, baseURL+apiURLAccountPart, token, "", nil, response); err != nil {
 		return nil, err
 	}
 
@@ -58,10 +58,10 @@ func (c *HTTPAccountClient) Token() string {
 }
 
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
-func (c *HTTPAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, error) {
+func (c *HTTPAccountClient) CreatePublicChannel(ctx context.Context) (*AccountChannel, error) {
 	url := fmt.Sprintf("%s%saccount/%s/channel?public", c.BaseURL(), apiURLPart, c.AccountID())
 
-	response := &Channel{}
+	response := &AccountChannel{}
 	if err := post(ctx, url, c.Token(), "", nil, response); err != nil {
 		return nil, err
 	}
@@ -74,10 +74,10 @@ func (c *HTTPAccountClient) CreatePublicChannel(ctx context.Context) (*Channel, 
 }
 
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
-func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*Channel, error) {
+func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*AccountChannel, error) {
 	url := fmt.Sprintf("%s%saccount/%s/channel", c.BaseURL(), apiURLPart, c.AccountID())
 
-	response := &Channel{}
+	response := &AccountChannel{}
 	if err := post(ctx, url, c.Token(), "", nil, response); err != nil {
 		return nil, err
 	}
@@ -89,11 +89,12 @@ func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*Channel, error)
 	return response, nil
 }
 
-func (c *HTTPAccountClient) GetChannel(ctx context.Context, channelID string) (*Channel, error) {
+func (c *HTTPAccountClient) GetChannel(ctx context.Context,
+	channelID string) (*AccountChannel, error) {
 	url := fmt.Sprintf("%s%saccount/%s/channel/%s", c.BaseURL(), apiURLPart, c.AccountID(),
 		channelID)
 
-	response := &Channel{}
+	response := &AccountChannel{}
 	if err := get(ctx, url, c.Token(), response); err != nil {
 		return nil, err
 	}
@@ -101,15 +102,41 @@ func (c *HTTPAccountClient) GetChannel(ctx context.Context, channelID string) (*
 	return response, nil
 }
 
-func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*Channel, error) {
+func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel, error) {
 	url := fmt.Sprintf("%s%saccount/%s/channels", c.BaseURL(), apiURLPart, c.AccountID())
 
-	var response []*Channel
+	var response []*AccountChannel
 	if err := get(ctx, url, c.Token(), &response); err != nil {
 		return nil, err
 	}
 
 	return response, nil
+}
+
+func (c *HTTPAccountClient) MarkMessages(ctx context.Context, channelID string, sequence uint64,
+	read, older bool) error {
+
+	url := c.BaseURL() + apiURLChannelPart + channelID +
+		fmt.Sprintf("/%d?read=%t&older=%t", sequence, read, older)
+
+	if err := post(ctx, url, c.Token(), "", nil, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *HTTPAccountClient) DeleteMessage(ctx context.Context, channelID string, sequence uint64,
+	older bool) error {
+
+	url := c.BaseURL() + apiURLChannelPart + channelID + fmt.Sprintf("/%d?older=%t", sequence,
+		older)
+
+	if err := httpDelete(ctx, url, c.Token()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *HTTPAccountClient) Notify(ctx context.Context, autosend bool,

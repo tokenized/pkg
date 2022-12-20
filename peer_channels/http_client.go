@@ -24,11 +24,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	apiURLChannelPart = "/api/v1/channel/"
-	apiURLPart        = "/api/v1/"
-)
-
 type HTTPError struct {
 	Status  int
 	Message string

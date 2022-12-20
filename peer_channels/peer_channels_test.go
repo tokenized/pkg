@@ -8,13 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tokenized/threads"
-
 	"github.com/pkg/errors"
+	"github.com/tokenized/threads"
 )
-
-const testBaseURL = "http://localhost:8080"
-const testMasterToken = ""
 
 func Test_Interface(t *testing.T) {
 	// Verify that both client implementations fully implement the Client interface. This will not
@@ -26,75 +22,6 @@ func Test_Interface(t *testing.T) {
 	accountCheckInterface := func(c AccountClient) {}
 	accountCheckInterface(NewHTTPAccountClient(Account{testBaseURL, "", ""}))
 	accountCheckInterface(NewMockAccountClient(NewMockClient(), "", ""))
-}
-
-func Test_PeerChannels_JSON(t *testing.T) {
-	js := `{
-		"peer_channel": "mock://mock_peer_channels/api/v1/channel/123456?token=abcdef"
-	}`
-
-	var config struct {
-		PeerChannel *PeerChannel `json:"peer_channel"`
-	}
-
-	if err := json.Unmarshal([]byte(js), &config); err != nil {
-		t.Fatalf("Failed to unmarshal : %s", err)
-	}
-
-	if config.PeerChannel == nil {
-		t.Fatalf("Peer channel should not be nil")
-	}
-
-	t.Logf("Peer channel url : %s", config.PeerChannel.URL)
-	t.Logf("Peer channel token : %s", config.PeerChannel.Token)
-
-	if config.PeerChannel.URL != "mock://mock_peer_channels/api/v1/channel/123456" {
-		t.Errorf("Wrong peer channel url : got %s, want %s", config.PeerChannel.URL,
-			"mock://mock_peer_channels/api/v1/channel/123456")
-	}
-
-	if config.PeerChannel.Token != "abcdef" {
-		t.Errorf("Wrong peer channel token : got %s, want %s", config.PeerChannel.URL,
-			"abcdef")
-	}
-}
-
-func Test_PeerChannels_String(t *testing.T) {
-	tests := []struct {
-		url   string
-		token string
-		full  string
-	}{
-		{
-			url:   "https://mock.tokenized.id" + apiURLChannelPart + "123456",
-			token: "abcedfg",
-			full:  "https://mock.tokenized.id" + apiURLChannelPart + "123456?token=abcedfg",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.full, func(t *testing.T) {
-			var peerChannel PeerChannel
-			if err := peerChannel.SetString(tt.full); err != nil {
-				t.Fatalf("Failed to set string : %s", err)
-			}
-
-			if peerChannel.URL != tt.url {
-				t.Errorf("Wrong url : got %s, want %s", peerChannel.URL, tt.url)
-			}
-
-			if peerChannel.Token != tt.token {
-				t.Errorf("Wrong token : got %s, want %s", peerChannel.Token, tt.token)
-			}
-
-			full := peerChannel.String()
-			t.Logf("Full URL : %s", full)
-
-			if full != tt.full {
-				t.Errorf("Wrong full url : got %s, want %s", full, tt.full)
-			}
-		})
-	}
 }
 
 func Test_CreateAccount(t *testing.T) {
@@ -382,46 +309,4 @@ func Test_AccountListen(t *testing.T) {
 	}
 
 	t.Logf("Finished Listen")
-}
-
-func Test_ParseURL(t *testing.T) {
-	tests := []struct {
-		baseURL   string
-		channelID string
-		url       string
-	}{
-		{
-			baseURL:   "https://test.com",
-			channelID: "123456",
-			url:       "https://test.com/api/v1/channel/123456",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.url, func(t *testing.T) {
-			baseURL, channelID, err := ParseChannelURL(tt.url)
-			if err != nil {
-				t.Errorf("Failed to parse channel URL : %s", err)
-			}
-
-			t.Logf("Base URL : %s", baseURL)
-			t.Logf("Channel ID : %s", channelID)
-
-			if baseURL != tt.baseURL {
-				t.Errorf("Wrong base URL : got %s, want %s", baseURL, tt.baseURL)
-			}
-
-			if channelID != tt.channelID {
-				t.Errorf("Wrong channel ID : got %s, want %s", channelID, tt.channelID)
-			}
-
-			url := ChannelURL(tt.baseURL, tt.channelID)
-
-			t.Logf("URL : %s", url)
-
-			if url != tt.url {
-				t.Errorf("Wrong URL : got %s, want %s", url, tt.url)
-			}
-		})
-	}
 }
