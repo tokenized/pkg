@@ -24,14 +24,15 @@ func HTTPCreateAccount(ctx context.Context, baseURL, token string) (*Account, er
 		return nil, err
 	}
 
+	response.BaseURL = baseURL
 	return response, nil
 }
 
-func NewHTTPAccountClient(baseURL, accountID, token string) *HTTPAccountClient {
+func NewHTTPAccountClient(account Account) *HTTPAccountClient {
 	return &HTTPAccountClient{
-		baseURL:   baseURL,
-		accountID: accountID,
-		token:     token,
+		baseURL:   account.BaseURL,
+		accountID: account.AccountID,
+		token:     account.Token,
 	}
 }
 
@@ -112,13 +113,13 @@ func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*Channel, error
 }
 
 func (c *HTTPAccountClient) Notify(ctx context.Context, autosend bool,
-	incoming chan MessageNotification, interrupt <-chan interface{}) error {
+	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 
 	client := NewHTTPClient(c.BaseURL())
 	return client.Notify(ctx, c.Token(), autosend, incoming, interrupt)
 }
 
-func (c *HTTPAccountClient) Listen(ctx context.Context, autosend bool, incoming chan Message,
+func (c *HTTPAccountClient) Listen(ctx context.Context, autosend bool, incoming chan<- Message,
 	interrupt <-chan interface{}) error {
 
 	client := NewHTTPClient(c.BaseURL())

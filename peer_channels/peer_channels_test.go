@@ -24,7 +24,7 @@ func Test_Interface(t *testing.T) {
 	checkInterface(NewMockClient())
 
 	accountCheckInterface := func(c AccountClient) {}
-	accountCheckInterface(NewHTTPAccountClient(testBaseURL, "", ""))
+	accountCheckInterface(NewHTTPAccountClient(Account{testBaseURL, "", ""}))
 	accountCheckInterface(NewMockAccountClient(NewMockClient(), "", ""))
 }
 
@@ -120,7 +120,7 @@ func Test_CreateChannel(t *testing.T) {
 
 	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
 
-	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
+	accountClient := NewHTTPAccountClient(*account)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
@@ -146,7 +146,7 @@ func Test_WriteMessage_JSON(t *testing.T) {
 
 	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
 
-	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
+	accountClient := NewHTTPAccountClient(*account)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
@@ -261,7 +261,7 @@ func Test_ChannelListen(t *testing.T) {
 
 	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
 
-	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
+	accountClient := NewHTTPAccountClient(*account)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {
@@ -328,7 +328,7 @@ func Test_AccountListen(t *testing.T) {
 
 	t.Logf("Created account %s (token %s)", account.AccountID, account.Token)
 
-	accountClient := NewHTTPAccountClient(testBaseURL, account.AccountID, account.Token)
+	accountClient := NewHTTPAccountClient(*account)
 
 	channel, err := accountClient.CreateChannel(ctx)
 	if err != nil {

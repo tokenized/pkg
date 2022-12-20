@@ -64,6 +64,7 @@ func CreateAccount(ctx context.Context, args []string) {
 
 	fmt.Printf("Created Account : %s\n", account.AccountID)
 	fmt.Printf("Access Token : %s\n", account.Token)
+	fmt.Printf("Account URL : %s\n", account)
 }
 
 func CreateChannel(ctx context.Context, args []string) {
@@ -75,8 +76,14 @@ func CreateChannel(ctx context.Context, args []string) {
 	accountID := args[1]
 	token := args[2]
 
+	account, err := peer_channels.NewAccount(url, accountID, token)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels account : %s", err)
+		return
+	}
+
 	factory := peer_channels.NewFactory()
-	accountClient, err := factory.NewAccountClient(url, accountID, token)
+	accountClient, err := factory.NewAccountClient(*account)
 	if err != nil {
 		fmt.Printf("Failed to create peer channels client : %s", err)
 		return

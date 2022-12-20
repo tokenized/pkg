@@ -621,13 +621,13 @@ func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*Channel, error
 
 // Notify receives incoming messages for the peer channel account.
 func (c *MockAccountClient) Notify(ctx context.Context, sendUnread bool,
-	incoming chan MessageNotification, interrupt <-chan interface{}) error {
+	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 
 	return c.client.Notify(ctx, c.Token(), sendUnread, incoming, interrupt)
 }
 
 // Listen receives incoming messages for the peer channel account.
-func (c *MockAccountClient) Listen(ctx context.Context, sendUnread bool, incoming chan Message,
+func (c *MockAccountClient) Listen(ctx context.Context, sendUnread bool, incoming chan<- Message,
 	interrupt <-chan interface{}) error {
 
 	return c.client.Listen(ctx, c.Token(), sendUnread, incoming, interrupt)
