@@ -125,6 +125,13 @@ func (k PublicKey) Equal(o PublicKey) bool {
 	return k.X.Cmp(&o.X) == 0 && k.Y.Cmp(&o.Y) == 0
 }
 
+func (k PublicKey) Copy() PublicKey {
+	result := PublicKey{}
+	result.X.Set(&k.X)
+	result.Y.Set(&k.Y)
+	return result
+}
+
 func (k PublicKey) Serialize(w io.Writer) error {
 	if _, err := w.Write(k.Bytes()); err != nil {
 		return err

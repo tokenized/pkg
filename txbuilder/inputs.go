@@ -71,7 +71,7 @@ func (tx *TxBuilder) UpdateInputUTXO(index int, utxo bitcoin.UTXO) error {
 }
 
 // InsertInput inserts an input into TxBuilder at the specified index.
-func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) error {
+func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO) error {
 	if index > len(tx.MsgTx.TxIn) {
 		return errors.New("Input index out of range")
 	}
@@ -94,6 +94,10 @@ func (tx *TxBuilder) InsertInput(index int, utxo bitcoin.UTXO, txin *wire.TxIn) 
 	copy(afterInputs, tx.Inputs[index:])
 	tx.Inputs = append(append(tx.Inputs[:index], input), afterInputs...)
 
+	txin := &wire.TxIn{
+		PreviousOutPoint: wire.OutPoint{Hash: utxo.Hash, Index: utxo.Index},
+		Sequence:         wire.MaxTxInSequenceNum,
+	}
 	afterTxIn := make([]*wire.TxIn, len(tx.MsgTx.TxIn)-index)
 	copy(afterTxIn, tx.MsgTx.TxIn[index:])
 	tx.MsgTx.TxIn = append(append(tx.MsgTx.TxIn[:index], txin), afterTxIn...)

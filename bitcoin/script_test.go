@@ -3,6 +3,7 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"testing"
 )
@@ -124,6 +125,60 @@ func TestScriptToString(t *testing.T) {
 
 			if !bytes.Equal(scr, script) {
 				t.Fatalf("Wrong bytes : \ngot  : %x\nwant : %x", scr, script)
+			}
+		})
+	}
+}
+
+func Test_Script_MarshalJSON(t *testing.T) {
+	type config struct {
+		Script Script `json:"script"`
+	}
+
+	tests := []struct {
+		name string
+		text string
+		hex  string
+	}{
+		{
+			name: "PKH",
+			text: "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
+			hex:  "76a914999ac355257736dfa1ad9652fcb51c7136fc27f988ac",
+		},
+		{
+			name: "Text",
+			text: "OP_0 OP_RETURN \"test text\"",
+			hex:  "006a09746573742074657874",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := hex.DecodeString(tt.hex)
+			if err != nil {
+				t.Fatalf("Failed to decode hex : %s", err)
+			}
+
+			cfg := config{
+				Script: Script(b),
+			}
+
+			js, err := json.Marshal(cfg)
+			if err != nil {
+				t.Fatalf("Failed to marshal json : %s", err)
+			}
+
+			t.Logf("JSON: %s", js)
+
+			read := &config{}
+			if err := json.Unmarshal(js, read); err != nil {
+				t.Fatalf("Failed to unmarshal json : %s", err)
+			}
+
+			t.Logf("Read script : %s", read.Script)
+
+			if !read.Script.Equal(b) {
+				t.Errorf("Wrong read script : \n  got  : %s\n  want : %s", cfg.Script, read.Script)
 			}
 		})
 	}

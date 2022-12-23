@@ -145,6 +145,14 @@ func (k Key) Equal(other Key) bool {
 	return k.value.Cmp(&other.value) == 0
 }
 
+func (k Key) Copy() Key {
+	result := Key{
+		net: k.net,
+	}
+	result.value.Set(&k.value)
+	return result
+}
+
 // String returns the type followed by the key data with a checksum, encoded with Base58.
 func (k Key) String() string {
 	var keyType byte

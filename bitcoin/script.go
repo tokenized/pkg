@@ -619,6 +619,12 @@ func (s Script) Equal(r Script) bool {
 	return bytes.Equal(s, r)
 }
 
+func (s Script) Copy() Script {
+	c := make(Script, len(s))
+	copy(c, s)
+	return c
+}
+
 func (s Script) String() string {
 	return ScriptToString(s)
 }
@@ -666,17 +672,18 @@ func (s Script) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON converts from json.
 func (s *Script) UnmarshalJSON(data []byte) error {
-	if len(data) < 2 {
-		return fmt.Errorf("Too short for Script hex data : %d", len(data))
+	l := len(data)
+	if l < 2 {
+		return fmt.Errorf("Too short for Script hex data : %d", l)
 	}
 
-	if len(data) == 2 {
+	if l == 2 {
 		*s = nil
 		return nil
 	}
 
 	// Decode hex and remove double quotes.
-	raw, err := hex.DecodeString(string(data[1 : len(data)-1]))
+	raw, err := hex.DecodeString(string(data[1 : l-1]))
 	if err != nil {
 		return err
 	}

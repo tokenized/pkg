@@ -95,6 +95,12 @@ func (h *Hash20) Equal(o *Hash20) bool {
 	return bytes.Equal(h[:], o[:])
 }
 
+func (h Hash20) Copy() Hash20 {
+	var c Hash20
+	copy(c[:], h[:])
+	return c
+}
+
 func (h Hash20) IsZero() bool {
 	var zero Hash20 // automatically initializes to zero
 	return h.Equal(&zero)
