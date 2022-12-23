@@ -29,9 +29,9 @@ var (
 // confirmed then the merkle proof should be provided with the tx embedded in it, otherwise the
 // tx with miner responses should be provided and the ancestors included in the same expanded tx.
 type AncestorTx struct {
-	Tx             *wire.MsgTx                  `bsor:"1" json:"tx,omitempty"` // marshals as raw bytes
-	MerkleProofs   []*merkle_proof.MerkleProof  `bsor:"2" json:"merkle_proofs,omitempty"`
-	MinerResponses []json_envelope.JSONEnvelope `bsor:"3" json:"miner_responses,omitempty"` // signed JSON envelope responses from miners for the tx
+	Tx             *wire.MsgTx                 `bsor:"1" json:"tx,omitempty"` // marshals as raw bytes
+	MerkleProofs   merkle_proof.MerkleProofs   `bsor:"2" json:"merkle_proofs,omitempty"`
+	MinerResponses json_envelope.JSONEnvelopes `bsor:"3" json:"miner_responses,omitempty"` // signed JSON envelope responses from miners for the tx
 }
 
 type AncestorTxs []*AncestorTx
@@ -79,6 +79,19 @@ func (tx *AncestorTx) AddMerkleProof(merkleProof *merkle_proof.MerkleProof) bool
 
 	tx.MerkleProofs = append(tx.MerkleProofs, &mp)
 	return true
+}
+
+func (tx AncestorTx) Copy() AncestorTx {
+	result := AncestorTx{
+		MerkleProofs:   tx.MerkleProofs.Copy(),
+		MinerResponses: tx.MinerResponses.Copy(),
+	}
+
+	if tx.Tx != nil {
+		result.Tx = tx.Tx.Copy()
+	}
+
+	return result
 }
 
 func (tx AncestorTx) String() string {
@@ -166,4 +179,13 @@ func (txs AncestorTxs) StringWithAddresses(net bitcoin.Network) string {
 	}
 
 	return string(result.Bytes())
+}
+
+func (txs AncestorTxs) Copy() AncestorTxs {
+	result := make(AncestorTxs, len(txs))
+	for i, tx := range txs {
+		c := tx.Copy()
+		result[i] = &c
+	}
+	return result
 }

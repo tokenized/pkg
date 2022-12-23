@@ -52,6 +52,55 @@ func NewMerkleProof(txid bitcoin.Hash32) *MerkleProof {
 	}
 }
 
+func (mp MerkleProof) Copy() MerkleProof {
+	result := MerkleProof{
+		Index: mp.Index,
+		depth: mp.depth,
+	}
+
+	if mp.Tx != nil {
+		result.Tx = mp.Tx.Copy()
+	}
+
+	if mp.TxID != nil {
+		c := mp.TxID.Copy()
+		result.TxID = &c
+	}
+
+	if len(mp.Path) > 0 {
+		result.Path = make([]bitcoin.Hash32, len(mp.Path))
+		for i, p := range mp.Path {
+			result.Path[i] = p.Copy()
+		}
+	}
+
+	if mp.BlockHeader != nil {
+		h := mp.BlockHeader.Copy()
+		result.BlockHeader = &h
+	}
+
+	if mp.BlockHash != nil {
+		h := mp.BlockHash.Copy()
+		result.BlockHash = &h
+	}
+
+	if mp.MerkleRoot != nil {
+		h := mp.MerkleRoot.Copy()
+		result.MerkleRoot = &h
+	}
+
+	if len(mp.DuplicatedIndexes) > 0 {
+		result.DuplicatedIndexes = make([]int, len(mp.DuplicatedIndexes))
+		for i, d := range mp.DuplicatedIndexes {
+			result.DuplicatedIndexes[i] = d
+		}
+	}
+
+	result.root = mp.root.Copy()
+
+	return result
+}
+
 func (p MerkleProof) GetTxID() *bitcoin.Hash32 {
 	if p.TxID != nil {
 		return p.TxID
@@ -718,4 +767,13 @@ func (mp MerkleProof) MarshalBinary() ([]byte, error) {
 
 func (mp *MerkleProof) UnmarshalBinary(data []byte) error {
 	return mp.Deserialize(bytes.NewReader(data))
+}
+
+func (mps MerkleProofs) Copy() MerkleProofs {
+	result := make(MerkleProofs, len(mps))
+	for i, mp := range mps {
+		m := mp.Copy()
+		result[i] = &m
+	}
+	return result
 }

@@ -45,7 +45,7 @@ type ExpandedTx struct {
 	// SpentOutputs are the outputs spent by the inputs of Tx. If any outputs are specified then the
 	// length of the slice must match the number of inputs and the indexes must align. For example,
 	// the second output must correspond to the second input of Tx.
-	SpentOutputs []*Output `bsor:"3" json:"spent_outputs,omitempty"`
+	SpentOutputs Outputs `bsor:"3" json:"spent_outputs,omitempty"`
 }
 
 // Output represents an output in a bitcoin transaction.
@@ -54,10 +54,41 @@ type Output struct {
 	LockingScript bitcoin.Script `bsor:"2" json:"locking_script"`
 }
 
+type Outputs []*Output
+
 // jsonOutput is used to override the text marshalers when encoding and decoding Outputs.
 type jsonOutput struct {
 	Value         uint64         `bsor:"1" json:"value"`
 	LockingScript bitcoin.Script `bsor:"2" json:"locking_script"`
+}
+
+func (etx ExpandedTx) Copy() ExpandedTx {
+	result := ExpandedTx{
+		Ancestors:    etx.Ancestors.Copy(),
+		SpentOutputs: etx.SpentOutputs.Copy(),
+	}
+
+	if etx.Tx != nil {
+		result.Tx = etx.Tx.Copy()
+	}
+
+	return result
+}
+
+func (o Output) Copy() Output {
+	return Output{
+		Value:         o.Value,
+		LockingScript: o.LockingScript.Copy(),
+	}
+}
+
+func (os Outputs) Copy() Outputs {
+	result := make(Outputs, len(os))
+	for i, o := range os {
+		c := o.Copy()
+		result[i] = &c
+	}
+	return result
 }
 
 func (o Output) String() string {

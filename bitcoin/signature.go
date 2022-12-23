@@ -158,6 +158,13 @@ func SignatureFromCompact(s string) (Signature, error) {
 	return result, result.Validate()
 }
 
+func (s Signature) Copy() Signature {
+	result := Signature{}
+	result.R.Set(&s.R)
+	result.S.Set(&s.S)
+	return result
+}
+
 func (s Signature) Serialize(w io.Writer) error {
 	// low 'S' malleability breaker
 	sigS := s.S

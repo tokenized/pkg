@@ -45,6 +45,22 @@ func (utxo UTXO) Equal(other UTXO) bool {
 	return true
 }
 
+func CopyString(s string) string {
+	result := make([]byte, len(s))
+	copy(result, s)
+	return string(result)
+}
+
+func (utxo UTXO) Copy() UTXO {
+	return UTXO{
+		Hash:          utxo.Hash.Copy(),
+		Index:         utxo.Index,
+		Value:         utxo.Value,
+		LockingScript: utxo.LockingScript.Copy(),
+		KeyID:         CopyString(utxo.KeyID),
+	}
+}
+
 func (utxo UTXO) Write(w io.Writer) error {
 	if err := utxo.Hash.Serialize(w); err != nil {
 		return err
