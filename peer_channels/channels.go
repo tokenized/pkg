@@ -73,6 +73,20 @@ func (v *Channel) SetString(s string) error {
 	return nil
 }
 
+func CopyString(s string) string {
+	result := make([]byte, len(s))
+	copy(result, s)
+	return string(result)
+}
+
+func (v Channel) Copy() Channel {
+	return Channel{
+		BaseURL:   CopyString(v.BaseURL),
+		ChannelID: CopyString(v.ChannelID),
+		Token:     CopyString(v.Token),
+	}
+}
+
 func (v Channel) String() string {
 	b, err := v.MarshalText()
 	if err != nil {

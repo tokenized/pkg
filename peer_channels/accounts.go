@@ -38,6 +38,14 @@ func ParseAccount(accountURL string) (*Account, error) {
 	}, nil
 }
 
+func (v Account) Copy() Account {
+	return Account{
+		BaseURL:   CopyString(v.BaseURL),
+		AccountID: CopyString(v.AccountID),
+		Token:     CopyString(v.Token),
+	}
+}
+
 func (v Account) MarshalText() ([]byte, error) {
 	u, err := url.Parse(v.BaseURL)
 	if err != nil {
