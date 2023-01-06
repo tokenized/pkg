@@ -703,10 +703,10 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 	channel := ch.(*mockChannel)
 
 	channel.lock.Lock()
-	defer channel.lock.Unlock()
 
 	ac, accountExists := c.accounts.Load(channel.accountID)
 	if !accountExists {
+		channel.lock.Unlock()
 		return HTTPError{Status: http.StatusNotFound}
 	}
 	account := ac.(*mockAccount)
@@ -714,6 +714,7 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 	accountToken := account.Token()
 
 	if channel.writeToken != token {
+		channel.lock.Unlock()
 		return HTTPError{Status: http.StatusUnauthorized}
 	}
 
@@ -724,27 +725,44 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 		ChannelID:   channelID,
 	}
 
+	accountID := channel.accountID
+	readToken := channel.readToken
 	message.Sequence = channel.nextSequence
 	channel.nextSequence++
 	channel.messages = append(channel.messages, message)
+	channel.lock.Unlock()
 
 	logger.InfoWithFields(ctx, []logger.Field{
-		logger.String("account_id", channel.accountID),
-		logger.String("channel_id", channel.id),
+		logger.String("account_id", accountID),
+		logger.String("channel_id", channelID),
 		logger.String("content_type", contentType),
 		logger.Uint64("sequence", message.Sequence),
 		logger.Int("bytes", len(payload)),
 	}, "Added peer channel message")
 
+	var notifiers []*mockNotifier
+	var listeners []*mockListener
 	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	for _, notifier := range c.notifiers {
-		if notifier.token != channel.readToken && notifier.token != accountToken {
+		if notifier.token != readToken && notifier.token != accountToken {
 			continue
 		}
 
 		logger.Info(ctx, "Found notifier for message")
+		notifiers = append(notifiers, notifier)
+	}
+
+	for _, listener := range c.listeners {
+		if listener.token != readToken && listener.token != accountToken {
+			continue
+		}
+
+		logger.Info(ctx, "Found listener for message")
+		listeners = append(listeners, listener)
+	}
+	c.lock.Unlock()
+
+	for _, notifier := range notifiers {
 		notifier.incoming <- MessageNotification{
 			Sequence:    message.Sequence,
 			Received:    message.Received,
@@ -753,12 +771,7 @@ func (c *MockClient) addMessage(ctx context.Context, channelID, token string, co
 		}
 	}
 
-	for _, listener := range c.listeners {
-		if listener.token != channel.readToken && listener.token != accountToken {
-			continue
-		}
-
-		logger.Info(ctx, "Found listener for message")
+	for _, listener := range listeners {
 		listener.incoming <- *message
 	}
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
@@ -92,12 +92,10 @@ func ChannelURL(baseURL, channelID string) string {
 }
 
 type Factory struct {
-	mockClient     *MockClient
-	internalClient Client
+	mockClient     atomic.Value // *MockClient
+	internalClient atomic.Value // Client
 
-	internalAccountClientFactory AccountClientFactory
-
-	lock sync.Mutex
+	internalAccountClientFactory atomic.Value // AccountClientFactory
 }
 
 func NewFactory() *Factory {
@@ -105,48 +103,56 @@ func NewFactory() *Factory {
 }
 
 func (f *Factory) SetInternalClient(client Client) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
+	f.internalClient.Store(client)
+}
 
-	f.internalClient = client
+func (f *Factory) InternalClient() Client {
+	v := f.internalClient.Load()
+	if v == nil {
+		return nil
+	}
+
+	return v.(Client)
 }
 
 func (f *Factory) SetInternalAccountClientFactory(factory AccountClientFactory) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
+	f.internalAccountClientFactory.Store(factory)
+}
 
-	f.internalAccountClientFactory = factory
+func (f *Factory) InternalAccountClientFactory() AccountClientFactory {
+	v := f.internalAccountClientFactory.Load()
+	if v == nil {
+		return nil
+	}
+
+	return v.(AccountClientFactory)
 }
 
 func (f *Factory) MockClient() *MockClient {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	if f.mockClient == nil {
-		f.mockClient = NewMockClient()
+	if v := f.mockClient.Load(); v != nil {
+		return v.(*MockClient)
+	} else {
+		newMockClient := NewMockClient()
+		if f.mockClient.CompareAndSwap(nil, newMockClient) {
+			return newMockClient
+		} else {
+			return f.mockClient.Load().(*MockClient)
+		}
 	}
-
-	return f.mockClient
 }
 
 func (f *Factory) NewClient(baseURL string) (Client, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
 	if strings.HasPrefix(baseURL, "mock://") {
-		if f.mockClient == nil {
-			f.mockClient = NewMockClient()
-		}
-
-		return f.mockClient, nil
+		return f.MockClient(), nil
 	}
 
 	if strings.HasPrefix(baseURL, "internal://") {
-		if f.internalClient == nil {
+		c := f.InternalClient()
+		if c == nil {
 			return nil, errors.New("No internal client set")
 		}
 
-		return f.internalClient, nil
+		return c, nil
 	}
 
 	if !strings.HasPrefix(baseURL, "https://") && !strings.HasPrefix(baseURL, "http://") {

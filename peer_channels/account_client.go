@@ -50,23 +50,17 @@ type AccountChannel struct {
 type AccountChannels []AccountChannel
 
 func (f *Factory) NewAccountClient(account Account) (AccountClient, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
 	if strings.HasPrefix(account.BaseURL, "mock://") {
-		if f.mockClient == nil {
-			f.mockClient = NewMockClient()
-		}
-
-		return f.mockClient.NewAccountClient(account.AccountID, account.Token)
+		return f.MockClient().NewAccountClient(account.AccountID, account.Token)
 	}
 
 	if strings.HasPrefix(account.BaseURL, "internal://") {
-		if f.internalAccountClientFactory == nil {
+		cf := f.InternalAccountClientFactory()
+		if cf == nil {
 			return nil, errors.New("No internal account client factory set")
 		}
 
-		return f.internalAccountClientFactory.NewAccountClient(account.AccountID, account.Token)
+		return cf.NewAccountClient(account.AccountID, account.Token)
 	}
 
 	if !strings.HasPrefix(account.BaseURL, "https://") && !strings.HasPrefix(account.BaseURL, "http://") {
