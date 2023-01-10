@@ -108,30 +108,52 @@ func (tx *TxBuilder) Sign(keys []bitcoin.Key) ([]bitcoin.Key, error) {
 			result = appendKeys(result, keys...)
 		}
 
-		if done || attempt == 0 {
-			if missingKey {
-				return result, ErrMissingPrivateKey
-			}
-			return result, nil
-		}
-
 		// Check fee and adjust if too low
 		targetFee := int64(EstimatedFeeValue(uint64(tx.MsgTx.SerializeSize()), float64(tx.FeeRate)))
 		inputValue = tx.InputValue()
 		outputValue = tx.OutputValue(false)
 		changeValue := tx.changeSum()
+		currentFee = int64(inputValue) - int64(outputValue) - int64(changeValue)
+
 		if inputValue < outputValue+uint64(targetFee) {
 			return nil, errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
 				outputValue+uint64(targetFee)))
 		}
 
-		currentFee = int64(inputValue) - int64(outputValue) - int64(changeValue)
-		if currentFee >= targetFee && float32(currentFee-targetFee)/float32(targetFee) < 0.05 {
-			// Within 5% of target fee
+		if currentFee == targetFee { // exact target fee rate achieved
 			if missingKey {
 				return result, ErrMissingPrivateKey
 			}
 			return result, nil
+		}
+
+		if done { // no more adjustments can be made
+			if currentFee < targetFee {
+				return nil, errors.Wrap(ErrInsufficientValue, fmt.Sprintf("%d/%d", inputValue,
+					outputValue+uint64(targetFee)))
+			}
+			if missingKey {
+				return result, ErrMissingPrivateKey
+			}
+			return result, nil
+		}
+
+		if currentFee >= targetFee { // above target fee rate
+			if attempt <= 0 { // too many adjustements already
+				if missingKey {
+					return result, ErrMissingPrivateKey
+				}
+				return result, nil
+			}
+
+			feeDiff := currentFee - targetFee
+			if float32(feeDiff)/float32(targetFee) < 0.05 || feeDiff <= 3 {
+				// Current fee is within 5% of target fee or within 3 satoshis
+				if missingKey {
+					return result, ErrMissingPrivateKey
+				}
+				return result, nil
+			}
 		}
 
 		done, err = tx.adjustFee(targetFee - currentFee)

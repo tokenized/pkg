@@ -773,3 +773,103 @@ func test_Sign_LowFeeChange(t *testing.T) error {
 
 	return nil
 }
+
+// Test_Sign_LowFee_Payload was designed around a specific instance found where the fee was over 5%
+// off the estimate, but only off 1 satoshi. So the signing function attempted 3 adjustements, but
+// only flipped from 1 to -1 fee difference.
+func Test_Sign_LowFee_Payload(t *testing.T) {
+	for i := 0; i < 500; i++ {
+		if err := test_Sign_LowFee_Payload(t); err != nil {
+			t.Fatalf("Failed test %d : %s", i, err)
+		}
+	}
+}
+
+func test_Sign_LowFee_Payload(t *testing.T) error {
+	contractKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	contractLockingScript, err := contractKey.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	senderKey, err := bitcoin.GenerateKey(bitcoin.MainNet)
+	if err != nil {
+		return errors.Wrap(err, "generate key")
+	}
+
+	senderLockingScript, err := senderKey.LockingScript()
+	if err != nil {
+		return errors.Wrap(err, "generate locking script")
+	}
+
+	utxo := bitcoin.UTXO{
+		Index:         0,
+		Value:         200,
+		LockingScript: senderLockingScript,
+	}
+	rand.Read(utxo.Hash[:])
+
+	transferScriptString := "OP_0 OP_RETURN 0xbd01 OP_1 \"test.TKN\" OP_3 0x00 \"T1\" 0x0a7312034343591a14e14896b76a4a8eaeb3e23f59547d5e58c871408422031084182a1a0a152010f41740bdf088a667d13d3a02f9c248daa553b710d00f2a1a0a152085db4c79be1d8863c70c35f4d5b1ec1ada555f8610b2082a190a15202f4d84d5cabd6b38f0f6ce8912e49be2b8b980cf1002"
+	transferScript, err := bitcoin.StringToScript(transferScriptString)
+	if err != nil {
+		return errors.Wrap(err, "parse script")
+	}
+
+	tx := NewTxBuilder(0.05, 0.00)
+
+	tx.AddInputUTXO(utxo)
+
+	tx.AddOutput(contractLockingScript, 100, true, false)
+	tx.AddOutput(transferScript, 0, false, false)
+
+	if _, err := tx.Sign([]bitcoin.Key{senderKey}); err != nil {
+		return errors.Wrap(err, "sign")
+	}
+
+	if tx.MsgTx.TxOut[0].Value != 183 {
+		return nil
+	}
+
+	actualSize := tx.MsgTx.SerializeSize()
+	feeRate := float64(tx.Fee()) / float64(actualSize)
+	if feeRate >= 0.05 {
+		return nil
+	}
+	t.Errorf("Fee Rate : %0.4f", feeRate)
+
+	t.Logf(tx.String(bitcoin.MainNet))
+	t.Logf("Unlocking script size : %d", len(tx.MsgTx.TxIn[0].UnlockingScript))
+	t.Logf("Estimated Size        : %d", tx.EstimatedSize())
+	t.Logf("Actual Size           : %d", actualSize)
+	t.Logf("Estimated Fee         : %d", tx.EstimatedFee())
+	t.Logf("Actual Fee            : %d", tx.Fee())
+
+	estimatedSize := BaseTxSize + wire.VarIntSerializeSize(uint64(len(tx.MsgTx.TxIn))) +
+		wire.VarIntSerializeSize(uint64(len(tx.MsgTx.TxOut)))
+	// t.Logf("Estimated base size : %d", estimatedSize)
+
+	for i, input := range tx.Inputs {
+		size, err := InputSize(input.LockingScript)
+		if err != nil {
+			t.Errorf("Error calculating input size : %s", err)
+			estimatedSize += MaximumP2PKHInputSize // Fall back to P2PKH
+			continue
+		}
+		t.Logf("Estimated input size  : %d", size)
+		t.Logf("Actual input size     : %d", tx.MsgTx.TxIn[i].SerializeSize())
+		estimatedSize += size
+	}
+	// t.Logf("Estimated size with inputs : %d", estimatedSize)
+
+	for _, output := range tx.MsgTx.TxOut {
+		t.Logf("Output size           : %d", output.SerializeSize())
+		estimatedSize += output.SerializeSize()
+	}
+	// t.Logf("Estimated size with outputs : %d", estimatedSize)
+
+	return errors.New("Failed")
+}
