@@ -17,7 +17,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/scottjbarr/redis v0.0.1
 	github.com/tokenized/config v0.2.2-0.20220902160347-43a4340c357e
-	github.com/tokenized/logger v0.1.0
+	github.com/tokenized/logger v0.1.3-0.20230110032957-7357f78dfcc2
 	github.com/tokenized/threads v0.1.1-0.20220902155404-d844f8ac41b5
 	github.com/tyler-smith/go-bip32 v0.0.0-20170922074101-2c9cfd177564
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
