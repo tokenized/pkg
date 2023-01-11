@@ -61,7 +61,7 @@ func Test_Accounts_JSON(t *testing.T) {
 		t.Logf("Peer account token : %s", config.Account.Token)
 
 		if config.Account.MaskedString() != tt.masked {
-			t.Errorf("Wrong peer account masked : got %s, want %s", config.Account.MaskedString(),
+			t.Errorf("Wrong peer account masked : \ngot  %s, \nwant %s", config.Account.MaskedString(),
 				tt.masked)
 		}
 

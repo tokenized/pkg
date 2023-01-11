@@ -59,7 +59,7 @@ func (c *HTTPClient) BaseURL() string {
 func (c *HTTPClient) GetChannelMetaData(ctx context.Context,
 	channelID, token string) (*ChannelData, error) {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID + "/metadata"
+	url := fmt.Sprintf("%s/%s/%s/metadata", c.BaseURL(), apiURLChannelPart, channelID)
 
 	response := &ChannelData{}
 	if err := get(ctx, url, token, response); err != nil {
@@ -72,7 +72,7 @@ func (c *HTTPClient) GetChannelMetaData(ctx context.Context,
 func (c *HTTPClient) WriteMessage(ctx context.Context, channelID, token string, contentType string,
 	payload io.Reader) error {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID
+	url := fmt.Sprintf("%s/%s/%s", c.BaseURL(), apiURLChannelPart, channelID)
 
 	if err := post(ctx, url, token, contentType, payload, nil); err != nil {
 		return err
@@ -84,8 +84,8 @@ func (c *HTTPClient) WriteMessage(ctx context.Context, channelID, token string, 
 func (c *HTTPClient) GetMessages(ctx context.Context, channelID, token string, unread bool,
 	maxCount uint) (Messages, error) {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID +
-		fmt.Sprintf("?unread=%t&count=%d", unread, maxCount)
+	url := fmt.Sprintf("%s/%s/%s?unread=%t&count=%d", c.BaseURL(), apiURLChannelPart, channelID,
+		unread, maxCount)
 
 	var response Messages
 	if err := get(ctx, url, token, &response); err != nil {
@@ -98,7 +98,7 @@ func (c *HTTPClient) GetMessages(ctx context.Context, channelID, token string, u
 func (c *HTTPClient) GetMaxMessageSequence(ctx context.Context,
 	channelID, token string) (uint64, error) {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID
+	url := fmt.Sprintf("%s/%s/%s", c.BaseURL(), apiURLChannelPart, channelID)
 
 	headers, err := head(ctx, url, token)
 	if err != nil {
@@ -121,8 +121,8 @@ func (c *HTTPClient) GetMaxMessageSequence(ctx context.Context,
 func (c *HTTPClient) MarkMessages(ctx context.Context, channelID, token string, sequence uint64,
 	read, older bool) error {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID +
-		fmt.Sprintf("/%d?read=%t&older=%t", sequence, read, older)
+	url := fmt.Sprintf("%s/%s/%s/%d?read=%t&older=%t", c.BaseURL(), apiURLChannelPart, channelID,
+		sequence, read, older)
 
 	if err := post(ctx, url, token, "", nil, nil); err != nil {
 		return err
@@ -134,7 +134,8 @@ func (c *HTTPClient) MarkMessages(ctx context.Context, channelID, token string, 
 func (c *HTTPClient) DeleteMessage(ctx context.Context, channelID, token string, sequence uint64,
 	older bool) error {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID + fmt.Sprintf("/%d?older=%t", sequence, older)
+	url := fmt.Sprintf("%s/%s/%s/%d?older=%t", c.BaseURL(), apiURLChannelPart, channelID,
+		sequence, older)
 
 	if err := httpDelete(ctx, url, token); err != nil {
 		return err
@@ -154,7 +155,7 @@ func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
 	params.Add("fullmessages", "false")
 
 	token = url.PathEscape(token)
-	url := c.BaseURL() + apiURLPart + fmt.Sprintf("/notify?%s", params.Encode())
+	url := fmt.Sprintf("%s/%s/notify?%s", c.BaseURL(), apiURLPart, params.Encode())
 	url = strings.ReplaceAll(url, "https://", "wss://")
 	url = strings.ReplaceAll(url, "http://", "ws://")
 
@@ -172,7 +173,7 @@ func (c *HTTPClient) Listen(ctx context.Context, token string, sendUnread bool,
 	params.Add("fullmessages", "true")
 
 	token = url.PathEscape(token)
-	url := c.BaseURL() + apiURLPart + fmt.Sprintf("notify?%s", params.Encode())
+	url := fmt.Sprintf("%s/%s/notify?%s", c.BaseURL(), apiURLPart, params.Encode())
 	url = strings.ReplaceAll(url, "https://", "wss://")
 	url = strings.ReplaceAll(url, "http://", "ws://")
 
@@ -290,7 +291,7 @@ func post(ctx context.Context, url, token string, contentType string, request io
 		Transport: transport,
 	}
 
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, url, request)
+	httpRequest, err := http.NewRequest(http.MethodPost, url, request)
 	if err != nil {
 		return errors.Wrap(err, "create request")
 	}
@@ -369,7 +370,7 @@ func get(ctx context.Context, url, token string, response interface{}) error {
 		Transport: transport,
 	}
 
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	httpRequest, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return errors.Wrap(err, "create request")
 	}
@@ -428,7 +429,6 @@ func get(ctx context.Context, url, token string, response interface{}) error {
 }
 
 func httpDelete(ctx context.Context, url, token string) error {
-
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,

@@ -92,9 +92,9 @@ func Test_Channels_String(t *testing.T) {
 		full   string
 	}{
 		{
-			masked: "https://mock.tokenized.id" + apiURLChannelPart + "123456",
+			masked: "https://mock.tokenized.id/" + apiURLChannelPart + "/123456",
 			token:  "abcedfg",
-			full:   "https://mock.tokenized.id" + apiURLChannelPart + "123456?token=abcedfg",
+			full:   "https://mock.tokenized.id/" + apiURLChannelPart + "/123456?token=abcedfg",
 		},
 	}
 
@@ -147,7 +147,7 @@ func Test_ParseURL(t *testing.T) {
 			t.Logf("Channel ID : %s", channelID)
 
 			if baseURL != tt.baseURL {
-				t.Errorf("Wrong base URL : got %s, want %s", baseURL, tt.baseURL)
+				t.Errorf("Wrong base URL : \ngot  %s, \nwant %s", baseURL, tt.baseURL)
 			}
 
 			if channelID != tt.channelID {
@@ -159,7 +159,7 @@ func Test_ParseURL(t *testing.T) {
 			t.Logf("URL : %s", url)
 
 			if url != tt.url {
-				t.Errorf("Wrong URL : got %s, want %s", url, tt.url)
+				t.Errorf("Wrong URL : \ngot  %s, \nwant %s", url, tt.url)
 			}
 		})
 	}

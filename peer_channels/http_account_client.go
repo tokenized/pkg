@@ -20,7 +20,8 @@ type HTTPAccountClient struct {
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
 func HTTPCreateAccount(ctx context.Context, baseURL, token string) (*Account, error) {
 	response := &Account{}
-	if err := post(ctx, baseURL+apiURLAccountPart, token, "", nil, response); err != nil {
+	url := appendPath(baseURL, apiURLAccountPart)
+	if err := post(ctx, url, token, "", nil, response); err != nil {
 		return nil, err
 	}
 
@@ -58,10 +59,10 @@ func (c *HTTPAccountClient) Token() string {
 }
 
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
-func (c *HTTPAccountClient) CreatePublicChannel(ctx context.Context) (*AccountChannel, error) {
-	url := fmt.Sprintf("%s%saccount/%s/channel?public", c.BaseURL(), apiURLPart, c.AccountID())
+func (c *HTTPAccountClient) CreatePublicChannel(ctx context.Context) (*FullChannel, error) {
+	url := fmt.Sprintf("%s/%s/account/%s/channel?public", c.BaseURL(), apiURLPart, c.AccountID())
 
-	response := &AccountChannel{}
+	response := &FullChannel{}
 	if err := post(ctx, url, c.Token(), "", nil, response); err != nil {
 		return nil, err
 	}
@@ -74,10 +75,10 @@ func (c *HTTPAccountClient) CreatePublicChannel(ctx context.Context) (*AccountCh
 }
 
 // Note: This is a non-standard endpoint and might only be implemented by the Tokenized Service.
-func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*AccountChannel, error) {
-	url := fmt.Sprintf("%s%saccount/%s/channel", c.BaseURL(), apiURLPart, c.AccountID())
+func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*FullChannel, error) {
+	url := fmt.Sprintf("%s/%s/account/%s/channel", c.BaseURL(), apiURLPart, c.AccountID())
 
-	response := &AccountChannel{}
+	response := &FullChannel{}
 	if err := post(ctx, url, c.Token(), "", nil, response); err != nil {
 		return nil, err
 	}
@@ -90,11 +91,11 @@ func (c *HTTPAccountClient) CreateChannel(ctx context.Context) (*AccountChannel,
 }
 
 func (c *HTTPAccountClient) GetChannel(ctx context.Context,
-	channelID string) (*AccountChannel, error) {
-	url := fmt.Sprintf("%s%saccount/%s/channel/%s", c.BaseURL(), apiURLPart, c.AccountID(),
+	channelID string) (*FullChannel, error) {
+	url := fmt.Sprintf("%s/%s/account/%s/channel/%s", c.BaseURL(), apiURLPart, c.AccountID(),
 		channelID)
 
-	response := &AccountChannel{}
+	response := &FullChannel{}
 	if err := get(ctx, url, c.Token(), response); err != nil {
 		return nil, err
 	}
@@ -102,10 +103,10 @@ func (c *HTTPAccountClient) GetChannel(ctx context.Context,
 	return response, nil
 }
 
-func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel, error) {
-	url := fmt.Sprintf("%s%saccount/%s/channels", c.BaseURL(), apiURLPart, c.AccountID())
+func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*FullChannel, error) {
+	url := fmt.Sprintf("%s/%s/account/%s/channels", c.BaseURL(), apiURLPart, c.AccountID())
 
-	var response []*AccountChannel
+	var response []*FullChannel
 	if err := get(ctx, url, c.Token(), &response); err != nil {
 		return nil, err
 	}
@@ -116,8 +117,8 @@ func (c *HTTPAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel
 func (c *HTTPAccountClient) MarkMessages(ctx context.Context, channelID string, sequence uint64,
 	read, older bool) error {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID +
-		fmt.Sprintf("/%d?read=%t&older=%t", sequence, read, older)
+	url := fmt.Sprintf("%s/%s/%s/%d?read=%t&older=%t", c.BaseURL(), apiURLChannelPart, channelID,
+		sequence, read, older)
 
 	if err := post(ctx, url, c.Token(), "", nil, nil); err != nil {
 		return err
@@ -129,7 +130,7 @@ func (c *HTTPAccountClient) MarkMessages(ctx context.Context, channelID string, 
 func (c *HTTPAccountClient) DeleteMessage(ctx context.Context, channelID string, sequence uint64,
 	older bool) error {
 
-	url := c.BaseURL() + apiURLChannelPart + channelID + fmt.Sprintf("/%d?older=%t", sequence,
+	url := fmt.Sprintf("%s/%s/%s/%d?older=%t", c.BaseURL(), apiURLChannelPart, channelID, sequence,
 		older)
 
 	if err := httpDelete(ctx, url, c.Token()); err != nil {

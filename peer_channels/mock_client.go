@@ -87,7 +87,7 @@ func (c *MockClient) NewAccountClient(accountID, token string) (AccountClient, e
 	return NewMockAccountClient(c, accountID, token), nil
 }
 
-func (c *MockClient) CreateAccount(ctx context.Context) (*string, *string, error) {
+func (c *MockClient) CreateAccount(ctx context.Context) (*Account, error) {
 	account := &mockAccount{
 		id:    uuid.New().String(),
 		token: uuid.New().String(),
@@ -101,7 +101,11 @@ func (c *MockClient) CreateAccount(ctx context.Context) (*string, *string, error
 		logger.String("account_id", account.id),
 	}, "Created peer channel account")
 
-	return &account.id, &account.token, nil
+	return &Account{
+		BaseURL:   MockClientURL,
+		AccountID: account.id,
+		Token:     account.token,
+	}, nil
 }
 
 func (c *MockClient) BaseURL() string {
@@ -488,7 +492,7 @@ func (c *MockAccountClient) Token() string {
 }
 
 // CreatePublicChannel creates a new peer channel that can be written to by anyone.
-func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*AccountChannel, error) {
+func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*FullChannel, error) {
 	ac, exists := c.client.accounts.Load(c.AccountID())
 	if !exists {
 		return nil, HTTPError{Status: http.StatusNotFound}
@@ -518,7 +522,7 @@ func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*AccountCh
 		logger.String("channel_id", channel.id),
 	}, "Created public peer channel")
 
-	return &AccountChannel{
+	return &FullChannel{
 		ID:         channel.id,
 		AccountID:  channel.accountID,
 		ReadToken:  channel.readToken,
@@ -528,7 +532,7 @@ func (c *MockAccountClient) CreatePublicChannel(ctx context.Context) (*AccountCh
 
 // CreateChannel creates a new peer channel that can only be written to by someone that knows
 // the write token.
-func (c *MockAccountClient) CreateChannel(ctx context.Context) (*AccountChannel, error) {
+func (c *MockAccountClient) CreateChannel(ctx context.Context) (*FullChannel, error) {
 	ac, exists := c.client.accounts.Load(c.AccountID())
 	if !exists {
 		return nil, HTTPError{Status: http.StatusNotFound}
@@ -558,7 +562,7 @@ func (c *MockAccountClient) CreateChannel(ctx context.Context) (*AccountChannel,
 		logger.String("channel_id", channel.id),
 	}, "Created peer channel")
 
-	return &AccountChannel{
+	return &FullChannel{
 		ID:         channel.id,
 		AccountID:  channel.accountID,
 		ReadToken:  channel.readToken,
@@ -566,7 +570,7 @@ func (c *MockAccountClient) CreateChannel(ctx context.Context) (*AccountChannel,
 	}, nil
 }
 
-func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*AccountChannel, error) {
+func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*FullChannel, error) {
 	ac, exists := c.client.accounts.Load(c.AccountID())
 	if !exists {
 		return nil, HTTPError{Status: http.StatusNotFound}
@@ -593,7 +597,7 @@ func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*
 		return nil, HTTPError{Status: http.StatusUnauthorized}
 	}
 
-	return &AccountChannel{
+	return &FullChannel{
 		ID:         channel.id,
 		AccountID:  channel.accountID,
 		ReadToken:  channel.readToken,
@@ -601,7 +605,7 @@ func (c *MockAccountClient) GetChannel(ctx context.Context, channelID string) (*
 	}, nil
 }
 
-func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel, error) {
+func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*FullChannel, error) {
 	accountID := c.AccountID()
 	ac, exists := c.client.accounts.Load(accountID)
 	if !exists {
@@ -616,7 +620,7 @@ func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel
 	}
 	account.lock.Unlock()
 
-	var result []*AccountChannel
+	var result []*FullChannel
 	c.client.channels.Range(func(key, value interface{}) bool {
 		channel := value.(*mockChannel)
 		channel.lock.Lock()
@@ -626,7 +630,7 @@ func (c *MockAccountClient) ListChannels(ctx context.Context) ([]*AccountChannel
 			return true
 		}
 
-		result = append(result, &AccountChannel{
+		result = append(result, &FullChannel{
 			ID:         channel.id,
 			AccountID:  channel.accountID,
 			ReadToken:  channel.readToken,

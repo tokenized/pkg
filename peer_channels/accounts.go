@@ -147,10 +147,14 @@ func parseAccount(accountURL string) (string, string, string, error) {
 
 	u.Path = parts[0]
 
-	if len(parts[1]) == 0 {
+	accountPart := parts[1]
+	if len(accountPart) == 0 {
 		return "", "", "", errors.New("Missing account id")
 	}
-	accountParts := strings.Split(parts[1], "/")
+	if accountPart[0] == '/' {
+		accountPart = accountPart[1:]
+	}
+	accountParts := strings.Split(accountPart, "/")
 	accountID := accountParts[0]
 
 	return u.String(), accountID, token, nil

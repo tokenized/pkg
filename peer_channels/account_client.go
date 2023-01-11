@@ -13,14 +13,14 @@ type AccountClient interface {
 	Token() string
 
 	// CreatePublicChannel creates a new peer channel that can be written to by anyone.
-	CreatePublicChannel(ctx context.Context) (*AccountChannel, error)
+	CreatePublicChannel(ctx context.Context) (*FullChannel, error)
 
 	// CreateChannel creates a new peer channel that can only be written to by someone that knows
 	// the write token.
-	CreateChannel(ctx context.Context) (*AccountChannel, error)
+	CreateChannel(ctx context.Context) (*FullChannel, error)
 
-	GetChannel(ctx context.Context, channelID string) (*AccountChannel, error)
-	ListChannels(ctx context.Context) ([]*AccountChannel, error)
+	GetChannel(ctx context.Context, channelID string) (*FullChannel, error)
+	ListChannels(ctx context.Context) ([]*FullChannel, error)
 
 	MarkMessages(ctx context.Context, channelID string, sequence uint64,
 		read, older bool) error
@@ -40,14 +40,22 @@ type AccountClientFactory interface {
 }
 
 // Note: This is a non-standard structure and might only be implemented by the Tokenized Service.
-type AccountChannel struct {
+type FullChannel struct {
 	ID         string `bsor:"1" json:"id"`
 	AccountID  string `bsor:"2" json:"account_id"`
 	ReadToken  string `bsor:"3" json:"read_token"`
 	WriteToken string `bsor:"4" json:"write_token"`
 }
 
-type AccountChannels []AccountChannel
+type FullChannels []FullChannel
+
+func (f *FullChannel) ReadChannel(baseURL string) (*Channel, error) {
+	return NewChannel(baseURL, f.ID, f.ReadToken)
+}
+
+func (f *FullChannel) WriteChannel(baseURL string) (*Channel, error) {
+	return NewChannel(baseURL, f.ID, f.WriteToken)
+}
 
 func (f *Factory) NewAccountClient(account Account) (AccountClient, error) {
 	if strings.HasPrefix(account.BaseURL, "mock://") {

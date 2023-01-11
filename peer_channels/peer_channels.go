@@ -3,7 +3,6 @@ package peer_channels
 import (
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"io"
 	"strings"
 	"sync/atomic"
@@ -27,9 +26,9 @@ var (
 )
 
 const (
-	apiURLChannelPart = "/api/v1/channel/"
-	apiURLAccountPart = "/api/v1/account/"
-	apiURLPart        = "/api/v1/"
+	apiURLChannelPart = "api/v1/channel"
+	apiURLAccountPart = "api/v1/account"
+	apiURLPart        = "api/v1"
 )
 
 type Client interface {
@@ -88,7 +87,7 @@ func (m Message) Hash() bitcoin.Hash32 {
 
 // ChannelURL returns a full peer channels URL for the provided base URL and channel ID.
 func ChannelURL(baseURL, channelID string) string {
-	return fmt.Sprintf("%s%s%s", baseURL, apiURLChannelPart, channelID)
+	return appendPath(baseURL, appendPath(apiURLChannelPart, channelID))
 }
 
 type Factory struct {
@@ -132,12 +131,14 @@ func (f *Factory) MockClient() *MockClient {
 	if v := f.mockClient.Load(); v != nil {
 		return v.(*MockClient)
 	} else {
-		newMockClient := NewMockClient()
-		if f.mockClient.CompareAndSwap(nil, newMockClient) {
+		mockClient := f.mockClient.Load()
+		if mockClient == nil {
+			newMockClient := NewMockClient()
+			f.mockClient.Store(newMockClient)
 			return newMockClient
-		} else {
-			return f.mockClient.Load().(*MockClient)
 		}
+
+		return mockClient.(*MockClient)
 	}
 }
 

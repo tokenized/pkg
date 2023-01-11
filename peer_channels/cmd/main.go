@@ -62,9 +62,7 @@ func CreateAccount(ctx context.Context, args []string) {
 		return
 	}
 
-	fmt.Printf("Created Account : %s\n", account.AccountID)
-	fmt.Printf("Access Token : %s\n", account.Token)
-	fmt.Printf("Account URL : %s\n", account)
+	fmt.Printf("Created Account : %s\n", account)
 }
 
 func CreateChannel(ctx context.Context, args []string) {
@@ -78,14 +76,14 @@ func CreateChannel(ctx context.Context, args []string) {
 
 	account, err := peer_channels.NewAccount(url, accountID, token)
 	if err != nil {
-		fmt.Printf("Failed to create peer channels account : %s", err)
+		fmt.Printf("Failed to create peer channels account : %s\n", err)
 		return
 	}
 
 	factory := peer_channels.NewFactory()
 	accountClient, err := factory.NewAccountClient(*account)
 	if err != nil {
-		fmt.Printf("Failed to create peer channels client : %s", err)
+		fmt.Printf("Failed to create peer channels client : %s\n", err)
 		return
 	}
 
@@ -97,6 +95,18 @@ func CreateChannel(ctx context.Context, args []string) {
 
 	js, _ := json.MarshalIndent(*channel, "", "  ")
 	fmt.Printf("Created Channel : %s\n", js)
+
+	readChannel, err := channel.ReadChannel(accountClient.BaseURL())
+	if err != nil {
+		fmt.Printf("Failed to create read channel : %s\n", err)
+	}
+	fmt.Printf("Read Channel : %s\n", readChannel)
+
+	writeChannel, err := channel.WriteChannel(accountClient.BaseURL())
+	if err != nil {
+		fmt.Printf("Failed to create write channel : %s\n", err)
+	}
+	fmt.Printf("Write Channel : %s\n", writeChannel)
 }
 
 func Post(ctx context.Context, args []string) {
@@ -112,7 +122,7 @@ func Post(ctx context.Context, args []string) {
 	factory := peer_channels.NewFactory()
 	client, err := factory.NewClient(url)
 	if err != nil {
-		fmt.Printf("Failed to create peer channels client : %s", err)
+		fmt.Printf("Failed to create peer channels client : %s\n", err)
 		return
 	}
 	logger.InfoWithFields(ctx, []logger.Field{
@@ -146,7 +156,7 @@ func PostBinary(ctx context.Context, args []string) {
 	token := args[2]
 	message, err := hex.DecodeString(args[3])
 	if err != nil {
-		fmt.Printf("Failed to decode hex payload : %s", err)
+		fmt.Printf("Failed to decode hex payload : %s\n", err)
 	}
 
 	logger.InfoWithFields(ctx, []logger.Field{
@@ -157,7 +167,7 @@ func PostBinary(ctx context.Context, args []string) {
 	factory := peer_channels.NewFactory()
 	client, err := factory.NewClient(url)
 	if err != nil {
-		fmt.Printf("Failed to create peer channels client : %s", err)
+		fmt.Printf("Failed to create peer channels client : %s\n", err)
 		return
 	}
 	if err := client.WriteMessage(ctx, channelID, token, peer_channels.ContentTypeBinary,
@@ -185,7 +195,7 @@ func Listen(ctx context.Context, args []string) {
 	factory := peer_channels.NewFactory()
 	client, err := factory.NewClient(url)
 	if err != nil {
-		fmt.Printf("Failed to create peer channels client : %s", err)
+		fmt.Printf("Failed to create peer channels client : %s\n", err)
 		return
 	}
 
@@ -244,7 +254,7 @@ func processMerchantAPIMessage(ctx context.Context, msg peer_channels.Message) {
 	}
 
 	if err := envelope.Verify(); err != nil {
-		fmt.Printf("JSON Envelope didn't verify : %s", err)
+		fmt.Printf("JSON Envelope didn't verify : %s\n", err)
 	}
 	fmt.Printf("JSON Envelope verified!\n")
 

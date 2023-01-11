@@ -154,12 +154,20 @@ func parseChannel(channelURL string) (string, string, string, error) {
 		return "", "", "", errors.New("Missing api channel part")
 	}
 
-	u.Path = parts[0]
+	pathPart := parts[0]
+	if len(pathPart) > 0 && pathPart[0] == '/' {
+		pathPart = pathPart[1:]
+	}
+	u.Path = pathPart
 
-	if len(parts[1]) == 0 {
+	channelPart := parts[1]
+	if len(channelPart) == 0 {
 		return "", "", "", errors.New("Missing channel id")
 	}
-	channelParts := strings.Split(parts[1], "/")
+	if channelPart[0] == '/' {
+		channelPart = channelPart[1:]
+	}
+	channelParts := strings.Split(channelPart, "/")
 	channelID := channelParts[0]
 
 	return u.String(), channelID, token, nil
