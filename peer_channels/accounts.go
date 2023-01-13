@@ -145,7 +145,11 @@ func parseAccount(accountURL string) (string, string, string, error) {
 		return "", "", "", errors.New("Missing api account part")
 	}
 
-	u.Path = parts[0]
+	pathPart := parts[0]
+	if len(pathPart) > 0 && pathPart[0] == '/' {
+		pathPart = pathPart[1:]
+	}
+	u.Path = pathPart
 
 	accountPart := parts[1]
 	if len(accountPart) == 0 {
