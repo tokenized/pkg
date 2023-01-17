@@ -192,10 +192,12 @@ func (s *MockStorage) Remove(ctx context.Context, key string) error {
 	// }
 	// delete(s.Data, key)
 
-	_, exists := s.Data.LoadAndDelete(key)
+	_, exists := s.Data.Load(key)
 	if !exists {
 		return ErrNotFound
 	}
+
+	s.Data.Delete(key)
 	return nil
 }
 
