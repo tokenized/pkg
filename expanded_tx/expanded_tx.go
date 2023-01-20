@@ -2,12 +2,12 @@ package expanded_tx
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/merkle_proof"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -46,6 +46,8 @@ type ExpandedTx struct {
 	// length of the slice must match the number of inputs and the indexes must align. For example,
 	// the second output must correspond to the second input of Tx.
 	SpentOutputs Outputs `bsor:"3" json:"spent_outputs,omitempty"`
+
+	MerkleProofs merkle_proof.MerkleProofs `bsor:"4" json:"merkle_proofs,omitempty"`
 }
 
 // Output represents an output in a bitcoin transaction.
@@ -55,12 +57,6 @@ type Output struct {
 }
 
 type Outputs []*Output
-
-// jsonOutput is used to override the text marshalers when encoding and decoding Outputs.
-type jsonOutput struct {
-	Value         uint64         `bsor:"1" json:"value"`
-	LockingScript bitcoin.Script `bsor:"2" json:"locking_script"`
-}
 
 func (etx ExpandedTx) Copy() ExpandedTx {
 	result := ExpandedTx{
@@ -116,28 +112,6 @@ func (o *Output) UnmarshalText(text []byte) error {
 		return errors.Wrap(err, "locking script")
 	}
 	o.LockingScript = script
-
-	return nil
-}
-
-// MarshalJSON converts to json.
-func (o Output) MarshalJSON() ([]byte, error) {
-	jo := jsonOutput{
-		Value:         o.Value,
-		LockingScript: o.LockingScript,
-	}
-	return json.Marshal(jo)
-}
-
-// UnmarshalJSON converts from json.
-func (o *Output) UnmarshalJSON(data []byte) error {
-	jo := &jsonOutput{}
-	if err := json.Unmarshal(data, jo); err != nil {
-		return err
-	}
-
-	o.Value = jo.Value
-	o.LockingScript = jo.LockingScript
 
 	return nil
 }

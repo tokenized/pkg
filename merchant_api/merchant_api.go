@@ -260,6 +260,45 @@ type SubmitTxRequest struct {
 	CallBackEncryption *string     `json:"callBackEncryption,omitempty"`
 }
 
+func (r SubmitTxRequest) Copy() SubmitTxRequest {
+	result := SubmitTxRequest{
+		SendMerkleProof:  r.SendMerkleProof,
+		DoubleSpendCheck: r.DoubleSpendCheck,
+	}
+
+	if r.Tx != nil {
+		result.Tx = r.Tx.Copy()
+	}
+
+	if r.CallBackURL != nil {
+		s := CopyString(*r.CallBackURL)
+		result.CallBackURL = &s
+	}
+
+	if r.CallBackToken != nil {
+		s := CopyString(*r.CallBackToken)
+		result.CallBackToken = &s
+	}
+
+	if r.MerkleProofFormat != nil {
+		s := CopyString(*r.MerkleProofFormat)
+		result.MerkleProofFormat = &s
+	}
+
+	if r.CallBackEncryption != nil {
+		s := CopyString(*r.CallBackEncryption)
+		result.CallBackEncryption = &s
+	}
+
+	return result
+}
+
+func CopyString(s string) string {
+	result := make([]byte, len(s))
+	copy(result, s)
+	return string(result)
+}
+
 // When tx broadcast by someone else:
 //   "returnResult": "failure",
 //   "resultDescription": "Transaction already in the mempool",
