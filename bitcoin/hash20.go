@@ -30,19 +30,11 @@ func NewHash20(b []byte) (*Hash20, error) {
 
 // NewHash20FromStr creates a little endian hash from a big endian string.
 func NewHash20FromStr(s string) (*Hash20, error) {
-	if len(s) != 2*Hash20Size {
-		return nil, errors.Wrapf(ErrWrongSize, "hex: got %d, want %d", len(s), Hash20Size*2)
-	}
-
-	b := make([]byte, Hash20Size)
-	_, err := hex.Decode(b, []byte(s[:]))
-	if err != nil {
+	result := &Hash20{}
+	if err := result.SetString(s); err != nil {
 		return nil, err
 	}
-
-	result := Hash20{}
-	reverse20(result[:], b)
-	return &result, nil
+	return result, nil
 }
 
 // NewHash20FromData creates a Hash20 by hashing the data with a Ripemd160(Sha256(b))
@@ -77,11 +69,45 @@ func (h *Hash20) SetBytes(b []byte) error {
 	return nil
 }
 
+func (h *Hash20) SetString(s string) error {
+	if len(s) != 2*Hash20Size {
+		return errors.Wrapf(ErrWrongSize, "hex: got %d, want %d", len(s), Hash20Size*2)
+	}
+
+	j := 0
+	for i := Hash20Size - 1; i >= 0; i-- {
+		hf := s[j]
+		f := hexValues[hf]
+		if f == 0xff {
+			return hex.InvalidByteError(hf)
+		}
+		j++
+
+		hs := s[j]
+		j++
+		s := hexValues[hs]
+		if s == 0xff {
+			return hex.InvalidByteError(hs)
+		}
+
+		h[i] = (f << 4) + s
+	}
+
+	return nil
+}
+
 // String returns the hex for the hash.
 func (h Hash20) String() string {
-	var r [Hash20Size]byte
-	reverse20(r[:], h[:])
-	return fmt.Sprintf("%x", r[:])
+	var hex [Hash20Size * 2]byte
+	i := (Hash20Size * 2) - 1
+	for _, b := range h[:] {
+		hex[i] = hexChars[b&0x0f]
+		i--
+
+		hex[i] = hexChars[b>>4]
+		i--
+	}
+	return string(hex[:])
 }
 
 // Equal returns true if the parameter has the same value.
@@ -132,14 +158,12 @@ func DeserializeHash20(r io.Reader) (*Hash20, error) {
 
 // MarshalJSON converts to json.
 func (h Hash20) MarshalJSON() ([]byte, error) {
-	var r [Hash20Size]byte
-	reverse20(r[:], h[:])
-	return []byte(fmt.Sprintf("\"%x\"", r[:])), nil
+	return []byte(fmt.Sprintf("\"%s\"", h)), nil
 }
 
 // UnmarshalJSON converts from json.
 func (h *Hash20) UnmarshalJSON(data []byte) error {
-	b, err := ConvertJSONHexToBytes(data)
+	b, err := ConvertJSONHexToReverseBytes(data)
 	if err != nil {
 		return errors.Wrap(err, "hex")
 	}
@@ -149,33 +173,20 @@ func (h *Hash20) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	if len(b) != Hash20Size {
-		return fmt.Errorf("Wrong size hex for Hash20 : %d", len(b)*2)
-	}
-
-	reverse20(h[:], b)
-	return nil
+	return h.SetBytes(b)
 }
 
 // MarshalText returns the text encoding of the hash.
 // Implements encoding.TextMarshaler interface.
 func (h Hash20) MarshalText() ([]byte, error) {
-	b := h.Bytes()
-	result := make([]byte, hex.EncodedLen(len(b)))
-	hex.Encode(result, b)
-	return result, nil
+	result := h.String()
+	return []byte(result), nil
 }
 
 // UnmarshalText parses a text encoded hash and sets the value of this object.
 // Implements encoding.TextUnmarshaler interface.
 func (h *Hash20) UnmarshalText(text []byte) error {
-	b := make([]byte, hex.DecodedLen(len(text)))
-	_, err := hex.Decode(b, text)
-	if err != nil {
-		return err
-	}
-
-	return h.SetBytes(b)
+	return h.SetString(string(text))
 }
 
 func (h Hash20) MarshalBinaryFixedSize() int {
