@@ -376,6 +376,18 @@ func (msg *MsgTx) TxHash() *bitcoin.Hash32 {
 	return &result
 }
 
+// UnsignedTxHash generates the Hash for the transaction excluding unlocking scripts.
+func (msg *MsgTx) UnsignedTxHash() *bitcoin.Hash32 {
+	// Encode the transaction and calculate double sha256 on the result.
+	// Ignore the error returns since the only way the encode could fail
+	// is being out of memory or due to nil pointers, both of which would
+	// cause a run-time panic.
+	hasher := sha256.New()
+	_ = msg.SerializeUnsigned(hasher)
+	result := bitcoin.Hash32(sha256.Sum256(hasher.Sum(nil)))
+	return &result
+}
+
 func (msg *MsgTx) String() string {
 	result := fmt.Sprintf("TxId: %s (%d bytes)\n", msg.TxHash(), msg.SerializeSize())
 	result += fmt.Sprintf("  Version: %d\n", msg.Version)
@@ -720,7 +732,45 @@ func (msg *MsgTx) Serialize(w io.Writer) error {
 	// at protocol version 0 and the stable long-term storage format.  As
 	// a result, make use of BtcEncode.
 	return msg.BtcEncode(w, 0)
+}
 
+func (msg *MsgTx) BtcEncodeUnsigned(w io.Writer, pver uint32) error {
+	err := binary.Write(w, endian, uint32(msg.Version))
+	if err != nil {
+		return err
+	}
+
+	count := uint64(len(msg.TxIn))
+	err = WriteVarInt(w, pver, count)
+	if err != nil {
+		return err
+	}
+
+	for _, ti := range msg.TxIn {
+		err = writeTxInUnsigned(w, pver, msg.Version, ti)
+		if err != nil {
+			return err
+		}
+	}
+
+	count = uint64(len(msg.TxOut))
+	err = WriteVarInt(w, pver, count)
+	if err != nil {
+		return err
+	}
+
+	for _, to := range msg.TxOut {
+		err = writeTxOut(w, pver, msg.Version, to)
+		if err != nil {
+			return err
+		}
+	}
+
+	return binary.Write(w, endian, uint32(msg.LockTime))
+}
+
+func (msg *MsgTx) SerializeUnsigned(w io.Writer) error {
+	return msg.BtcEncodeUnsigned(w, 0)
 }
 
 // SerializeSize returns the number of bytes it would take to serialize the
@@ -915,6 +965,15 @@ func writeTxIn(w io.Writer, pver uint32, version int32, ti *TxIn) error {
 	}
 
 	err = WriteVarBytes(w, pver, ti.UnlockingScript)
+	if err != nil {
+		return err
+	}
+
+	return binary.Write(w, endian, uint32(ti.Sequence))
+}
+
+func writeTxInUnsigned(w io.Writer, pver uint32, version int32, ti *TxIn) error {
+	err := ti.PreviousOutPoint.Serialize(w)
 	if err != nil {
 		return err
 	}
