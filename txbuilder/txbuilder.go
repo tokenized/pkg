@@ -97,6 +97,12 @@ func NewTxBuilderFromTransactionWithOutputs(feeRate, dustFeeRate float32,
 	// Setup inputs
 	var missingErr error
 	for index := 0; index < inputCount; index++ {
+		txin := tx.Input(index)
+		if txin.PreviousOutPoint.Hash.IsZero() {
+			result.Inputs[index] = &InputSupplement{}
+			continue
+		}
+
 		output, err := tx.InputOutput(index)
 		if err != nil {
 			return nil, errors.Wrapf(err, "input %d output", index)
