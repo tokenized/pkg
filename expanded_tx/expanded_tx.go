@@ -223,14 +223,16 @@ func (etx ExpandedTx) VerifyInputs() error {
 		return errors.Wrap(MissingInput, "missing tx")
 	}
 
-	for index := range etx.Tx.TxIn {
+	for index, txin := range etx.Tx.TxIn {
+		if txin.PreviousOutPoint.Hash.IsZero() {
+			continue
+		}
+
 		if index < len(etx.SpentOutputs) {
 			continue // output in spent outputs
 		}
 
 		// Check for spent output in ancestors
-		txin := etx.Tx.TxIn[index]
-
 		parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
 		if parentTx == nil {
 			return errors.Wrap(MissingInput, "parent: "+txin.PreviousOutPoint.Hash.String())
@@ -258,10 +260,12 @@ func (etx ExpandedTx) VerifyAncestors() error {
 		return errors.Wrap(MissingInput, "missing tx")
 	}
 
-	for index := range etx.Tx.TxIn {
-		// Check for spent output in ancestors
-		txin := etx.Tx.TxIn[index]
+	for _, txin := range etx.Tx.TxIn {
+		if txin.PreviousOutPoint.Hash.IsZero() {
+			continue
+		}
 
+		// Check for spent output in ancestors
 		parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
 		if parentTx == nil {
 			return errors.Wrap(MissingInput, "parent: "+txin.PreviousOutPoint.Hash.String())
