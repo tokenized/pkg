@@ -615,6 +615,15 @@ func (s Script) IsSigHashAll() (bool, error) {
 	return true, nil
 }
 
+func (s Script) IsFalseOpReturn() bool {
+	l := len(s)
+	if l < 2 {
+		return false
+	}
+
+	return s[0] == OP_FALSE && s[1] == OP_RETURN
+}
+
 func (s Script) Equal(r Script) bool {
 	return bytes.Equal(s, r)
 }
