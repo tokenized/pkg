@@ -65,6 +65,17 @@ func (h BlockHeader) WorkIsValid() bool {
 	return value.Cmp(target) <= 0
 }
 
+func (h BlockHeader) Copy() BlockHeader {
+	return BlockHeader{
+		Version:    h.Version,
+		PrevBlock:  h.PrevBlock.Copy(),
+		MerkleRoot: h.MerkleRoot.Copy(),
+		Timestamp:  h.Timestamp,
+		Bits:       h.Bits,
+		Nonce:      h.Nonce,
+	}
+}
+
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 // See Deserialize for decoding block headers stored to disk, such as in a

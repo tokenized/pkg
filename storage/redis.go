@@ -2,11 +2,12 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/gomodule/redigo/redis"
+
+	"github.com/pkg/errors"
 )
 
 var (
@@ -70,6 +71,19 @@ func (r *RedisStorage) Write(ctx context.Context, key string, b []byte, opts *Op
 	}
 
 	return conn.Flush()
+}
+
+func (r *RedisStorage) Copy(ctx context.Context, fromKey, toKey string) error {
+	b, err := r.Read(ctx, fromKey)
+	if err != nil {
+		return errors.Wrap(err, "read")
+	}
+
+	if err := r.Write(ctx, toKey, b, nil); err != nil {
+		return errors.Wrap(err, "write")
+	}
+
+	return nil
 }
 
 // Remove implements the Remover interface.

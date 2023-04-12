@@ -470,6 +470,15 @@ func (ra RawAddress) Equal(other RawAddress) bool {
 	return ra.scriptType == other.scriptType && bytes.Equal(ra.data, other.data)
 }
 
+func (ra RawAddress) Copy() RawAddress {
+	result := RawAddress{
+		scriptType: ra.scriptType,
+		data:       make([]byte, len(ra.data)),
+	}
+	copy(result.data, ra.data)
+	return result
+}
+
 // IsEmpty returns true if the address does not have a value set.
 func (ra RawAddress) IsEmpty() bool {
 	return len(ra.data) == 0

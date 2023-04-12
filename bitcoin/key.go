@@ -149,6 +149,14 @@ func (k Key) Equal(other Key) bool {
 	return k.value.Cmp(&other.value) == 0
 }
 
+func (k Key) Copy() Key {
+	result := Key{
+		net: k.net,
+	}
+	result.value.Set(&k.value)
+	return result
+}
+
 // String returns the type followed by the key data with a checksum, encoded with Base58.
 func (k Key) String() string {
 	var keyType byte
@@ -249,6 +257,31 @@ func (k Key) Sign(hash Hash32) (Signature, error) {
 	return signRFC6979(k.value, hash[:])
 }
 
+// AddHash implements the WP42 method of deriving a private key from a private key and a hash.
+func (k Key) AddHash(hash Hash32) (Key, error) {
+	// Add hash to key value
+	b := addPrivateKeys(k.value.Bytes(), hash.Bytes())
+
+	return KeyFromNumber(b, k.Network())
+}
+
+// Subtract subtracts one key from the other and returns the hash that can be passed into AddHash of
+// the baseKey to create the first key.
+func (k Key) Subtract(baseKey Key) (Hash32, error) {
+	hash, err := NewHash32(subtractPrivateKeys(k.value.Bytes(), baseKey.value.Bytes()))
+	if err != nil {
+		return Hash32{}, errors.Wrap(err, "hash")
+	}
+
+	return *hash, nil
+}
+
+// MarshalJSONMasked outputs "masked" data that is safe for "masked" configs that are output to logs
+// and shouldn't contain any private data.
+func (k Key) MarshalJSONMasked() ([]byte, error) {
+	return []byte("\"Public:" + k.PublicKey().String() + "\""), nil
+}
+
 // MarshalJSON converts to json.
 func (k Key) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + k.String() + "\""), nil
@@ -321,6 +354,23 @@ func addPrivateKeys(key1 []byte, key2 []byte) []byte {
 	key2Int.SetBytes(key2)
 
 	key1Int.Add(&key1Int, &key2Int)
+	key1Int.Mod(&key1Int, curveS256Params.N)
+
+	b := key1Int.Bytes()
+	if len(b) < 32 {
+		extra := make([]byte, 32-len(b))
+		b = append(extra, b...)
+	}
+	return b
+}
+
+func subtractPrivateKeys(key1 []byte, key2 []byte) []byte {
+	var key1Int big.Int
+	var key2Int big.Int
+	key1Int.SetBytes(key1)
+	key2Int.SetBytes(key2)
+
+	key1Int.Sub(&key1Int, &key2Int)
 	key1Int.Mod(&key1Int, curveS256Params.N)
 
 	b := key1Int.Bytes()

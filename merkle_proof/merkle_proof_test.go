@@ -3,11 +3,140 @@ package merkle_proof
 import (
 	"bytes"
 	"encoding/hex"
+	"math/rand"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/json"
+	"github.com/tokenized/pkg/wire"
 )
+
+func Test_Verify_Last(t *testing.T) {
+	for i := 0; i < 5; i++ {
+		for j := 0; j < 50; j++ {
+			var txid bitcoin.Hash32
+			rand.Read(txid[:])
+			proofs := MockMerkleProof([]bitcoin.Hash32{txid}, []int{i}, i+1)
+			if len(proofs) != 1 {
+				t.Errorf("Missing merkle proofs")
+			}
+
+			for _, proof := range proofs {
+				root, err := proof.CalculateRoot()
+				if err != nil {
+					t.Errorf("Failed to calculate merkle root : %s", err)
+				}
+
+				if err := proof.Verify(); err != nil {
+					t.Logf("Merkle Root : %s", proof.BlockHeader.MerkleRoot)
+					t.Logf("Calculated Merkle Root : %s", root)
+					t.Errorf("Failed to verify merkle proof : %s", err)
+				}
+			}
+		}
+	}
+}
+
+func Test_Verify1(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		proofs := MockMerkleProof(MockTxIDsOffsets(1, 100))
+		if len(proofs) != 1 {
+			t.Errorf("Missing merkle proofs")
+		}
+
+		for _, proof := range proofs {
+			root, err := proof.CalculateRoot()
+			if err != nil {
+				t.Errorf("Failed to calculate merkle root : %s", err)
+			}
+
+			if err := proof.Verify(); err != nil {
+				t.Logf("Merkle Root : %s", proof.BlockHeader.MerkleRoot)
+				t.Logf("Calculated Merkle Root : %s", root)
+				t.Errorf("Failed to verify merkle proof : %s", err)
+			}
+		}
+	}
+}
+
+func Test_VerifyMulti(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		count := 1 + rand.Intn(10)
+		proofs := MockMerkleProof(MockTxIDsOffsets(count, 100))
+		if len(proofs) != count {
+			t.Errorf("Missing merkle proofs")
+		}
+
+		for _, proof := range proofs {
+			root, err := proof.CalculateRoot()
+			if err != nil {
+				t.Errorf("Failed to calculate merkle root : %s", err)
+			}
+
+			if err := proof.Verify(); err != nil {
+				t.Logf("Merkle Root : %s", proof.BlockHeader.MerkleRoot)
+				t.Logf("Calculated Merkle Root : %s", root)
+				t.Errorf("Failed to verify merkle proof : %s", err)
+			}
+		}
+	}
+}
+
+func MockTxIDsOffsets(count, offset int) ([]bitcoin.Hash32, []int, int) {
+	txids := make([]bitcoin.Hash32, count)
+	offsets := make([]int, count)
+	txCount := rand.Intn(offset)
+	for i := range txids {
+		offsets[i] = txCount
+		rand.Read(txids[i][:])
+		txCount += 1 + rand.Intn(100)
+	}
+
+	return txids, offsets, txCount
+}
+
+func MockMerkleProof(txids []bitcoin.Hash32, offsets []int, txCount int) []*MerkleProof {
+	header := &wire.BlockHeader{
+		Timestamp: uint32(time.Now().Unix()),
+		Bits:      0x1d00ffff,
+		Nonce:     rand.Uint32(),
+	}
+	rand.Read(header.PrevBlock[:])
+
+	tree := NewMerkleTree(true)
+	for _, txid := range txids {
+		tree.AddMerkleProof(txid)
+	}
+
+	offsetIndex := 0
+	for i := 0; i < txCount; i++ {
+		if offsetIndex < len(offsets) && i == offsets[offsetIndex] {
+			tree.AddHash(txids[offsetIndex])
+			offsetIndex++
+			continue
+		}
+
+		var otherTxid bitcoin.Hash32
+		rand.Read(otherTxid[:])
+		tree.AddHash(otherTxid)
+	}
+
+	if offsetIndex != len(offsets) {
+		panic("all offsets not hit")
+	}
+
+	merkleRoot, proofs := tree.FinalizeMerkleProofs()
+	copy(header.MerkleRoot[:], merkleRoot[:])
+
+	for i, proof := range proofs {
+		proof.TxID = &txids[i]
+		proof.BlockHeader = header
+	}
+
+	return proofs
+}
 
 func TestSerialize(t *testing.T) {
 	h := "000cef65a4611570303539143dabd6aa64dbd0f41ed89074406dc0e7cd251cf1efff69f17b44cfe9" +

@@ -40,6 +40,8 @@ type MerkleProof struct {
 	depth int
 }
 
+type MerkleProofs []*MerkleProof
+
 // NewMerkleProof creates a new merkle proof with a specified transaction id.
 func NewMerkleProof(txid bitcoin.Hash32) *MerkleProof {
 	return &MerkleProof{
@@ -48,6 +50,77 @@ func NewMerkleProof(txid bitcoin.Hash32) *MerkleProof {
 		Index: -1,
 		depth: 1,
 	}
+}
+
+func (mp MerkleProof) Copy() MerkleProof {
+	result := MerkleProof{
+		Index: mp.Index,
+		depth: mp.depth,
+	}
+
+	if mp.Tx != nil {
+		result.Tx = mp.Tx.Copy()
+	}
+
+	if mp.TxID != nil {
+		c := mp.TxID.Copy()
+		result.TxID = &c
+	}
+
+	if len(mp.Path) > 0 {
+		result.Path = make([]bitcoin.Hash32, len(mp.Path))
+		for i, p := range mp.Path {
+			result.Path[i] = p.Copy()
+		}
+	}
+
+	if mp.BlockHeader != nil {
+		h := mp.BlockHeader.Copy()
+		result.BlockHeader = &h
+	}
+
+	if mp.BlockHash != nil {
+		h := mp.BlockHash.Copy()
+		result.BlockHash = &h
+	}
+
+	if mp.MerkleRoot != nil {
+		h := mp.MerkleRoot.Copy()
+		result.MerkleRoot = &h
+	}
+
+	if len(mp.DuplicatedIndexes) > 0 {
+		result.DuplicatedIndexes = make([]int, len(mp.DuplicatedIndexes))
+		for i, d := range mp.DuplicatedIndexes {
+			result.DuplicatedIndexes[i] = d
+		}
+	}
+
+	result.root = mp.root.Copy()
+
+	return result
+}
+
+func (p MerkleProof) GetTxID() *bitcoin.Hash32 {
+	if p.TxID != nil {
+		return p.TxID
+	}
+
+	if p.Tx != nil {
+		return p.Tx.TxHash()
+	}
+
+	return nil
+}
+
+func (p MerkleProof) GetBlockHash() *bitcoin.Hash32 {
+	if p.BlockHash != nil {
+		return p.BlockHash
+	}
+	if p.BlockHeader != nil {
+		return p.BlockHeader.BlockHash()
+	}
+	return nil
 }
 
 // AddHash adds a new hash to complete a pair with the existing root at the next level in the merkle
@@ -289,8 +362,18 @@ func (mp *MerkleProof) Deserialize(r io.Reader) error {
 	mp.Index = int(index)
 
 	if flag&0x01 == 0x01 {
+		txSize, err := wire.ReadVarInt(r, 0)
+		if err != nil {
+			return errors.Wrap(err, "tx length")
+		}
+
+		b := make([]byte, txSize)
+		if _, err := io.ReadFull(r, b); err != nil {
+			return errors.Wrap(err, "tx bytes")
+		}
+
 		tx := &wire.MsgTx{}
-		if err := tx.Deserialize(r); err != nil {
+		if err := tx.Deserialize(bytes.NewReader(b)); err != nil {
 			return errors.Wrap(err, "tx")
 		}
 
@@ -452,6 +535,136 @@ func (mp MerkleProof) MarshalJSON() ([]byte, error) {
 	return json.Marshal(convert)
 }
 
+func (mp MerkleProof) String() string {
+	result := &bytes.Buffer{}
+	result.Write([]byte(fmt.Sprintf("Tx Index : %d\n", mp.Index)))
+
+	var hash bitcoin.Hash32
+	if mp.Tx != nil {
+		result.Write([]byte(mp.Tx.String()))
+	} else if mp.TxID != nil {
+		result.Write([]byte(fmt.Sprintf("TxID : %s\n", mp.TxID)))
+	}
+
+	if mp.BlockHeader != nil {
+		result.Write([]byte(fmt.Sprintf("Header : %s\n", mp.BlockHeader.BlockHash())))
+	} else if mp.MerkleRoot != nil {
+		result.Write([]byte(fmt.Sprintf("Merkle Root : %s\n", mp.MerkleRoot)))
+	} else if mp.BlockHash != nil {
+		result.Write([]byte(fmt.Sprintf("Block Hash : %s\n", mp.BlockHash)))
+	}
+
+	// Calculate nodes
+	layer := 1
+	index := mp.Index
+	path := mp.Path
+	duplicateIndexes := mp.DuplicatedIndexes
+	result.Write([]byte(fmt.Sprintf("%d Nodes\n", len(mp.DuplicatedIndexes)+len(mp.Path))))
+
+	for {
+		isLeft := index%2 == 0
+
+		// Check duplicate index
+		var otherHash bitcoin.Hash32
+		if len(duplicateIndexes) > 0 && layer == duplicateIndexes[0] {
+			result.Write([]byte("  *\n"))
+		} else {
+			if len(path) == 0 {
+				break
+			}
+			otherHash = path[0]
+			path = path[1:]
+
+			result.Write([]byte("  " + otherHash.String() + "\n"))
+		}
+
+		if !isLeft && otherHash.Equal(&hash) {
+			// Right hash can't be duplicate
+			result.Write([]byte("  Invalid Duplicate\n"))
+		}
+
+		s := sha256.New()
+		if isLeft {
+			s.Write(hash[:])
+			s.Write(otherHash[:])
+		} else {
+			s.Write(otherHash[:])
+			s.Write(hash[:])
+		}
+		hash = sha256.Sum256(s.Sum(nil)) // double SHA256
+
+		index = index / 2
+		layer++
+	}
+
+	return string(result.Bytes())
+}
+
+func (mp MerkleProof) StringWithAddresses(net bitcoin.Network) string {
+	result := &bytes.Buffer{}
+	result.Write([]byte(fmt.Sprintf("Tx Index : %d\n", mp.Index)))
+
+	var hash bitcoin.Hash32
+	if mp.Tx != nil {
+		result.Write([]byte(mp.Tx.StringWithAddresses(net)))
+	} else if mp.TxID != nil {
+		result.Write([]byte(fmt.Sprintf("TxID : %s\n", mp.TxID)))
+	}
+
+	if mp.BlockHeader != nil {
+		result.Write([]byte(fmt.Sprintf("Header : %s\n", mp.BlockHeader.BlockHash())))
+	} else if mp.MerkleRoot != nil {
+		result.Write([]byte(fmt.Sprintf("Merkle Root : %s\n", mp.MerkleRoot)))
+	} else if mp.BlockHash != nil {
+		result.Write([]byte(fmt.Sprintf("Block Hash : %s\n", mp.BlockHash)))
+	}
+
+	// Calculate nodes
+	layer := 1
+	index := mp.Index
+	path := mp.Path
+	duplicateIndexes := mp.DuplicatedIndexes
+	result.Write([]byte(fmt.Sprintf("%d Nodes\n", len(mp.DuplicatedIndexes)+len(mp.Path))))
+
+	for {
+		isLeft := index%2 == 0
+
+		// Check duplicate index
+		var otherHash bitcoin.Hash32
+		if len(duplicateIndexes) > 0 && layer == duplicateIndexes[0] {
+			result.Write([]byte("  *\n"))
+		} else {
+			if len(path) == 0 {
+				break
+			}
+			otherHash = path[0]
+			path = path[1:]
+
+			result.Write([]byte("  " + otherHash.String() + "\n"))
+		}
+
+		if !isLeft && otherHash.Equal(&hash) {
+			// Right hash can't be duplicate
+			result.Write([]byte("  Invalid Duplicate\n"))
+		}
+
+		s := sha256.New()
+		if isLeft {
+			s.Write(hash[:])
+			s.Write(otherHash[:])
+		} else {
+			s.Write(otherHash[:])
+			s.Write(hash[:])
+		}
+		hash = sha256.Sum256(s.Sum(nil)) // double SHA256
+
+		index = index / 2
+		layer++
+	}
+
+	return string(result.Bytes())
+}
+
 func (mp *MerkleProof) UnmarshalJSON(data []byte) error {
 	var convert jsonMerkleProof
 	if err := json.Unmarshal(data, &convert); err != nil {
@@ -554,4 +767,13 @@ func (mp MerkleProof) MarshalBinary() ([]byte, error) {
 
 func (mp *MerkleProof) UnmarshalBinary(data []byte) error {
 	return mp.Deserialize(bytes.NewReader(data))
+}
+
+func (mps MerkleProofs) Copy() MerkleProofs {
+	result := make(MerkleProofs, len(mps))
+	for i, mp := range mps {
+		m := mp.Copy()
+		result[i] = &m
+	}
+	return result
 }

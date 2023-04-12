@@ -3,8 +3,17 @@ package storage
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 )
+
+type Serializer interface {
+	Serialize(io.Writer) error
+}
+
+type Deserializer interface {
+	Deserialize(io.Reader) error
+}
 
 // Storage is the interface combining all storage interfaces.
 type Storage interface {
@@ -13,6 +22,17 @@ type Storage interface {
 	Searcher
 	Clearer
 	List
+	Copy
+}
+
+type StreamStorage interface {
+	ReadWriter
+	StreamReadWriter
+	Remover
+	Searcher
+	Clearer
+	List
+	Copy
 }
 
 // ReadWriter interface combines the Reader and Writer interface.
@@ -21,14 +41,41 @@ type ReadWriter interface {
 	Writer
 }
 
+type StreamReadWriter interface {
+	StreamReader
+	StreamWriter
+}
+
+type CopyList interface {
+	List
+	Copy
+}
+
 // Reader interface is for retrieving items from the store.
 type Reader interface {
 	Read(context.Context, string) ([]byte, error)
 }
 
+type RangeReader interface {
+	ReadRange(ctx context.Context, key string, start, end int64) ([]byte, error)
+}
+
+type StreamReader interface {
+	StreamRead(ctx context.Context, key string) (io.ReadCloser, error)
+}
+
+type StreamRangeReader interface {
+	StreamReadRange(ctx context.Context, key string, start, end int64) (io.ReadCloser, error)
+}
+
 // Writer interface is for adding or updating an item to the store.
 type Writer interface {
 	Write(context.Context, string, []byte, *Options) error
+}
+
+type StreamWriter interface {
+	// ReadSeeker is required by AWS S3 stream writer
+	StreamWrite(ctx context.Context, key string, r io.ReadSeeker) error
 }
 
 // Remover interface is for removing an item from storage.
@@ -51,8 +98,34 @@ type List interface {
 	List(context.Context, string) ([]string, error)
 }
 
+type Copy interface {
+	Copy(ctx context.Context, fromKey, toKey string) error
+}
+
 // CreateStorage builds an appropriate Storage from the details.
 func CreateStorage(bucket, root string, maxRetries, retryDelay int) (Storage, error) {
+	if len(bucket) == 0 {
+		return nil, errors.New("Bucket value required")
+	}
+
+	config := Config{
+		Bucket:     bucket,
+		Root:       root,
+		MaxRetries: maxRetries,
+		RetryDelay: retryDelay,
+	}
+
+	if strings.ToLower(config.Bucket) == "standalone" {
+		return NewFilesystemStorage(config), nil
+	} else if strings.ToLower(config.Bucket) == "mock" {
+		return NewMockStorage(), nil
+	} else {
+		return NewS3Storage(config), nil
+	}
+}
+
+// CreateStreamStorage builds an appropriate Storage from the details.
+func CreateStreamStorage(bucket, root string, maxRetries, retryDelay int) (StreamStorage, error) {
 	if len(bucket) == 0 {
 		return nil, errors.New("Bucket value required")
 	}

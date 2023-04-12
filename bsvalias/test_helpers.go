@@ -3,6 +3,7 @@ package bsvalias
 import (
 	"context"
 
+	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/wire"
 
@@ -97,6 +98,10 @@ func (f *MockFactory) GenerateMockUser(host string,
 
 	f.users = append(f.users, result)
 	return &result.handle, &pk, &ra, nil
+}
+
+func (c *MockClient) IsCapable(url string) (bool, error) {
+	return true, nil
 }
 
 // GetPublicKey gets the identity public key for the handle.
@@ -217,4 +222,64 @@ func (c *MockClient) CheckP2PTx(txid bitcoin.Hash32) error {
 // ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
 func (c *MockClient) ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error) {
 	return c.user.instrumentAliases, nil
+}
+
+func (c *MockClient) GetPublicProfile(ctx context.Context) (*PublicProfile, error) {
+	return nil, errors.New("Not implemented")
+}
+
+func (c *MockClient) PostNegotiationTx(ctx context.Context,
+	negotiationTx *NegotiationTransaction) (*NegotiationTransaction, error) {
+
+	isSigned := false
+	for _, txin := range negotiationTx.Tx.Tx.TxIn {
+		if len(txin.UnlockingScript) > 0 {
+			isSigned = true
+		}
+	}
+
+	if isSigned { // Assume this is just a final posting of the completed tx.
+		if err := negotiationTx.Tx.VerifyInputs(); err != nil {
+			return nil, errors.Wrap(err, "verify inputs")
+		}
+
+		logger.InfoWithFields(ctx, []logger.Field{
+			logger.Stringer("posted_txid", negotiationTx.Tx.Tx.TxHash()),
+		}, "Posted negotiation tx")
+	}
+
+	// Assume this is a request to send payment in bitcoin. Tokens can't be implemented here because
+	// it is a circular dependency to the specification repo.
+	return c.addBitcoinReceiver(negotiationTx)
+}
+
+func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) (*NegotiationTransaction, error) {
+	inputValue := uint64(0)
+	for i := 0; i < negotiationTx.Tx.InputCount(); i++ {
+		output, err := negotiationTx.Tx.InputOutput(i)
+		if err != nil {
+			return nil, errors.Wrapf(err, "input %d", i)
+		}
+
+		inputValue += output.Value
+	}
+
+	outputValue := uint64(0)
+	for i := 0; i < negotiationTx.Tx.OutputCount(); i++ {
+		outputValue += negotiationTx.Tx.Output(i).Value
+	}
+
+	if outputValue >= inputValue {
+		return nil, errors.New("Sends Not Implemented")
+	}
+
+	receiveAmount := inputValue - outputValue
+	lockingScript, _ := c.user.addressKey.LockingScript()
+	negotiationTx.Tx.Tx.AddTxOut(wire.NewTxOut(receiveAmount, lockingScript))
+	negotiationTx.Handle = c.user.handle
+	return negotiationTx, nil
+}
+
+func (c *MockClient) PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error {
+	return errors.New("Not implemented")
 }

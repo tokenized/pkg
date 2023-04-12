@@ -5,6 +5,10 @@ import (
 	"strconv"
 
 	"github.com/tokenized/pkg/bitcoin"
+	"github.com/tokenized/pkg/expanded_tx"
+	"github.com/tokenized/pkg/fees"
+	"github.com/tokenized/pkg/merkle_proof"
+	"github.com/tokenized/pkg/peer_channels"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -228,3 +232,24 @@ type InstrumentAlias struct {
 	InstrumentAlias string `json:"instrument_alias"`
 	InstrumentID    string `json:"instrument_id"`
 }
+
+type PublicProfile struct {
+	// Name is the name of the owner of the paymail (person, business). Max 100 characters
+	Name *string `json:"name,omitempty"`
+
+	// AvatarURL is a URL that returns a 180 by 180 image. It can accept an optional parameter `s`
+	// to return an image of width and height `s`
+	AvatarURL *string `json:"avatar,omitempty"`
+}
+
+type NegotiationTransaction struct {
+	ID string `json:"id"` // Unique ID for negotiation. Respond with same ID.
+
+	Fees fees.FeeRequirements    `json:"fees"`
+	Tx   *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
+
+	Handle       string                 `json:"handle"`        // Paymail handle to respond or callback to.
+	PeerChannels peer_channels.Channels `json:"peer_channels"` // Peer channels to respond or callback to.
+}
+
+type MerkleProofs merkle_proof.MerkleProofs

@@ -3,18 +3,9 @@ package storage
 import (
 	"bytes"
 	"context"
-	"io"
 
 	"github.com/pkg/errors"
 )
-
-type Serializer interface {
-	Serialize(io.Writer) error
-}
-
-type Deserializer interface {
-	Deserialize(io.Reader) error
-}
 
 func Save(ctx context.Context, store Writer, path string, object Serializer) error {
 	buf := &bytes.Buffer{}

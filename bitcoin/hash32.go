@@ -10,7 +10,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-const Hash32Size = 32
+const (
+	Hash32Size = 32
+)
 
 // Hash32 is a 32 byte integer in little endian format.
 type Hash32 [Hash32Size]byte
@@ -26,19 +28,11 @@ func NewHash32(b []byte) (*Hash32, error) {
 
 // NewHash32FromStr creates a little endian hash from a big endian string.
 func NewHash32FromStr(s string) (*Hash32, error) {
-	if len(s) != 2*Hash32Size {
-		return nil, errors.Wrapf(ErrWrongSize, "hex: got %d, want %d", len(s), Hash32Size*2)
-	}
-
-	b := make([]byte, Hash32Size)
-	_, err := hex.Decode(b, []byte(s[:]))
-	if err != nil {
+	result := &Hash32{}
+	if err := result.SetString(s); err != nil {
 		return nil, err
 	}
-
-	result := Hash32{}
-	reverse32(result[:], b)
-	return &result, nil
+	return result, nil
 }
 
 // Sha256 sets the value of this hash to the SHA256 of itself.
@@ -80,11 +74,45 @@ func (h *Hash32) SetBytes(b []byte) error {
 	return nil
 }
 
+func (h *Hash32) SetString(s string) error {
+	if len(s) != 2*Hash32Size {
+		return errors.Wrapf(ErrWrongSize, "hex: got %d, want %d", len(s), Hash32Size*2)
+	}
+
+	j := 0
+	for i := Hash32Size - 1; i >= 0; i-- {
+		hf := s[j]
+		f := hexValues[hf]
+		if f == 0xff {
+			return hex.InvalidByteError(hf)
+		}
+		j++
+
+		hs := s[j]
+		j++
+		s := hexValues[hs]
+		if s == 0xff {
+			return hex.InvalidByteError(hs)
+		}
+
+		h[i] = (f << 4) + s
+	}
+
+	return nil
+}
+
 // String returns the hex for the hash.
 func (h Hash32) String() string {
-	var r [Hash32Size]byte
-	reverse32(r[:], h[:])
-	return fmt.Sprintf("%x", r[:])
+	var hex [Hash32Size * 2]byte
+	i := (Hash32Size * 2) - 1
+	for _, b := range h[:] {
+		hex[i] = hexChars[b&0x0f]
+		i--
+
+		hex[i] = hexChars[b>>4]
+		i--
+	}
+	return string(hex[:])
 }
 
 // Equal returns true if the parameter has the same value.
@@ -96,6 +124,12 @@ func (h *Hash32) Equal(o *Hash32) bool {
 		return false
 	}
 	return bytes.Equal(h[:], o[:])
+}
+
+func (h Hash32) Copy() Hash32 {
+	var c Hash32
+	copy(c[:], h[:])
+	return c
 }
 
 func (h Hash32) IsZero() bool {
@@ -129,14 +163,12 @@ func DeserializeHash32(r io.Reader) (*Hash32, error) {
 
 // MarshalJSON converts to json.
 func (h Hash32) MarshalJSON() ([]byte, error) {
-	var r [Hash32Size]byte
-	reverse32(r[:], h[:])
-	return []byte(fmt.Sprintf("\"%x\"", r[:])), nil
+	return []byte(fmt.Sprintf("\"%s\"", h)), nil
 }
 
 // UnmarshalJSON converts from json.
 func (h *Hash32) UnmarshalJSON(data []byte) error {
-	b, err := ConvertJSONHexToBytes(data)
+	b, err := ConvertJSONHexToReverseBytes(data)
 	if err != nil {
 		return errors.Wrap(err, "hex")
 	}
@@ -146,33 +178,24 @@ func (h *Hash32) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	if len(b) != Hash32Size {
-		return fmt.Errorf("Wrong size hex for Hash32 : %d", len(b)*2)
-	}
-
-	reverse32(h[:], b)
-	return nil
+	return h.SetBytes(b)
 }
 
 // MarshalText returns the text encoding of the hash.
 // Implements encoding.TextMarshaler interface.
 func (h Hash32) MarshalText() ([]byte, error) {
-	b := h.Bytes()
-	result := make([]byte, hex.EncodedLen(len(b)))
-	hex.Encode(result, b)
-	return result, nil
+	result := h.String()
+	return []byte(result), nil
 }
 
 // UnmarshalText parses a text encoded hash and sets the value of this object.
 // Implements encoding.TextUnmarshaler interface.
 func (h *Hash32) UnmarshalText(text []byte) error {
-	b := make([]byte, hex.DecodedLen(len(text)))
-	_, err := hex.Decode(b, text)
-	if err != nil {
-		return err
-	}
+	return h.SetString(string(text))
+}
 
-	return h.SetBytes(b)
+func (h Hash32) MarshalBinaryFixedSize() int {
+	return 32
 }
 
 // MarshalBinary returns the binary encoding of the hash.

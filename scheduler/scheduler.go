@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/logger"
 )
 
 const (

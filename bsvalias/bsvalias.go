@@ -38,6 +38,21 @@ const (
 	// URLNameListTokenizedInstrumentAlias is the name used to identify the list Tokenized instrument alias
 	// URL and capability.
 	URLNameListTokenizedInstrumentAlias = "e243785d1f17"
+
+	// URLNamePublicProfile is the name used to identify the URL used to fetch public profile
+	// information.
+	URLNamePublicProfile = "f12f968c92d6"
+
+	// https://github.com/bitcoin-sv-specs/brfc-paymail/blob/master/src/05-verify-public-key-owner.md
+	// (Not Implemented) URLNameVerifyPublicKey = "a9f510c16bde"
+	// :https://test.com/api/bsvalias/verifypubkey/{alias}@{domain.tld}/{pubkey}
+
+	// URLNameNegotiationTransaction is the name used to identify the URL used to post a negotiation
+	// tx.
+	URLNameNegotiationTransaction = "27d8bd77c113"
+
+	// URLNameMerkleProof is the name used to identify the URL used to post merkle proofs to peers.
+	URLNameMerkleProof = "b38a1b09c3ce"
 )
 
 var (
@@ -56,6 +71,9 @@ var (
 	// ErrWrongOutputCount means that the outputs supplied with a payment request do not match the
 	// number of inputs.
 	ErrWrongOutputCount = errors.New("Wrong Output Count")
+
+	// ErrNotSupported means that a requested feature or protocol was not supported.
+	ErrNotSupported = errors.New("Not Supported")
 )
 
 // Factory is the interface for creating new bsvalias clients.
@@ -67,6 +85,9 @@ type Factory interface {
 
 // Client is the interface for interacting with an bsvalias oracle service.
 type Client interface {
+	// IsCapable returns true if the specified URL is supported by the paymail host.
+	IsCapable(url string) (bool, error)
+
 	// GetPublicKey gets the identity public key for the handle.
 	GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error)
 
@@ -96,4 +117,12 @@ type Client interface {
 
 	// ListTokenizedInstruments returns the list of instrument aliases for this paymail handle.
 	ListTokenizedInstruments(ctx context.Context) ([]InstrumentAlias, error)
+
+	// GetPublicProfile returns the public profile for this paymail handle.
+	GetPublicProfile(ctx context.Context) (*PublicProfile, error)
+
+	PostNegotiationTx(ctx context.Context,
+		tx *NegotiationTransaction) (*NegotiationTransaction, error)
+
+	PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error
 }

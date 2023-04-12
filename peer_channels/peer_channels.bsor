@@ -1,0 +1,29 @@
+version 0
+
+Channels []Channel
+
+Message {
+  1 Sequence    uint64
+  2 Received    binary
+  3 ContentType string
+  4 ChannelID   string
+  5 Payload     binary
+}
+
+Messages []*Message
+
+MessageNotification {
+  1 Sequence    uint64
+  2 Received    binary
+  3 ContentType string
+  4 ChannelID   string
+}
+
+Channel {
+  1 ID         string
+  2 AccountID  string
+  3 ReadToken  string
+  4 WriteToken string
+}
+
+

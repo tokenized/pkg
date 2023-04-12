@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/tokenized/pkg/logger"
+	"github.com/tokenized/logger"
 
 	"github.com/pkg/errors"
 )

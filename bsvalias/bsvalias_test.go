@@ -2,6 +2,7 @@ package bsvalias
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -10,11 +11,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Keep commented so we don't hit moneybutton.com on every test run.
+// Keep commented so we don't hit on every test run.
 var (
 	handles = []string{
 		// "test@localhost:8080",
 		// "loosethinker@moneybutton.com",
+		// "karltheprogrammer@handcash.io",
 	}
 )
 
@@ -59,6 +61,9 @@ func TestCapabilities(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get site : %s", err)
 		}
+
+		js, _ := json.MarshalIndent(site, "", "  ")
+		t.Logf("Site %s : %s", handle, js)
 
 		t.Logf("%s Site : %+v", fields[1], site)
 	}
@@ -195,14 +200,47 @@ func TestInstrumentAlias(t *testing.T) {
 		request, err := id.ListTokenizedInstruments(ctx)
 		if err != nil {
 			if errors.Cause(err) == ErrNotCapable {
-				t.Logf("Payment Request Not Supported")
+				t.Logf("Instrument Alias Not Supported")
 				continue
 			}
-			t.Fatalf("Failed to get payment request : %s", err)
+			t.Fatalf("Failed to get instrument alias : %s", err)
 		}
 
 		for _, instrument := range request {
 			t.Logf("Instrument alias %s : %s", instrument.InstrumentAlias, instrument.InstrumentID)
+		}
+	}
+}
+
+func Test_PublicProfile(t *testing.T) {
+	ctx := context.Background()
+
+	for _, handle := range handles {
+		t.Logf("Testing : %s", handle)
+
+		id, err := NewHTTPClient(ctx, handle)
+		if err != nil {
+			t.Fatalf("Failed to get identity : %s", err)
+		}
+
+		request, err := id.GetPublicProfile(ctx)
+		if err != nil {
+			if errors.Cause(err) == ErrNotCapable {
+				t.Logf("Public Profile Not Supported")
+				continue
+			}
+			t.Fatalf("Failed to get Public Profile : %s", err)
+		}
+
+		js, _ := json.MarshalIndent(request, "", "  ")
+		t.Logf("Response : %s", js)
+
+		if request.Name != nil {
+			t.Logf("Name : %s", *request.Name)
+		}
+
+		if request.AvatarURL != nil {
+			t.Logf("AvatarURL : %s", *request.AvatarURL)
 		}
 	}
 }
@@ -243,6 +281,42 @@ func TestBRFCID(t *testing.T) {
 		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "e243785d1f17")
 	}
 	t.Logf("List Instrument Alias BRFC ID : %s", hash.String()[:12])
+
+	// Public Profile BRFC ID
+	title = "Public Profile (Name & Avatar)"
+	author = "Ryan X. Charles (Money Button)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "f12f968c92d6" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f12f968c92d6")
+	}
+	t.Logf("Public Profile BRFC ID : %s", hash.String()[:12])
+
+	// Paymail for a full tx used to negotiate a payment or payment request transaction BRFC ID
+	title = "Negotiation Transaction"
+	author = "Curtis Ellis (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "27d8bd77c113" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "27d8bd77c113")
+	}
+	t.Logf("Negotiation Transaction BRFC ID : %s", hash.String()[:12])
+
+	// Paymail for providing a merkle proof BRFC ID
+	title = "Merkle Proofs"
+	author = "Curtis Ellis (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "b38a1b09c3ce" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "b38a1b09c3ce")
+	}
+	t.Logf("Merkle Proofs BRFC ID : %s", hash.String()[:12])
 }
 
 func TestMessageSignature(t *testing.T) {

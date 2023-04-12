@@ -458,6 +458,14 @@ func (k *ExtendedKey) UnmarshalJSON(data []byte) error {
 	return k.SetString58(string(data[1 : len(data)-1]))
 }
 
+func (k ExtendedKey) MarshalJSONMasked() ([]byte, error) {
+	if k.IsPrivate() {
+		return []byte("\"Public:" + k.ExtendedPublicKey().String() + "\""), nil
+	}
+
+	return k.MarshalJSON()
+}
+
 // MarshalText returns the text encoding of the extended key.
 // Implements encoding.TextMarshaler interface.
 func (k ExtendedKey) MarshalText() ([]byte, error) {

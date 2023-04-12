@@ -43,6 +43,27 @@ func PublicKeyFromBytes(b []byte) (PublicKey, error) {
 	return PublicKey{X: x, Y: y}, nil
 }
 
+// AddHash implements the WP42 method of deriving a public key from a public key and a hash.
+func (k PublicKey) AddHash(hash Hash32) (PublicKey, error) {
+	var result PublicKey
+
+	// Multiply hash by G
+	x, y := curveS256.ScalarBaseMult(hash.Bytes())
+
+	// Add to public key
+	x, y = curveS256.Add(&k.X, &k.Y, x, y)
+
+	// Check validity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return result, ErrOutOfRangeKey
+	}
+
+	result.X.Set(x)
+	result.Y.Set(y)
+
+	return result, nil
+}
+
 // RawAddress returns a raw address for this key.
 func (k PublicKey) RawAddress() (RawAddress, error) {
 	return NewRawAddressPKH(Hash160(k.Bytes()))
@@ -72,7 +93,8 @@ func (k *PublicKey) SetString(s string) error {
 // SetBytes decodes the key from bytes.
 func (k *PublicKey) SetBytes(b []byte) error {
 	if len(b) != PublicKeyCompressedLength {
-		return errors.New("Invalid public key length")
+		return fmt.Errorf("Invalid public key length : got %d, want %d", len(b),
+			PublicKeyCompressedLength)
 	}
 
 	x, y := expandPublicKey(b)
@@ -101,6 +123,13 @@ func (k PublicKey) IsEmpty() bool {
 
 func (k PublicKey) Equal(o PublicKey) bool {
 	return k.X.Cmp(&o.X) == 0 && k.Y.Cmp(&o.Y) == 0
+}
+
+func (k PublicKey) Copy() PublicKey {
+	result := PublicKey{}
+	result.X.Set(&k.X)
+	result.Y.Set(&k.Y)
+	return result
 }
 
 func (k PublicKey) Serialize(w io.Writer) error {
@@ -148,6 +177,10 @@ func (k *PublicKey) UnmarshalText(text []byte) error {
 	}
 
 	return k.SetBytes(b)
+}
+
+func (k PublicKey) MarshalBinaryFixedSize() int {
+	return 33
 }
 
 // MarshalBinary returns the binary encoding of the public key.

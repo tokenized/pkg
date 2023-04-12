@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -60,6 +61,18 @@ func NewHTTPClient(ctx context.Context, handle string) (*HTTPClient, error) {
 	}
 
 	return &result, nil
+}
+
+func (c *HTTPClient) IsCapable(url string) (bool, error) {
+	if _, err := c.Site.Capabilities.GetURL(URLNamePKI); err != nil {
+		if errors.Cause(err) == ErrNotCapable {
+			return false, nil
+		}
+
+		return false, errors.Wrap(err, "capability url")
+	}
+
+	return true, nil
 }
 
 // GetPublicKey gets the identity public key for the handle.
@@ -313,6 +326,113 @@ func (c *HTTPClient) ListTokenizedInstruments(ctx context.Context) ([]Instrument
 	}
 
 	return response.InstrumentAliases, nil
+}
+
+// GetPublicProfile returns the public profile for this paymail handle.
+func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, error) {
+	url, err := c.Site.Capabilities.GetURL(URLNamePublicProfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	response := &PublicProfile{}
+	if err := get(ctx, url, response); err != nil {
+		return nil, errors.Wrap(err, "http get")
+	}
+
+	return response, nil
+
+}
+
+func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
+	tx *NegotiationTransaction) (*NegotiationTransaction, error) {
+
+	url, err := c.Site.Capabilities.GetURL(URLNameP2PTransactions)
+	if err != nil {
+		return nil, errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	status, body, err := postRaw(ctx, url, tx)
+	if err != nil {
+		return nil, errors.Wrap(err, "http post")
+	}
+	if body != nil {
+		defer body.Close()
+	}
+
+	switch status {
+	case http.StatusOK:
+		if body == nil {
+			return nil, errors.New("Missing body")
+		}
+
+		var response NegotiationTransaction
+		if err := json.NewDecoder(body).Decode(&response); err != nil {
+			return nil, errors.Wrap(err, "decode response")
+		}
+
+		return &response, nil
+
+	case http.StatusAccepted:
+		return nil, nil
+
+	case http.StatusNotAcceptable:
+		return nil, ErrNotSupported
+
+	case http.StatusNotFound:
+		return nil, ErrNotFound
+
+	default:
+		return nil, fmt.Errorf("%d %s", status, http.StatusText(status))
+	}
+}
+
+func (c *HTTPClient) PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error {
+	url, err := c.Site.Capabilities.GetURL(URLNameMerkleProof)
+	if err != nil {
+		return errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	if err := post(ctx, url, merkleProofs, nil); err != nil {
+		return errors.Wrap(err, "http post")
+	}
+
+	return nil
+}
+
+func postRaw(ctx context.Context, url string, request interface{}) (int, io.ReadCloser, error) {
+	var transport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+
+	var client = &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: transport,
+	}
+
+	b, err := json.Marshal(request)
+	if err != nil {
+		return 0, nil, errors.Wrap(err, "marshal request")
+	}
+
+	httpResponse, err := client.Post(url, "application/json", bytes.NewReader(b))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return httpResponse.StatusCode, httpResponse.Body, nil
 }
 
 // post sends a request to the HTTP server using the POST method.

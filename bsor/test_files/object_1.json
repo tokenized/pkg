@@ -1,0 +1,17 @@
+{
+  "IntField": 100,
+  "StringField": "test string",
+  "IntZeroField": 0,
+  "SubStruct": {
+    "SubIntField": 101,
+    "SubStringField": "sub_string"
+  },
+  "BinaryField": "q83v",
+  "IntPointerField1": 102,
+  "IntPointerField2": null,
+  "PublicKeyField": "035e93e2d13997efe6fc4d1db9a9397c559e63433b78a13b638f0096fcff71f09f",
+  "ArrayStringPtrField": [
+    null,
+    "string value"
+  ]
+}

@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/tokenized/pkg/bitcoin"
-	"github.com/tokenized/pkg/txbuilder"
 	"github.com/tokenized/pkg/wire"
 
 	"github.com/pkg/errors"
@@ -41,25 +40,25 @@ func MockFundingUTXO(ctx context.Context, rpc *MockRpcNode,
 }
 
 // MockPaymentTx generates a tx paying to a specific address with inputs mocked in rpc.
-func MockPaymentTx(ctx context.Context, rpc *MockRpcNode, value uint64,
-	address bitcoin.RawAddress) *wire.MsgTx {
+// func MockPaymentTx(ctx context.Context, rpc *MockRpcNode, value uint64,
+// 	address bitcoin.RawAddress) *wire.MsgTx {
 
-	tx := txbuilder.NewTxBuilder(1.0, 1.0)
+// 	tx := txbuilder.NewTxBuilder(1.0, 1.0)
 
-	// Create mock UTXO to fund tx
-	inputKey, utxo := MockFundingUTXO(ctx, rpc, value+500)
+// 	// Create mock UTXO to fund tx
+// 	inputKey, utxo := MockFundingUTXO(ctx, rpc, value+500)
 
-	// Empty signature script
-	tx.AddInputUTXO(utxo)
+// 	// Empty signature script
+// 	tx.AddInputUTXO(utxo)
 
-	tx.AddPaymentOutput(address, value, false)
+// 	tx.AddPaymentOutput(address, value, false)
 
-	if err := tx.Sign([]bitcoin.Key{inputKey}); err != nil {
-		panic(err)
-	}
+// 	if _, err := tx.Sign([]bitcoin.Key{inputKey}); err != nil {
+// 		panic(err)
+// 	}
 
-	return tx.MsgTx
-}
+// 	return tx.MsgTx
+// }
 
 // MockKey generates a random key and raw address.
 func MockKey() (bitcoin.Key, bitcoin.RawAddress) {
