@@ -9,11 +9,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/storage"
+
+	"github.com/pkg/errors"
 )
 
+// SimpleCacher is the simplest implementation of the Cacher interface. It ensures only one instance
+// of each item exists in the cache at once and handles fetching the values from storage and writing
+// them back to storage if they are modified.
 type SimpleCacher struct {
 	items     map[string]*SimpleItem
 	itemsLock sync.Mutex

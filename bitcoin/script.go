@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -42,7 +43,10 @@ const (
 	OP_15 = byte(0x5f)
 	OP_16 = byte(0x60)
 
+	OP_NOP                = byte(0x61)
 	OP_IF                 = byte(0x63)
+	OP_NOTIF              = byte(0x64)
+	OP_ELSE               = byte(0x67)
 	OP_ENDIF              = byte(0x68)
 	OP_RETURN             = byte(0x6a)
 	OP_TOALTSTACK         = byte(0x6b)
@@ -57,9 +61,25 @@ const (
 	OP_1ADD               = byte(0x8b)
 	OP_LESSTHANOREQUAL    = byte(0xa1)
 	OP_GREATERTHANOREQUAL = byte(0xa2)
+	OP_RIPEMD160          = byte(0xa6)
+	OP_SHA1               = byte(0xa7)
+	OP_SHA256             = byte(0xa8)
 	OP_HASH160            = byte(0xa9)
+	OP_HASH256            = byte(0xaa)
+	OP_CODESEPARATOR      = byte(0xab)
 	OP_CHECKSIG           = byte(0xac)
 	OP_CHECKSIGVERIFY     = byte(0xad)
+
+	// Bitwise logical operators
+	OP_INVERT = byte(0x83)
+	OP_AND    = byte(0x84)
+	OP_OR     = byte(0x85)
+	OP_XOR    = byte(0x86)
+
+	// Psuedo op codes used as place-holders in template scripts, but not valid in final scripts.
+	OP_PUBKEYHASH_ACTUAL    = byte(0xfd)
+	OP_PUBKEY_ACTUAL        = byte(0xfe)
+	OP_INVALIDOPCODE_ACTUAL = byte(0xff)
 
 	OP_PUSH_DATA_20 = byte(0x14)
 	OP_PUSH_DATA_33 = byte(0x21)
@@ -98,87 +118,117 @@ var (
 	ErrNotUnsigned           = errors.New("Not unsigned")
 
 	byteToNames = map[byte]string{
-		OP_0:                  "OP_0",
-		OP_1NEGATE:            "OP_1NEGATE",
-		OP_1:                  "OP_1",
-		OP_2:                  "OP_2",
-		OP_3:                  "OP_3",
-		OP_4:                  "OP_4",
-		OP_5:                  "OP_5",
-		OP_6:                  "OP_6",
-		OP_7:                  "OP_7",
-		OP_8:                  "OP_8",
-		OP_9:                  "OP_9",
-		OP_10:                 "OP_10",
-		OP_11:                 "OP_11",
-		OP_12:                 "OP_12",
-		OP_13:                 "OP_13",
-		OP_14:                 "OP_14",
-		OP_15:                 "OP_15",
-		OP_16:                 "OP_16",
-		OP_RETURN:             "OP_RETURN",
-		OP_DUP:                "OP_DUP",
-		OP_HASH160:            "OP_HASH160",
-		OP_EQUAL:              "OP_EQUAL",
-		OP_EQUALVERIFY:        "OP_EQUALVERIFY",
-		OP_LESSTHANOREQUAL:    "OP_LESSTHANOREQUAL",
-		OP_GREATERTHANOREQUAL: "OP_GREATERTHANOREQUAL",
-		OP_CHECKSIG:           "OP_CHECKSIG",
-		OP_CHECKSIGVERIFY:     "OP_CHECKSIGVERIFY",
-		OP_IF:                 "OP_IF",
-		OP_ENDIF:              "OP_ENDIF",
-		OP_TOALTSTACK:         "OP_TOALTSTACK",
-		OP_FROMALTSTACK:       "OP_FROMALTSTACK",
-		OP_1ADD:               "OP_1ADD",
-		OP_SPLIT:              "OP_SPLIT",
-		OP_NIP:                "OP_NIP",
-		OP_SWAP:               "OP_SWAP",
-		OP_DROP:               "OP_DROP",
-		OP_PUBKEY:             "OP_PUBKEY",
-		OP_PUBKEYHASH:         "OP_PUBKEYHASH",
+		OP_0:                    "OP_0",
+		OP_1NEGATE:              "OP_1NEGATE",
+		OP_1:                    "OP_1",
+		OP_2:                    "OP_2",
+		OP_3:                    "OP_3",
+		OP_4:                    "OP_4",
+		OP_5:                    "OP_5",
+		OP_6:                    "OP_6",
+		OP_7:                    "OP_7",
+		OP_8:                    "OP_8",
+		OP_9:                    "OP_9",
+		OP_10:                   "OP_10",
+		OP_11:                   "OP_11",
+		OP_12:                   "OP_12",
+		OP_13:                   "OP_13",
+		OP_14:                   "OP_14",
+		OP_15:                   "OP_15",
+		OP_16:                   "OP_16",
+		OP_RETURN:               "OP_RETURN",
+		OP_DUP:                  "OP_DUP",
+		OP_RIPEMD160:            "OP_RIPEMD160",
+		OP_SHA1:                 "OP_SHA1",
+		OP_SHA256:               "OP_SHA256",
+		OP_HASH160:              "OP_HASH160",
+		OP_HASH256:              "OP_HASH256",
+		OP_EQUAL:                "OP_EQUAL",
+		OP_EQUALVERIFY:          "OP_EQUALVERIFY",
+		OP_LESSTHANOREQUAL:      "OP_LESSTHANOREQUAL",
+		OP_GREATERTHANOREQUAL:   "OP_GREATERTHANOREQUAL",
+		OP_CODESEPARATOR:        "OP_CODESEPARATOR",
+		OP_CHECKSIG:             "OP_CHECKSIG",
+		OP_CHECKSIGVERIFY:       "OP_CHECKSIGVERIFY",
+		OP_NOP:                  "OP_NOP",
+		OP_IF:                   "OP_IF",
+		OP_NOTIF:                "OP_NOTIF",
+		OP_ELSE:                 "OP_ELSE",
+		OP_ENDIF:                "OP_ENDIF",
+		OP_INVERT:               "OP_INVERT",
+		OP_AND:                  "OP_AND",
+		OP_OR:                   "OP_OR",
+		OP_XOR:                  "OP_XOR",
+		OP_TOALTSTACK:           "OP_TOALTSTACK",
+		OP_FROMALTSTACK:         "OP_FROMALTSTACK",
+		OP_1ADD:                 "OP_1ADD",
+		OP_SPLIT:                "OP_SPLIT",
+		OP_NIP:                  "OP_NIP",
+		OP_SWAP:                 "OP_SWAP",
+		OP_DROP:                 "OP_DROP",
+		OP_PUBKEY:               "OP_PUBKEY",
+		OP_PUBKEYHASH:           "OP_PUBKEYHASH",
+		OP_PUBKEYHASH_ACTUAL:    "OP_PUBKEYHASH_ACTUAL",
+		OP_PUBKEY_ACTUAL:        "OP_PUBKEY_ACTUAL",
+		OP_INVALIDOPCODE_ACTUAL: "OP_INVALIDOPCODE_ACTUAL",
 	}
 
 	byteFromNames = map[string]byte{
-		"OP_FALSE":              OP_FALSE,
-		"OP_TRUE":               OP_TRUE,
-		"OP_1NEGATE":            OP_1NEGATE,
-		"OP_0":                  OP_0,
-		"OP_1":                  OP_1,
-		"OP_2":                  OP_2,
-		"OP_3":                  OP_3,
-		"OP_4":                  OP_4,
-		"OP_5":                  OP_5,
-		"OP_6":                  OP_6,
-		"OP_7":                  OP_7,
-		"OP_8":                  OP_8,
-		"OP_9":                  OP_9,
-		"OP_10":                 OP_10,
-		"OP_11":                 OP_11,
-		"OP_12":                 OP_12,
-		"OP_13":                 OP_13,
-		"OP_14":                 OP_14,
-		"OP_15":                 OP_15,
-		"OP_16":                 OP_16,
-		"OP_RETURN":             OP_RETURN,
-		"OP_DUP":                OP_DUP,
-		"OP_HASH160":            OP_HASH160,
-		"OP_EQUAL":              OP_EQUAL,
-		"OP_EQUALVERIFY":        OP_EQUALVERIFY,
-		"OP_LESSTHANOREQUAL":    OP_LESSTHANOREQUAL,
-		"OP_GREATERTHANOREQUAL": OP_GREATERTHANOREQUAL,
-		"OP_CHECKSIG":           OP_CHECKSIG,
-		"OP_CHECKSIGVERIFY":     OP_CHECKSIGVERIFY,
-		"OP_IF":                 OP_IF,
-		"OP_ENDIF":              OP_ENDIF,
-		"OP_TOALTSTACK":         OP_TOALTSTACK,
-		"OP_FROMALTSTACK":       OP_FROMALTSTACK,
-		"OP_1ADD":               OP_1ADD,
-		"OP_SPLIT":              OP_SPLIT,
-		"OP_NIP":                OP_NIP,
-		"OP_SWAP":               OP_SWAP,
-		"OP_DROP":               OP_DROP,
-		"OP_PUBKEY":             OP_PUBKEY,
-		"OP_PUBKEYHASH":         OP_PUBKEYHASH,
+		"OP_FALSE":                OP_FALSE,
+		"OP_TRUE":                 OP_TRUE,
+		"OP_1NEGATE":              OP_1NEGATE,
+		"OP_0":                    OP_0,
+		"OP_1":                    OP_1,
+		"OP_2":                    OP_2,
+		"OP_3":                    OP_3,
+		"OP_4":                    OP_4,
+		"OP_5":                    OP_5,
+		"OP_6":                    OP_6,
+		"OP_7":                    OP_7,
+		"OP_8":                    OP_8,
+		"OP_9":                    OP_9,
+		"OP_10":                   OP_10,
+		"OP_11":                   OP_11,
+		"OP_12":                   OP_12,
+		"OP_13":                   OP_13,
+		"OP_14":                   OP_14,
+		"OP_15":                   OP_15,
+		"OP_16":                   OP_16,
+		"OP_RETURN":               OP_RETURN,
+		"OP_DUP":                  OP_DUP,
+		"OP_RIPEMD160":            OP_RIPEMD160,
+		"OP_SHA1":                 OP_SHA1,
+		"OP_SHA256":               OP_SHA256,
+		"OP_HASH160":              OP_HASH160,
+		"OP_HASH256":              OP_HASH256,
+		"OP_EQUAL":                OP_EQUAL,
+		"OP_EQUALVERIFY":          OP_EQUALVERIFY,
+		"OP_LESSTHANOREQUAL":      OP_LESSTHANOREQUAL,
+		"OP_GREATERTHANOREQUAL":   OP_GREATERTHANOREQUAL,
+		"OP_CODESEPARATOR":        OP_CODESEPARATOR,
+		"OP_CHECKSIG":             OP_CHECKSIG,
+		"OP_CHECKSIGVERIFY":       OP_CHECKSIGVERIFY,
+		"OP_NOP":                  OP_NOP,
+		"OP_IF":                   OP_IF,
+		"OP_NOTIF":                OP_NOTIF,
+		"OP_ELSE":                 OP_ELSE,
+		"OP_ENDIF":                OP_ENDIF,
+		"OP_INVERT":               OP_INVERT,
+		"OP_AND":                  OP_AND,
+		"OP_OR":                   OP_OR,
+		"OP_XOR":                  OP_XOR,
+		"OP_TOALTSTACK":           OP_TOALTSTACK,
+		"OP_FROMALTSTACK":         OP_FROMALTSTACK,
+		"OP_1ADD":                 OP_1ADD,
+		"OP_SPLIT":                OP_SPLIT,
+		"OP_NIP":                  OP_NIP,
+		"OP_SWAP":                 OP_SWAP,
+		"OP_DROP":                 OP_DROP,
+		"OP_PUBKEY":               OP_PUBKEY,
+		"OP_PUBKEYHASH":           OP_PUBKEYHASH,
+		"OP_PUBKEYHASH_ACTUAL":    OP_PUBKEYHASH_ACTUAL,
+		"OP_PUBKEY_ACTUAL":        OP_PUBKEY_ACTUAL,
+		"OP_INVALIDOPCODE_ACTUAL": OP_INVALIDOPCODE_ACTUAL,
 	}
 )
 
@@ -198,6 +248,10 @@ func (item ScriptItem) String() string {
 	if item.Type == ScriptItemTypePushData {
 		if isText(item.Data) {
 			return fmt.Sprintf("\"%s\"", string(item.Data))
+		}
+
+		if value, err := ScriptNumberValue(&item); err == nil && value < 0xffff && value > -0xffff {
+			return fmt.Sprintf("%d", value)
 		}
 
 		return fmt.Sprintf("0x%s", hex.EncodeToString(item.Data))
@@ -1393,10 +1447,12 @@ func StringToScript(text string) (Script, error) {
 		firstChar = part[0]
 		lastChar = part[len(part)-1]
 
-		opCode, exists := byteFromNames[part]
-		if exists {
-			buf.WriteByte(opCode)
-			continue
+		if len(part) > 3 && part[:3] == "OP_" {
+			opCode, exists := byteFromNames[part]
+			if exists {
+				buf.WriteByte(opCode)
+				continue
+			}
 		}
 
 		if len(part) < 2 {
@@ -1423,14 +1479,27 @@ func StringToScript(text string) (Script, error) {
 			continue
 		}
 
-		b, err := hex.DecodeString(part[2:]) // skip leading "0x"
-		if err != nil {
-			return nil, errors.Wrapf(err, "decode push data hex: %s", part[2:])
+		if part[:2] == "0x" {
+			b, err := hex.DecodeString(part[2:]) // skip leading "0x"
+			if err != nil {
+				return nil, errors.Wrapf(err, "decode push data hex: %s", part[2:])
+			}
+
+			if err := WritePushDataScript(buf, b); err != nil {
+				return nil, errors.Wrap(err, "write push data")
+			}
+			continue
 		}
 
-		if err := WritePushDataScript(buf, b); err != nil {
-			return nil, errors.Wrap(err, "write push data")
+		if int, err := strconv.ParseInt(part, 10, 64); err == nil {
+			item := PushNumberScriptItem(int)
+			if err := item.Write(buf); err != nil {
+				return nil, errors.Wrap(err, "write number")
+			}
+			continue
 		}
+
+		return nil, errors.Wrap(errors.New("Unknown Script Item"), part)
 	}
 
 	return Script(buf.Bytes()), nil

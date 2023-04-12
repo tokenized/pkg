@@ -103,6 +103,11 @@ func TestScriptToString(t *testing.T) {
 			text: "OP_0 OP_RETURN \"test text\"",
 			hex:  "006a09746573742074657874",
 		},
+		{
+			name: "Number",
+			text: "OP_0 OP_RETURN 1125",
+			hex:  "006a026504",
+		},
 	}
 
 	for _, tt := range tests {

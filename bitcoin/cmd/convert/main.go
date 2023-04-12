@@ -48,6 +48,8 @@ func convert(ctx context.Context, arg string) error {
 
 	if script, err := bitcoin.StringToScript(arg); err == nil {
 		return errors.Wrap(printScript(script), "print script")
+	} else {
+		println("not script", err.Error())
 	}
 
 	fmt.Printf("Unknown format\n")
@@ -98,6 +100,7 @@ func convertPublicKey(ctx context.Context, b []byte) error {
 }
 
 func printScript(b []byte) error {
+	fmt.Printf("Script Size %d bytes\n", len(b))
 	fmt.Printf("Script: %s\n", bitcoin.ScriptToString(bitcoin.Script(b)))
 	fmt.Printf("Script Hex: %s\n", hex.EncodeToString(b))
 	fmt.Printf("Script Base64: %s\n", base64.StdEncoding.EncodeToString(b))
@@ -127,6 +130,7 @@ func printPublicKeyHash(pkh bitcoin.Hash20) error {
 func printKey(key bitcoin.Key) error {
 	fmt.Printf("WIF: %s\n", key)
 	fmt.Printf("Hex Key: %s\n", hex.EncodeToString(key.Bytes()))
+	fmt.Printf("Public Key: %s\n", hex.EncodeToString(key.PublicKey().Bytes()))
 
 	if lockingScript, err := key.LockingScript(); err == nil {
 		fmt.Printf("P2PKH Script\n")

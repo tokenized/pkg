@@ -9,8 +9,8 @@ import (
 )
 
 // Cacher is an interface for a system that pulls items from storage and retains them in the cache
-// while they are being used, then writes them back to storage. It is responsible for ensuring only
-// one instance of each item exists in the cache at once.
+// while they are being used, then writes them back to storage. It ensures only one instance of each
+// item exists in the cache at once.
 type Cacher interface {
 	Add(ctx context.Context, typ reflect.Type, path string, value Value) (Value, error)
 	AddMulti(ctx context.Context, typ reflect.Type, paths []string, values []Value) ([]Value, error)

@@ -12,6 +12,8 @@ import (
 )
 
 var (
+	BIP0276_ScriptPrefix = "bitcoin-script"
+
 	ErrCheckHashInvalid = errors.New("Check Hash Invalid")
 	ErrInvalidVersion   = errors.New("Invalid Version")
 	ErrInvalidNetwork   = errors.New("Invalid Network")
@@ -59,6 +61,8 @@ func BIP0276Encode(net Network, prefix string, data []byte) string {
 	case MainNet:
 		result += "01"
 	case TestNet:
+		result += "02"
+	default:
 		result += "02"
 	}
 
