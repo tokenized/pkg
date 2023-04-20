@@ -43,38 +43,106 @@ const (
 	OP_15 = byte(0x5f)
 	OP_16 = byte(0x60)
 
-	OP_NOP                = byte(0x61)
-	OP_IF                 = byte(0x63)
-	OP_NOTIF              = byte(0x64)
-	OP_ELSE               = byte(0x67)
-	OP_ENDIF              = byte(0x68)
-	OP_RETURN             = byte(0x6a)
-	OP_TOALTSTACK         = byte(0x6b)
-	OP_FROMALTSTACK       = byte(0x6c)
-	OP_DROP               = byte(0x75)
-	OP_DUP                = byte(0x76)
-	OP_NIP                = byte(0x77)
-	OP_SWAP               = byte(0x7c)
-	OP_SPLIT              = byte(0x7f)
-	OP_EQUAL              = byte(0x87)
-	OP_EQUALVERIFY        = byte(0x88)
-	OP_1ADD               = byte(0x8b)
+	OP_NOP          = byte(0x61)
+	OP_VER          = byte(0x62)
+	OP_IF           = byte(0x63)
+	OP_NOTIF        = byte(0x64)
+	OP_VERIF        = byte(0x65)
+	OP_VERNOTIF     = byte(0x66)
+	OP_ELSE         = byte(0x67)
+	OP_ENDIF        = byte(0x68)
+	OP_VERIFY       = byte(0x69)
+	OP_RETURN       = byte(0x6a)
+	OP_TOALTSTACK   = byte(0x6b)
+	OP_FROMALTSTACK = byte(0x6c)
+	OP_2DROP        = byte(0x6d)
+	OP_2DUP         = byte(0x6e)
+	OP_3DUP         = byte(0x6f)
+	OP_2OVER        = byte(0x70)
+	OP_2ROT         = byte(0x71)
+	OP_2SWAP        = byte(0x72)
+	OP_IFDUP        = byte(0x73)
+	OP_DEPTH        = byte(0x74)
+	OP_DROP         = byte(0x75)
+	OP_DUP          = byte(0x76)
+	OP_NIP          = byte(0x77)
+	OP_OVER         = byte(0x78)
+	OP_PICK         = byte(0x79)
+	OP_ROLL         = byte(0x7a)
+	OP_ROT          = byte(0x7b)
+	OP_SWAP         = byte(0x7c)
+	OP_TUCK         = byte(0x7d)
+	OP_CAT          = byte(0x7e)
+	OP_SPLIT        = byte(0x7f)
+	OP_NUM2BIN      = byte(0x80)
+	OP_BIN2NUM      = byte(0x81)
+	OP_SIZE         = byte(0x82)
+
+	OP_EQUAL       = byte(0x87)
+	OP_EQUALVERIFY = byte(0x88)
+
+	OP_1ADD      = byte(0x8b)
+	OP_1SUB      = byte(0x8c)
+	OP_2MUL      = byte(0x8d)
+	OP_2DIV      = byte(0x8e)
+	OP_NEGATE    = byte(0x8f)
+	OP_ABS       = byte(0x90)
+	OP_NOT       = byte(0x91)
+	OP_0NOTEQUAL = byte(0x92)
+
+	OP_ADD    = byte(0x93)
+	OP_SUB    = byte(0x94)
+	OP_MUL    = byte(0x95)
+	OP_DIV    = byte(0x96)
+	OP_MOD    = byte(0x97)
+	OP_LSHIFT = byte(0x98)
+	OP_RSHIFT = byte(0x99)
+
+	OP_BOOLAND            = byte(0x9a)
+	OP_BOOLOR             = byte(0x9b)
+	OP_NUMEQUAL           = byte(0x9c)
+	OP_NUMEQUALVERIFY     = byte(0x9d)
+	OP_NUMNOTEQUAL        = byte(0x9e)
+	OP_LESSTHAN           = byte(0x9f)
+	OP_GREATERTHAN        = byte(0xa0)
 	OP_LESSTHANOREQUAL    = byte(0xa1)
 	OP_GREATERTHANOREQUAL = byte(0xa2)
-	OP_RIPEMD160          = byte(0xa6)
-	OP_SHA1               = byte(0xa7)
-	OP_SHA256             = byte(0xa8)
-	OP_HASH160            = byte(0xa9)
-	OP_HASH256            = byte(0xaa)
-	OP_CODESEPARATOR      = byte(0xab)
-	OP_CHECKSIG           = byte(0xac)
-	OP_CHECKSIGVERIFY     = byte(0xad)
+	OP_MIN                = byte(0xa3)
+	OP_MAX                = byte(0xa4)
+	OP_WITHIN             = byte(0xa5)
+
+	OP_RIPEMD160           = byte(0xa6)
+	OP_SHA1                = byte(0xa7)
+	OP_SHA256              = byte(0xa8)
+	OP_HASH160             = byte(0xa9)
+	OP_HASH256             = byte(0xaa)
+	OP_CODESEPARATOR       = byte(0xab)
+	OP_CHECKSIG            = byte(0xac)
+	OP_CHECKSIGVERIFY      = byte(0xad)
+	OP_CHECKMULTISIG       = byte(0xae)
+	OP_CHECKMULTISIGVERIFY = byte(0xaf)
 
 	// Bitwise logical operators
 	OP_INVERT = byte(0x83)
 	OP_AND    = byte(0x84)
 	OP_OR     = byte(0x85)
 	OP_XOR    = byte(0x86)
+
+	OP_NOP1  = byte(0xb0)
+	OP_NOP2  = byte(0xb1)
+	OP_NOP3  = byte(0xb2)
+	OP_NOP4  = byte(0xb3)
+	OP_NOP5  = byte(0xb4)
+	OP_NOP6  = byte(0xb5)
+	OP_NOP7  = byte(0xb6)
+	OP_NOP8  = byte(0xb7)
+	OP_NOP9  = byte(0xb8)
+	OP_NOP10 = byte(0xb9)
+
+	// These values are place holders in the template for where the public key values should be
+	// swapped in when instantiating the template.
+	OP_PUBKEY     = 0xb8 // OP_NOP9 - Must be replaced by a public key
+	OP_PUBKEYHASH = 0xb9 // OP_NOP10 - Must be replaced by a public key hash
 
 	// Psuedo op codes used as place-holders in template scripts, but not valid in final scripts.
 	OP_PUBKEYHASH_ACTUAL    = byte(0xfd)
@@ -108,6 +176,7 @@ const (
 var (
 	endian = binary.LittleEndian
 
+	ErrEmptyScript           = errors.New("Empty Script")
 	ErrInvalidScript         = errors.New("Invalid Script")
 	ErrNotP2PKH              = errors.New("Not P2PKH")
 	ErrWrongScriptTemplate   = errors.New("Wrong Script Template")
@@ -116,6 +185,10 @@ var (
 	ErrWrongOpCode           = errors.New("Wrong Op Code")
 	ErrInvalidScriptItemType = errors.New("Invalid Script Item Type")
 	ErrNotUnsigned           = errors.New("Not unsigned")
+
+	// ErrNotVerifyScript means the script doesn't end with a verify so it isn't safe to embed in
+	// some other scripts.
+	ErrNotVerifyScript = errors.New("Not Verify Script")
 
 	byteToNames = map[byte]string{
 		OP_0:                    "OP_0",
@@ -136,6 +209,9 @@ var (
 		OP_14:                   "OP_14",
 		OP_15:                   "OP_15",
 		OP_16:                   "OP_16",
+		OP_VER:                  "OP_VER",
+		OP_VERIF:                "OP_VERIF",
+		OP_VERNOTIF:             "OP_VERNOTIF",
 		OP_RETURN:               "OP_RETURN",
 		OP_DUP:                  "OP_DUP",
 		OP_RIPEMD160:            "OP_RIPEMD160",
@@ -145,16 +221,29 @@ var (
 		OP_HASH256:              "OP_HASH256",
 		OP_EQUAL:                "OP_EQUAL",
 		OP_EQUALVERIFY:          "OP_EQUALVERIFY",
+		OP_BOOLAND:              "OP_BOOLAND",
+		OP_BOOLOR:               "OP_BOOLOR",
+		OP_NUMEQUAL:             "OP_NUMEQUAL",
+		OP_NUMEQUALVERIFY:       "OP_NUMEQUALVERIFY",
+		OP_NUMNOTEQUAL:          "OP_NUMNOTEQUAL",
+		OP_LESSTHAN:             "OP_LESSTHAN",
+		OP_GREATERTHAN:          "OP_GREATERTHAN",
 		OP_LESSTHANOREQUAL:      "OP_LESSTHANOREQUAL",
 		OP_GREATERTHANOREQUAL:   "OP_GREATERTHANOREQUAL",
+		OP_MIN:                  "OP_MIN",
+		OP_MAX:                  "OP_MAX",
+		OP_WITHIN:               "OP_WITHIN",
 		OP_CODESEPARATOR:        "OP_CODESEPARATOR",
 		OP_CHECKSIG:             "OP_CHECKSIG",
 		OP_CHECKSIGVERIFY:       "OP_CHECKSIGVERIFY",
+		OP_CHECKMULTISIG:        "OP_CHECKMULTISIG",
+		OP_CHECKMULTISIGVERIFY:  "OP_CHECKMULTISIGVERIFY",
 		OP_NOP:                  "OP_NOP",
 		OP_IF:                   "OP_IF",
 		OP_NOTIF:                "OP_NOTIF",
 		OP_ELSE:                 "OP_ELSE",
 		OP_ENDIF:                "OP_ENDIF",
+		OP_VERIFY:               "OP_VERIFY",
 		OP_INVERT:               "OP_INVERT",
 		OP_AND:                  "OP_AND",
 		OP_OR:                   "OP_OR",
@@ -162,15 +251,54 @@ var (
 		OP_TOALTSTACK:           "OP_TOALTSTACK",
 		OP_FROMALTSTACK:         "OP_FROMALTSTACK",
 		OP_1ADD:                 "OP_1ADD",
-		OP_SPLIT:                "OP_SPLIT",
+		OP_1SUB:                 "OP_1SUB",
+		OP_2MUL:                 "OP_2MUL",
+		OP_2DIV:                 "OP_2DIV",
+		OP_NEGATE:               "OP_NEGATE",
+		OP_ABS:                  "OP_ABS",
+		OP_NOT:                  "OP_NOT",
+		OP_0NOTEQUAL:            "OP_0NOTEQUAL",
+		OP_ADD:                  "OP_ADD",
+		OP_SUB:                  "OP_SUB",
+		OP_MUL:                  "OP_MUL",
+		OP_DIV:                  "OP_DIV",
+		OP_MOD:                  "OP_MOD",
+		OP_LSHIFT:               "OP_LSHIFT",
+		OP_RSHIFT:               "OP_RSHIFT",
+		OP_2DROP:                "OP_2DROP",
+		OP_2DUP:                 "OP_2DUP",
+		OP_3DUP:                 "OP_3DUP",
+		OP_2OVER:                "OP_2OVER",
+		OP_2ROT:                 "OP_2ROT",
+		OP_2SWAP:                "OP_2SWAP",
+		OP_IFDUP:                "OP_IFDUP",
+		OP_DEPTH:                "OP_DEPTH",
 		OP_NIP:                  "OP_NIP",
+		OP_OVER:                 "OP_OVER",
+		OP_PICK:                 "OP_PICK",
+		OP_ROLL:                 "OP_ROLL",
+		OP_ROT:                  "OP_ROT",
 		OP_SWAP:                 "OP_SWAP",
+		OP_TUCK:                 "OP_TUCK",
+		OP_CAT:                  "OP_CAT",
+		OP_SPLIT:                "OP_SPLIT",
+		OP_NUM2BIN:              "OP_NUM2BIN",
+		OP_BIN2NUM:              "OP_BIN2NUM",
+		OP_SIZE:                 "OP_SIZE",
 		OP_DROP:                 "OP_DROP",
 		OP_PUBKEY:               "OP_PUBKEY",
 		OP_PUBKEYHASH:           "OP_PUBKEYHASH",
 		OP_PUBKEYHASH_ACTUAL:    "OP_PUBKEYHASH_ACTUAL",
 		OP_PUBKEY_ACTUAL:        "OP_PUBKEY_ACTUAL",
 		OP_INVALIDOPCODE_ACTUAL: "OP_INVALIDOPCODE_ACTUAL",
+		OP_NOP1:                 "OP_NOP1",
+		OP_NOP2:                 "OP_NOP2",
+		OP_NOP3:                 "OP_NOP3",
+		OP_NOP4:                 "OP_NOP4",
+		OP_NOP5:                 "OP_NOP5",
+		OP_NOP6:                 "OP_NOP6",
+		OP_NOP7:                 "OP_NOP7",
+		OP_NOP8:                 "OP_NOP8",
 	}
 
 	byteFromNames = map[string]byte{
@@ -194,6 +322,9 @@ var (
 		"OP_14":                   OP_14,
 		"OP_15":                   OP_15,
 		"OP_16":                   OP_16,
+		"OP_VER":                  OP_VER,
+		"OP_VERIF":                OP_VERIF,
+		"OP_VERNOTIF":             OP_VERNOTIF,
 		"OP_RETURN":               OP_RETURN,
 		"OP_DUP":                  OP_DUP,
 		"OP_RIPEMD160":            OP_RIPEMD160,
@@ -203,16 +334,21 @@ var (
 		"OP_HASH256":              OP_HASH256,
 		"OP_EQUAL":                OP_EQUAL,
 		"OP_EQUALVERIFY":          OP_EQUALVERIFY,
+		"OP_LESSTHAN":             OP_LESSTHAN,
+		"OP_GREATERTHAN":          OP_GREATERTHAN,
 		"OP_LESSTHANOREQUAL":      OP_LESSTHANOREQUAL,
 		"OP_GREATERTHANOREQUAL":   OP_GREATERTHANOREQUAL,
 		"OP_CODESEPARATOR":        OP_CODESEPARATOR,
 		"OP_CHECKSIG":             OP_CHECKSIG,
 		"OP_CHECKSIGVERIFY":       OP_CHECKSIGVERIFY,
+		"OP_CHECKMULTISIG":        OP_CHECKMULTISIG,
+		"OP_CHECKMULTISIGVERIFY":  OP_CHECKMULTISIGVERIFY,
 		"OP_NOP":                  OP_NOP,
 		"OP_IF":                   OP_IF,
 		"OP_NOTIF":                OP_NOTIF,
 		"OP_ELSE":                 OP_ELSE,
 		"OP_ENDIF":                OP_ENDIF,
+		"OP_VERIFY":               OP_VERIFY,
 		"OP_INVERT":               OP_INVERT,
 		"OP_AND":                  OP_AND,
 		"OP_OR":                   OP_OR,
@@ -220,15 +356,56 @@ var (
 		"OP_TOALTSTACK":           OP_TOALTSTACK,
 		"OP_FROMALTSTACK":         OP_FROMALTSTACK,
 		"OP_1ADD":                 OP_1ADD,
-		"OP_SPLIT":                OP_SPLIT,
-		"OP_NIP":                  OP_NIP,
-		"OP_SWAP":                 OP_SWAP,
+		"OP_1SUB":                 OP_1SUB,
+		"OP_2MUL":                 OP_2MUL,
+		"OP_2DIV":                 OP_2DIV,
+		"OP_NEGATE":               OP_NEGATE,
+		"OP_ABS":                  OP_ABS,
+		"OP_NOT":                  OP_NOT,
+		"OP_0NOTEQUAL":            OP_0NOTEQUAL,
+		"OP_ADD":                  OP_ADD,
+		"OP_SUB":                  OP_SUB,
+		"OP_MUL":                  OP_MUL,
+		"OP_DIV":                  OP_DIV,
+		"OP_MOD":                  OP_MOD,
+		"OP_LSHIFT":               OP_LSHIFT,
+		"OP_RSHIFT":               OP_RSHIFT,
 		"OP_DROP":                 OP_DROP,
+		"OP_2DROP":                OP_2DROP,
+		"OP_2DUP":                 OP_2DUP,
+		"OP_3DUP":                 OP_3DUP,
+		"OP_2OVER":                OP_2OVER,
+		"OP_2ROT":                 OP_2ROT,
+		"OP_2SWAP":                OP_2SWAP,
+		"OP_IFDUP":                OP_IFDUP,
+		"OP_DEPTH":                OP_DEPTH,
+		"OP_NIP":                  OP_NIP,
+		"OP_OVER":                 OP_OVER,
+		"OP_PICK":                 OP_PICK,
+		"OP_ROLL":                 OP_ROLL,
+		"OP_ROT":                  OP_ROT,
+		"OP_SWAP":                 OP_SWAP,
+		"OP_TUCK":                 OP_TUCK,
+		"OP_CAT":                  OP_CAT,
+		"OP_SPLIT":                OP_SPLIT,
+		"OP_NUM2BIN":              OP_NUM2BIN,
+		"OP_BIN2NUM":              OP_BIN2NUM,
+		"OP_SIZE":                 OP_SIZE,
 		"OP_PUBKEY":               OP_PUBKEY,
 		"OP_PUBKEYHASH":           OP_PUBKEYHASH,
 		"OP_PUBKEYHASH_ACTUAL":    OP_PUBKEYHASH_ACTUAL,
 		"OP_PUBKEY_ACTUAL":        OP_PUBKEY_ACTUAL,
 		"OP_INVALIDOPCODE_ACTUAL": OP_INVALIDOPCODE_ACTUAL,
+		"OP_NOP1":                 OP_NOP1,
+		"OP_NOP2":                 OP_NOP2,
+		"OP_NOP3":                 OP_NOP3,
+		"OP_NOP4":                 OP_NOP4,
+		"OP_NOP5":                 OP_NOP5,
+		"OP_NOP6":                 OP_NOP6,
+		"OP_NOP7":                 OP_NOP7,
+		"OP_NOP8":                 OP_NOP8,
+		"OP_NOP9":                 OP_NOP9,
+		"OP_NOP10":                OP_NOP10,
 	}
 )
 
@@ -713,6 +890,122 @@ func (s Script) IsFalseOpReturn() bool {
 	}
 
 	return s[0] == OP_FALSE && s[1] == OP_RETURN
+}
+
+// AddHardVerify attempts to update a script to end with a verify so that it can be embedded within
+// another script and still fail that script if it fails. This assumes the script it is to be
+// embedded within expects sub-scripts to verify and provides if statements to skip over sub-scripts
+// that don't need to be executed. If the sub-script doesn't end with a verify and it fails the
+// containing script might still count it as valid.
+// It returns an error if the script could not be modified to end with a verify and it didn't
+// already end with a verify, meaning it may not be safe to embed in another script.
+// For example a multi-pkh script provides if statements to only execute the pkh sub scripts that
+// are provided by the unlocking script.
+func (s *Script) AddHardVerify() error {
+	items, err := ParseScriptItems(bytes.NewReader(*s), -1)
+	if err != nil {
+		return errors.Wrap(err, "parse")
+	}
+
+	itemCount := len(items)
+	if itemCount == 0 {
+		return ErrEmptyScript
+	}
+	lastItem := items[itemCount-1]
+
+	if lastItem.Type != ScriptItemTypeOpCode {
+		return errors.Wrap(ErrNotVerifyScript, "last item not op code")
+	}
+
+	switch lastItem.OpCode {
+	case OP_EQUAL:
+		// Convert to verify op code
+		(*s)[len(*s)-1] = OP_EQUALVERIFY
+		return nil
+
+	case OP_CHECKSIG:
+		// Convert to verify op code
+		(*s)[len(*s)-1] = OP_CHECKSIGVERIFY
+		return nil
+
+	case OP_CHECKMULTISIG:
+		// Convert to verify op code
+		(*s)[len(*s)-1] = OP_CHECKMULTISIGVERIFY
+		return nil
+
+	case OP_EQUALVERIFY, OP_CHECKSIGVERIFY, OP_CHECKMULTISIGVERIFY:
+		return nil // Already a verify op code
+
+	case OP_LESSTHAN, OP_GREATERTHAN, OP_LESSTHANOREQUAL, OP_GREATERTHANOREQUAL:
+		// Append verify op code
+		*s = append(*s, OP_VERIFY)
+		return nil
+	}
+
+	return errors.Wrapf(ErrNotVerifyScript, "unsupported last item: %s", lastItem.String())
+}
+
+func AddHardVerify(s Script) (Script, error) {
+	copy := s.Copy()
+	if err := copy.AddHardVerify(); err != nil {
+		return nil, err
+	}
+	return copy, nil
+}
+
+func (s *Script) RemoveHardVerify() error {
+	items, err := ParseScriptItems(bytes.NewReader(*s), -1)
+	if err != nil {
+		return errors.Wrap(err, "parse")
+	}
+
+	itemCount := len(items)
+	if itemCount == 0 {
+		return ErrEmptyScript
+	}
+	lastItem := items[itemCount-1]
+
+	if lastItem.Type != ScriptItemTypeOpCode {
+		return errors.Wrap(ErrNotVerifyScript, "last item not op code")
+	}
+
+	switch lastItem.OpCode {
+	case OP_EQUALVERIFY:
+		// Convert to non-verify op code
+		(*s)[len(*s)-1] = OP_EQUAL
+		return nil
+
+	case OP_CHECKSIGVERIFY:
+		// Convert to non-verify op code
+		(*s)[len(*s)-1] = OP_CHECKSIG
+		return nil
+
+	case OP_CHECKMULTISIGVERIFY:
+		// Convert to non-verify op code
+		(*s)[len(*s)-1] = OP_CHECKMULTISIG
+		return nil
+
+	case OP_EQUAL, OP_CHECKSIG, OP_CHECKMULTISIG:
+		return nil // Already a verify op code
+
+	case OP_LESSTHAN, OP_GREATERTHAN, OP_LESSTHANOREQUAL, OP_GREATERTHANOREQUAL:
+		return nil // Already a verify op code
+
+	case OP_VERIFY:
+		// Remove OP_VERIFY (last op-code)
+		*s = (*s)[:itemCount-1]
+		return nil
+	}
+
+	return errors.Wrapf(ErrNotVerifyScript, "unsupported last item: %s", lastItem.String())
+}
+
+func RemoveHardVerify(s Script) (Script, error) {
+	copy := s.Copy()
+	if err := copy.RemoveHardVerify(); err != nil {
+		return nil, err
+	}
+	return copy, nil
 }
 
 func (s Script) Equal(r Script) bool {

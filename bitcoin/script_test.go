@@ -347,3 +347,109 @@ func Test_PubKeyCount_RequiredSignatures(t *testing.T) {
 		})
 	}
 }
+
+func Test_AddHardVerify(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		result string
+	}{
+		{
+			name:   "PKH",
+			text:   "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
+			result: "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIGVERIFY",
+		},
+		{
+			name:   "PK",
+			text:   "0x02d206d9a425adf54a602ef691b73134c2ce5276afba93d8c4478a216802b0a9b4 OP_CHECKSIG",
+			result: "0x02d206d9a425adf54a602ef691b73134c2ce5276afba93d8c4478a216802b0a9b4 OP_CHECKSIGVERIFY",
+		},
+		{
+			name: "Multi-PKH",
+			text: `OP_0 OP_TOALTSTACK
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_1 OP_FROMALTSTACK OP_LESSTHANOREQUAL`,
+			result: `OP_0 OP_TOALTSTACK
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_1 OP_FROMALTSTACK OP_LESSTHANOREQUAL OP_VERIFY`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script, err := StringToScript(tt.text)
+			if err != nil {
+				t.Fatalf("Failed to decode script : %s", err)
+			}
+
+			if err := script.AddHardVerify(); err != nil {
+				t.Fatalf("Failed to add hard verify : %s", err)
+			}
+
+			resultScript, err := StringToScript(tt.result)
+			if err != nil {
+				t.Fatalf("Failed to decode result script : %s", err)
+			}
+
+			if !resultScript.Equal(script) {
+				t.Fatalf("Result script does not match : \n  got  : %s\n  want : %s", script,
+					resultScript)
+			}
+		})
+	}
+}
+
+func Test_RemoveHardVerify(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		result string
+	}{
+		{
+			name:   "PKH",
+			text:   "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIGVERIFY",
+			result: "OP_DUP OP_HASH160 0x999ac355257736dfa1ad9652fcb51c7136fc27f9 OP_EQUALVERIFY OP_CHECKSIG",
+		},
+		{
+			name:   "PK",
+			text:   "0x02d206d9a425adf54a602ef691b73134c2ce5276afba93d8c4478a216802b0a9b4 OP_CHECKSIGVERIFY",
+			result: "0x02d206d9a425adf54a602ef691b73134c2ce5276afba93d8c4478a216802b0a9b4 OP_CHECKSIG",
+		},
+		{
+			name: "Multi-PKH",
+			text: `OP_0 OP_TOALTSTACK
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_1 OP_FROMALTSTACK OP_LESSTHANOREQUAL OP_VERIFY`,
+			result: `OP_0 OP_TOALTSTACK
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_IF OP_DUP OP_HASH160 OP_PUBKEYHASH OP_EQUALVERIFY OP_CHECKSIGVERIFY OP_FROMALTSTACK OP_1ADD OP_TOALTSTACK OP_ENDIF
+				OP_1 OP_FROMALTSTACK OP_LESSTHANOREQUAL`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			script, err := StringToScript(tt.text)
+			if err != nil {
+				t.Fatalf("Failed to decode script : %s", err)
+			}
+
+			if err := script.RemoveHardVerify(); err != nil {
+				t.Fatalf("Failed to add hard verify : %s", err)
+			}
+
+			resultScript, err := StringToScript(tt.result)
+			if err != nil {
+				t.Fatalf("Failed to decode result script : %s", err)
+			}
+
+			if !resultScript.Equal(script) {
+				t.Fatalf("Result script does not match : \n  got  : %s\n  want : %s", script,
+					resultScript)
+			}
+		})
+	}
+}

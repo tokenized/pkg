@@ -7,21 +7,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	// These values are place holders in the template for where the public key values should be
-	// swapped in when instantiating the template.
-	OP_PUBKEY     = 0xb8 // OP_NOP9 - Must be replaced by a public key
-	OP_PUBKEYHASH = 0xb9 // OP_NOP10 - Must be replaced by a public key hash
-)
-
 var (
 	ErrNotEnoughPublicKeys = errors.New("Not Enough Public Keys")
 
 	PKHTemplate = Template{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG}
 	PKTemplate  = Template{OP_PUBKEY, OP_CHECKSIG}
 
-	MultiPKHWrap = Script{OP_IF, OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY,
-		OP_CHECKSIGVERIFY, OP_FROMALTSTACK, OP_1ADD, OP_TOALTSTACK, OP_ENDIF}
+	PKHEmbeddedTemplate = Template{OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY,
+		OP_CHECKSIGVERIFY}
+
+	MultiPKHWrap = Script{
+		OP_IF,
+		OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIGVERIFY, // P2PKH
+		OP_FROMALTSTACK, OP_1ADD, OP_TOALTSTACK, // Increment alt stack value
+		OP_ENDIF,
+	}
 )
 
 // Template represents a locking script that is incomplete. It represents the function of the
@@ -95,6 +95,125 @@ func NewMultiPKHTemplate(required, total uint32) (Template, error) {
 	}
 
 	return Template(result.Bytes()), nil
+}
+
+type SigningThreshold struct {
+	Required uint32
+	Total    uint32
+}
+
+func (s SigningThreshold) SubTemplate() (Template, error) {
+	if s.Required == 1 && s.Total == 1 {
+		return PKHEmbeddedTemplate, nil
+	}
+
+	result := &bytes.Buffer{}
+
+	// Push zero to alt stack to initialize the counter.
+	if err := result.WriteByte(OP_0); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_TOALTSTACK); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	// Wrap each key in an if statement and a P2PKH locking script
+	for i := uint32(0); i < s.Total; i++ {
+		if _, err := result.Write(MultiPKHWrap); err != nil {
+			return nil, errors.Wrap(err, "write")
+		}
+	}
+
+	if _, err := result.Write(PushNumberScript(int64(s.Required))); err != nil {
+		return nil, errors.Wrap(err, "write")
+	}
+
+	if err := result.WriteByte(OP_FROMALTSTACK); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_LESSTHANOREQUAL); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_VERIFY); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	return Template(result.Bytes()), nil
+}
+
+// NewOrTemplate creates a template that can be unlocked by one of two sub templates. You must
+// ensure the scripts use verify so they fail if not properly unlocked.
+func NewOrTemplate(template1, template2 Template) (Template, error) {
+	result := &bytes.Buffer{}
+
+	if err := result.WriteByte(OP_IF); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if _, err := result.Write(template1.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_ELSE); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if _, err := result.Write(template2.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_ENDIF); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	return Template(result.Bytes()), nil
+}
+
+// NewOrLockingScript creates a script that can be unlocked by one of two sub scripts. You must
+// ensure the scripts use verify so they fail if not properly unlocked.
+func NewOrLockingScript(lockingScript1, lockingScript2 Script) (Script, error) {
+	result := &bytes.Buffer{}
+
+	if err := result.WriteByte(OP_IF); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if _, err := result.Write(lockingScript1.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_ELSE); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if _, err := result.Write(lockingScript2.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if err := result.WriteByte(OP_ENDIF); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	return Script(result.Bytes()), nil
+}
+
+// NewAndLockingScript creates a script that can be unlocked by one of two sub scripts. You must
+// ensure the scripts use verify so they fail if not properly unlocked.
+func NewAndLockingScript(lockingScript1, lockingScript2 Script) (Script, error) {
+	result := &bytes.Buffer{}
+
+	if _, err := result.Write(lockingScript1.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	if _, err := result.Write(lockingScript2.Bytes()); err != nil {
+		return nil, errors.Wrap(err, "write byte")
+	}
+
+	return Script(result.Bytes()), nil
 }
 
 // LockingScript populates the template with public key values and creates a locking script.
