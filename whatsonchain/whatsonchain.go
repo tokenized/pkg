@@ -32,8 +32,10 @@ var (
 )
 
 type Service struct {
-	apiKey  string
-	network bitcoin.Network
+	apiKey         string
+	network        bitcoin.Network
+	dialTimeout    time.Duration
+	requestTimeout time.Duration
 }
 
 type HTTPError struct {
@@ -109,10 +111,13 @@ func (err HTTPError) Error() string {
 	return fmt.Sprintf("HTTP Status %d", err.Status)
 }
 
-func NewService(apiKey string, net bitcoin.Network) *Service {
+func NewService(apiKey string, net bitcoin.Network,
+	dialTimeout, requestTimeout time.Duration) *Service {
 	return &Service{
-		apiKey:  apiKey,
-		network: net,
+		apiKey:         apiKey,
+		network:        net,
+		dialTimeout:    dialTimeout,
+		requestTimeout: requestTimeout,
 	}
 }
 
@@ -140,7 +145,7 @@ func (s *Service) GetLockingScriptHistory(ctx context.Context,
 		bitcoin.NewAddressFromRawAddress(ra, s.network))
 
 	var response History
-	if err := getWithToken(ctx, url, s.apiKey, &response); err != nil {
+	if err := getWithToken(ctx, url, s.apiKey, &response, s.dialTimeout, s.requestTimeout); err != nil {
 		return nil, errors.Wrap(err, "get")
 	}
 
@@ -151,7 +156,8 @@ func (s *Service) GetTx(ctx context.Context, txid bitcoin.Hash32) (*wire.MsgTx, 
 	url := fmt.Sprintf(URLGetRawTx, s.NetworkName(), txid)
 
 	var response string
-	if err := getWithToken(ctx, url, s.apiKey, &response); err != nil {
+	if err := getWithToken(ctx, url, s.apiKey, &response, s.dialTimeout,
+		s.requestTimeout); err != nil {
 		return nil, errors.Wrap(err, "get")
 	}
 
@@ -179,7 +185,8 @@ func (s *Service) GetTxs(ctx context.Context, txids []bitcoin.Hash32) ([]*wire.M
 	}
 
 	var response []*Tx
-	if err := postWithToken(ctx, url, s.apiKey, request, &response); err != nil {
+	if err := postWithToken(ctx, url, s.apiKey, request, &response, s.dialTimeout,
+		s.requestTimeout); err != nil {
 		return nil, errors.Wrap(err, "get")
 	}
 
@@ -203,7 +210,8 @@ func (s *Service) BlockHash(ctx context.Context, height int) (*bitcoin.Hash32, e
 	url := fmt.Sprintf(URLGetHeader, s.NetworkName(), height)
 
 	response := &BlockHashOnly{}
-	if err := getWithToken(ctx, url, s.apiKey, response); err != nil {
+	if err := getWithToken(ctx, url, s.apiKey, response, s.dialTimeout,
+		s.requestTimeout); err != nil {
 		return nil, errors.Wrap(err, "get")
 	}
 
@@ -214,7 +222,8 @@ func (s *Service) GetHeader(ctx context.Context, height int) (*wire.BlockHeader,
 	url := fmt.Sprintf(URLGetHeader, s.NetworkName(), height)
 
 	response := &BlockHeaderOnly{}
-	if err := getWithToken(ctx, url, s.apiKey, response); err != nil {
+	if err := getWithToken(ctx, url, s.apiKey, response, s.dialTimeout,
+		s.requestTimeout); err != nil {
 		return nil, errors.Wrap(err, "get")
 	}
 
@@ -230,16 +239,18 @@ func (s *Service) GetHeader(ctx context.Context, height int) (*wire.BlockHeader,
 
 // postWithToken sends a request to the HTTP server using the POST method with an authentication
 // header token.
-func postWithToken(ctx context.Context, url, token string, request, response interface{}) error {
+func postWithToken(ctx context.Context, url, token string, request, response interface{},
+	dialTimeout, requestTimeout time.Duration) error {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: dialTimeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
@@ -316,16 +327,18 @@ func postWithToken(ctx context.Context, url, token string, request, response int
 
 // getWithToken sends a request to the HTTP server using the GET method with an authentication
 // header token.
-func getWithToken(ctx context.Context, url, token string, response interface{}) error {
+func getWithToken(ctx context.Context, url, token string, response interface{},
+	dialTimeout, requestTimeout time.Duration) error {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: dialTimeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
