@@ -1748,6 +1748,26 @@ func StringToScript(text string) (Script, error) {
 			}
 		}
 
+		if len(part) >= 2 && part[:2] == "0x" {
+			b, err := hex.DecodeString(part[2:]) // skip leading "0x"
+			if err != nil {
+				return nil, errors.Wrapf(err, "decode push data hex: %s", part[2:])
+			}
+
+			if err := WritePushDataScript(buf, b); err != nil {
+				return nil, errors.Wrap(err, "write push data")
+			}
+			continue
+		}
+
+		if int, err := strconv.ParseInt(part, 10, 64); err == nil {
+			item := PushNumberScriptItem(int)
+			if err := item.Write(buf); err != nil {
+				return nil, errors.Wrap(err, "write number")
+			}
+			continue
+		}
+
 		if len(part) < 2 {
 			return nil, fmt.Errorf("Invalid part : \"%s\"", part)
 		}
@@ -1769,26 +1789,6 @@ func StringToScript(text string) (Script, error) {
 			}
 
 			buf.Write(b)
-			continue
-		}
-
-		if part[:2] == "0x" {
-			b, err := hex.DecodeString(part[2:]) // skip leading "0x"
-			if err != nil {
-				return nil, errors.Wrapf(err, "decode push data hex: %s", part[2:])
-			}
-
-			if err := WritePushDataScript(buf, b); err != nil {
-				return nil, errors.Wrap(err, "write push data")
-			}
-			continue
-		}
-
-		if int, err := strconv.ParseInt(part, 10, 64); err == nil {
-			item := PushNumberScriptItem(int)
-			if err := item.Write(buf); err != nil {
-				return nil, errors.Wrap(err, "write number")
-			}
 			continue
 		}
 
