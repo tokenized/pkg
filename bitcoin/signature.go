@@ -462,9 +462,9 @@ var (
 )
 
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979 and BIP 62.
-func signRFC6979(pk big.Int, hash []byte) (Signature, error) {
+func signRFC6979(privateKey big.Int, hash []byte) (Signature, error) {
 	N := curveS256.N
-	k := nonceRFC6979(pk, hash)
+	k := nonceRFC6979(privateKey, hash)
 	inv := new(big.Int).ModInverse(k, N)
 	r, _ := curveS256.ScalarBaseMult(k.Bytes())
 	r.Mod(r, N)
@@ -474,7 +474,7 @@ func signRFC6979(pk big.Int, hash []byte) (Signature, error) {
 	}
 
 	e := hashToInt(hash, curveS256)
-	s := new(big.Int).Mul(&pk, r)
+	s := new(big.Int).Mul(&privateKey, r)
 	s.Add(s, e)
 	s.Mul(s, inv)
 	s.Mod(s, N)
@@ -488,16 +488,54 @@ func signRFC6979(pk big.Int, hash []byte) (Signature, error) {
 	return Signature{R: *r, S: *s}, nil
 }
 
+// SignWithK creates a signature of the hash from the private key and specific ephemeral k value
+// rather than generating k with the RFC6979 algorithm.
+func SignWithK(privateKey, k big.Int, hash []byte) (Signature, error) {
+	N := curveS256.N
+	inv := new(big.Int).ModInverse(&k, N)
+	r, _ := curveS256.ScalarBaseMult(k.Bytes())
+	r.Mod(r, N)
+
+	if r.Sign() == 0 {
+		return Signature{}, errors.New("calculated R is zero")
+	}
+
+	e := hashToInt(hash, curveS256)
+	s := new(big.Int).Mul(&privateKey, r)
+	s.Add(s, e)
+	s.Mul(s, inv)
+	s.Mod(s, N)
+
+	if s.Cmp(curveHalfOrder) == 1 {
+		s.Sub(N, s)
+	}
+	if s.Sign() == 0 {
+		return Signature{}, errors.New("calculated S is zero")
+	}
+	return Signature{R: *r, S: *s}, nil
+}
+
+func reverseEndian(b []byte) []byte {
+	l := len(b)
+	result := make([]byte, l)
+	r := l - 1
+	for _, v := range b {
+		result[r] = v
+		r--
+	}
+	return result
+}
+
 // nonceRFC6979 generates an ECDSA nonce (`k`) deterministically according to RFC 6979.
 // It takes a 32-byte hash as an input and returns 32-byte nonce to be used in ECDSA algorithm.
-func nonceRFC6979(pk big.Int, hash []byte) *big.Int {
+func nonceRFC6979(privateKey big.Int, hash []byte) *big.Int {
 	q := curveS256Params.N
 	alg := sha256.New
 
 	qlen := q.BitLen()
 	holen := alg().Size()
 	rolen := (qlen + 7) >> 3
-	bx := append(int2octets(pk, rolen), bits2octets(hash, curveS256, rolen)...)
+	bx := append(int2octets(privateKey, rolen), bits2octets(hash, curveS256, rolen)...)
 
 	// Step B
 	v := bytes.Repeat(oneInitializer, holen)

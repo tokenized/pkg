@@ -61,6 +61,12 @@ func convertBytes(ctx context.Context, b []byte) error {
 		return errors.Wrap(convertPublicKey(ctx, b), "public key")
 	}
 
+	if len(b) == 32 {
+		fmt.Printf("Hash : %x\n", b)
+		fmt.Printf("Reverse Hash : %x\n", reverseEndian(b))
+		return nil
+	}
+
 	if ra, err := bitcoin.DecodeRawAddress(b); err == nil {
 		if err := printRawAddress(ra); err != nil {
 			return errors.Wrap(err, "print raw address")
@@ -84,6 +90,17 @@ func convertBytes(ctx context.Context, b []byte) error {
 
 	fmt.Printf("Unknown bytes format\n")
 	return nil
+}
+
+func reverseEndian(b []byte) []byte {
+	l := len(b)
+	result := make([]byte, l)
+	r := l - 1
+	for _, v := range b {
+		result[r] = v
+		r--
+	}
+	return result
 }
 
 func convertPublicKey(ctx context.Context, b []byte) error {

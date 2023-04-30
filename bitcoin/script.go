@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -62,21 +63,21 @@ const (
 	OP_2ROT         = byte(0x71)
 	OP_2SWAP        = byte(0x72)
 	OP_IFDUP        = byte(0x73)
-	OP_DEPTH        = byte(0x74)
-	OP_DROP         = byte(0x75)
-	OP_DUP          = byte(0x76)
-	OP_NIP          = byte(0x77)
-	OP_OVER         = byte(0x78)
-	OP_PICK         = byte(0x79)
-	OP_ROLL         = byte(0x7a)
-	OP_ROT          = byte(0x7b)
-	OP_SWAP         = byte(0x7c)
-	OP_TUCK         = byte(0x7d)
-	OP_CAT          = byte(0x7e)
-	OP_SPLIT        = byte(0x7f)
-	OP_NUM2BIN      = byte(0x80)
-	OP_BIN2NUM      = byte(0x81)
-	OP_SIZE         = byte(0x82)
+	OP_DEPTH        = byte(0x74) // Push the number of items in the stack onto the stack
+	OP_DROP         = byte(0x75) // Remove the top stack item
+	OP_DUP          = byte(0x76) // Duplicate top item on stack
+	OP_NIP          = byte(0x77) // Remove second item deep in stack
+	OP_OVER         = byte(0x78) // Copy second stack item to the top
+	OP_PICK         = byte(0x79) // Copy item that is n deep in stack and push onto stack
+	OP_ROLL         = byte(0x7a) // Move item n deep in stack to the top
+	OP_ROT          = byte(0x7b) // Move the top stack item to before the third stack item.
+	OP_SWAP         = byte(0x7c) // Reverse the order of the top two stack items
+	OP_TUCK         = byte(0x7d) // Copy the item at the top of the stack into before the second item on the stack
+	OP_CAT          = byte(0x7e) // Concatenate the top to stack items
+	OP_SPLIT        = byte(0x7f) // Split the second item at the index specified in the top item
+	OP_NUM2BIN      = byte(0x80) // Convert second item on the stack into a byte sequence the length specified by the first stack item
+	OP_BIN2NUM      = byte(0x81) // Convert the top stack item into a number value
+	OP_SIZE         = byte(0x82) // Push the length of the top stack item onto the stack
 
 	OP_EQUAL       = byte(0x87)
 	OP_EQUALVERIFY = byte(0x88)
@@ -94,7 +95,7 @@ const (
 	OP_SUB    = byte(0x94)
 	OP_MUL    = byte(0x95)
 	OP_DIV    = byte(0x96)
-	OP_MOD    = byte(0x97)
+	OP_MOD    = byte(0x97) // Divide a by b and put the remainder on the stack
 	OP_LSHIFT = byte(0x98)
 	OP_RSHIFT = byte(0x99)
 
@@ -128,6 +129,10 @@ const (
 	OP_OR     = byte(0x85)
 	OP_XOR    = byte(0x86)
 
+	OP_RESERVED  = byte(0x50)
+	OP_RESERVED1 = byte(0x89)
+	OP_RESERVED2 = byte(0x8a)
+
 	OP_NOP1  = byte(0xb0)
 	OP_NOP2  = byte(0xb1)
 	OP_NOP3  = byte(0xb2)
@@ -141,8 +146,10 @@ const (
 
 	// These values are place holders in the template for where the public key values should be
 	// swapped in when instantiating the template.
-	OP_PUBKEY     = 0xb8 // OP_NOP9 - Must be replaced by a public key
-	OP_PUBKEYHASH = 0xb9 // OP_NOP10 - Must be replaced by a public key hash
+	OP_HASH20     = byte(0xb6)
+	OP_HASH32     = byte(0xb7)
+	OP_PUBKEY     = byte(0xb8) // OP_NOP9 - Must be replaced by a public key
+	OP_PUBKEYHASH = byte(0xb9) // OP_NOP10 - Must be replaced by a public key hash
 
 	// Psuedo op codes used as place-holders in template scripts, but not valid in final scripts.
 	OP_PUBKEYHASH_ACTUAL    = byte(0xfd)
@@ -150,6 +157,7 @@ const (
 	OP_INVALIDOPCODE_ACTUAL = byte(0xff)
 
 	OP_PUSH_DATA_20 = byte(0x14)
+	OP_PUSH_DATA_32 = byte(0x20)
 	OP_PUSH_DATA_33 = byte(0x21)
 
 	// OP_MAX_SINGLE_BYTE_PUSH_DATA represents the max length for a single byte push
@@ -291,6 +299,9 @@ var (
 		OP_PUBKEYHASH_ACTUAL:    "OP_PUBKEYHASH_ACTUAL",
 		OP_PUBKEY_ACTUAL:        "OP_PUBKEY_ACTUAL",
 		OP_INVALIDOPCODE_ACTUAL: "OP_INVALIDOPCODE_ACTUAL",
+		OP_RESERVED:             "OP_RESERVED",
+		OP_RESERVED1:            "OP_RESERVED1",
+		OP_RESERVED2:            "OP_RESERVED2",
 		OP_NOP1:                 "OP_NOP1",
 		OP_NOP2:                 "OP_NOP2",
 		OP_NOP3:                 "OP_NOP3",
@@ -396,6 +407,9 @@ var (
 		"OP_PUBKEYHASH_ACTUAL":    OP_PUBKEYHASH_ACTUAL,
 		"OP_PUBKEY_ACTUAL":        OP_PUBKEY_ACTUAL,
 		"OP_INVALIDOPCODE_ACTUAL": OP_INVALIDOPCODE_ACTUAL,
+		"OP_RESERVED":             OP_RESERVED,
+		"OP_RESERVED1":            OP_RESERVED1,
+		"OP_RESERVED2":            OP_RESERVED2,
 		"OP_NOP1":                 OP_NOP1,
 		"OP_NOP2":                 OP_NOP2,
 		"OP_NOP3":                 OP_NOP3,
@@ -444,18 +458,39 @@ func (item ScriptItem) String() string {
 	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode}))
 }
 
+// isText returns true if the byte slice is more than one character, has a letter character, and
+// only consists of letters, digits, and spaces.
 func isText(bs []byte) bool {
-	for _, b := range bs {
-		if b < 0x20 { // ' ' space character
-			return false
-		}
+	if len(bs) < 2 {
+		return false
+	}
 
-		if b > 0x7e { // '~' tilde character
+	hasLetter := false
+	for _, b := range bs {
+		if isLetterChar(b) {
+			hasLetter = true
+		} else if !isNumberChar(b) && b != 0x20 { // space
 			return false
 		}
 	}
 
-	return true
+	return hasLetter
+}
+
+func isLetterChar(b byte) bool {
+	if b >= 0x41 && b <= 0x5a {
+		return true // A to Z
+	}
+
+	if b >= 0x61 && b <= 0x7a {
+		return true // a to z
+	}
+
+	return false
+}
+
+func isNumberChar(b byte) bool {
+	return b >= 0x30 && b <= 0x39
 }
 
 func ParseScriptItems(buf *bytes.Reader, count int) (ScriptItems, error) {
@@ -1798,7 +1833,99 @@ func StringToScript(text string) (Script, error) {
 	return Script(buf.Bytes()), nil
 }
 
-func CleanScriptText(text string) string {
+func CleanScriptParts(text string) []string {
+	text = strings.ReplaceAll(text, "\n", " ") // Remove new lines
+	text = strings.ReplaceAll(text, "\r", " ") // Remove carriage returns
+	text = strings.ReplaceAll(text, "\t", " ") // Remove tabs
+
+	// Remove extra spaces
 	parts := strings.Fields(text)
-	return strings.Join(parts, " ")
+	var remaining []string
+	for _, part := range parts {
+		if len(part) > 0 {
+			remaining = append(remaining, part)
+		}
+	}
+
+	return remaining
+}
+
+func CleanScriptText(text string) string {
+	return strings.Join(CleanScriptParts(text), " ")
+}
+
+// BytePushData returns the push op to push a single byte value to the stack.
+func BytePushData(b byte) Script {
+	if b == 0 {
+		return Script{OP_0}
+	}
+
+	if b <= 16 {
+		return Script{OP_1 + b - 1}
+	}
+
+	return Script{0x01, b} // one byte push data
+}
+
+// PushData
+func PushData(b []byte) Script {
+	script, err := NewPushDataScriptItem(b).Script()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create push data script : %s", err))
+	}
+
+	return script
+}
+
+type byteOrScript interface{} // or byte slice, which is the same as script
+
+// ConcatScript concatenates op codes and sections of script into one script.
+func ConcatScript(bs ...byteOrScript) Script {
+	l := 0
+	for _, v := range bs {
+		switch b := v.(type) {
+		case []byte:
+			l += len(b)
+		case Script:
+			l += len(b)
+		case byte:
+			l += 1
+		default:
+			panic(fmt.Sprintf("Unknown concat script value type : %s : %v",
+				typeName(reflect.TypeOf(v)), v))
+		}
+	}
+
+	result := make(Script, l)
+	offset := 0
+	for _, v := range bs {
+		switch b := v.(type) {
+		case []byte:
+			copy(result[offset:], b)
+			offset += len(b)
+		case Script:
+			copy(result[offset:], b)
+			offset += len(b)
+		case byte:
+			result[offset] = b
+			offset += 1
+
+		default:
+			panic(fmt.Sprintf("Unknown concat script value type : %s", typeName(reflect.TypeOf(v))))
+		}
+	}
+
+	return result
+}
+
+func typeName(typ reflect.Type) string {
+	kind := typ.Kind()
+	switch kind {
+	case reflect.Ptr, reflect.Slice, reflect.Array:
+		return fmt.Sprintf("%s:%s", kind, typeName(typ.Elem()))
+	case reflect.Struct:
+		return typ.Name()
+	default:
+		return kind.String()
+	}
 }
