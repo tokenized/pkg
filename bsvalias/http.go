@@ -64,7 +64,7 @@ func NewHTTPClient(ctx context.Context, handle string) (*HTTPClient, error) {
 }
 
 func (c *HTTPClient) IsCapable(url string) (bool, error) {
-	if _, err := c.Site.Capabilities.GetURL(URLNamePKI); err != nil {
+	if _, err := c.Site.Capabilities.GetURL(url); err != nil {
 		if errors.Cause(err) == ErrNotCapable {
 			return false, nil
 		}
@@ -77,7 +77,6 @@ func (c *HTTPClient) IsCapable(url string) (bool, error) {
 
 // GetPublicKey gets the identity public key for the handle.
 func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error) {
-
 	url, err := c.Site.Capabilities.GetURL(URLNamePKI)
 	if err != nil {
 		return nil, errors.Wrap(err, "capability url")
@@ -350,7 +349,7 @@ func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
 	tx *NegotiationTransaction) (*NegotiationTransaction, error) {
 
-	url, err := c.Site.Capabilities.GetURL(URLNameP2PTransactions)
+	url, err := c.Site.Capabilities.GetURL(URLNameNegotiationTransaction)
 	if err != nil {
 		return nil, errors.Wrap(err, "capability url")
 	}
