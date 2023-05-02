@@ -305,7 +305,7 @@ func CopyString(s string) string {
 type SubmitTxResponse struct {
 	Version                string            `json:"apiVersion"`
 	Timestamp              time.Time         `json:"timestamp"`
-	TxID                   bitcoin.Hash32    `json:"txid"`
+	TxID                   *bitcoin.Hash32   `json:"txid"`
 	Result                 string            `json:"returnResult"`
 	ResultDescription      string            `json:"resultDescription"`
 	MinerID                bitcoin.PublicKey `json:"minerId"`
@@ -316,21 +316,25 @@ type SubmitTxResponse struct {
 }
 
 type Conflict struct {
-	TxID bitcoin.Hash32 `json:"txid"`
-	Size uint64         `json:"size"`
-	Tx   *wire.MsgTx    `json:"hex"`
+	TxID *bitcoin.Hash32 `json:"txid"`
+	Size uint64          `json:"size"`
+	Tx   *wire.MsgTx     `json:"hex"`
 }
 
-func (str SubmitTxResponse) Success() error {
-	if len(str.Conflicts) != 0 {
-		txids := make([]bitcoin.Hash32, len(str.Conflicts))
-		for i, conflict := range str.Conflicts {
-			txids[i] = conflict.TxID
+func (r SubmitTxResponse) Success() error {
+	if len(r.Conflicts) != 0 {
+		txids := make([]bitcoin.Hash32, len(r.Conflicts))
+		for i, conflict := range r.Conflicts {
+			if conflict.TxID != nil {
+				txids[i] = *conflict.TxID
+			} else if conflict.Tx != nil {
+				txids[i] = *conflict.Tx.TxHash()
+			}
 		}
 		return errors.Wrapf(ErrDoubleSpend, "%+v", txids)
 	}
 
-	return translateResult(str.Result, str.ResultDescription)
+	return translateResult(r.Result, r.ResultDescription)
 }
 
 // GeneralResponse can be used to check the success of submit tx and tx status response payloads.
