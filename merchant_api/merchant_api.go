@@ -357,6 +357,10 @@ func translateResult(result, description string) error {
 			return errors.Wrap(ExistingTx, description)
 		}
 
+		if strings.Contains(description, "txn-mempool-conflict") {
+			return errors.Wrap(AlreadyInMempool, description)
+		}
+
 		if strings.Contains(description, "Transaction already in the mempool") {
 			return errors.Wrap(AlreadyInMempool, description)
 		}
