@@ -444,66 +444,57 @@ func (msg *MsgTx) StringWithAddresses(net bitcoin.Network) string {
 	return result
 }
 
+func (o OutPoint) Copy() OutPoint {
+	return OutPoint{
+		Hash:  o.Hash.Copy(),
+		Index: o.Index,
+	}
+}
+
+func (txin TxIn) Copy() TxIn {
+	return TxIn{
+		PreviousOutPoint: txin.PreviousOutPoint.Copy(),
+		UnlockingScript:  txin.UnlockingScript.Copy(),
+		Sequence:         txin.Sequence,
+	}
+}
+
+func (txout TxOut) Copy() TxOut {
+	return TxOut{
+		LockingScript: txout.LockingScript.Copy(),
+		Value:         txout.Value,
+	}
+}
+
 // Copy creates a deep copy of a transaction so that the original does not get
 // modified when the copy is manipulated.
-func (msg *MsgTx) Copy() *MsgTx {
+func (msg MsgTx) Copy() MsgTx {
 	// Create new tx and start by copying primitive values and making space
 	// for the transaction inputs and outputs.
 	newTx := MsgTx{
 		Version:  msg.Version,
-		TxIn:     make([]*TxIn, 0, len(msg.TxIn)),
-		TxOut:    make([]*TxOut, 0, len(msg.TxOut)),
+		TxIn:     make([]*TxIn, len(msg.TxIn)),
+		TxOut:    make([]*TxOut, len(msg.TxOut)),
 		LockTime: msg.LockTime,
 	}
 
 	// Deep copy the old TxIn data.
-	for _, oldTxIn := range msg.TxIn {
-		// Deep copy the old previous outpoint.
-		oldOutPoint := oldTxIn.PreviousOutPoint
-		newOutPoint := OutPoint{}
-		newOutPoint.Hash.SetBytes(oldOutPoint.Hash[:])
-		newOutPoint.Index = oldOutPoint.Index
-
-		// Deep copy the old signature script.
-		var newScript []byte
-		oldScript := oldTxIn.UnlockingScript
-		oldScriptLen := len(oldScript)
-		if oldScriptLen > 0 {
-			newScript = make([]byte, oldScriptLen)
-			copy(newScript, oldScript[:oldScriptLen])
-		}
-
+	for i, oldTxIn := range msg.TxIn {
 		// Create new txIn with the deep copied data and append it to
 		// new Tx.
-		newTxIn := TxIn{
-			PreviousOutPoint: newOutPoint,
-			UnlockingScript:  newScript,
-			Sequence:         oldTxIn.Sequence,
-		}
-		newTx.TxIn = append(newTx.TxIn, &newTxIn)
+		newTxIn := oldTxIn.Copy()
+		newTx.TxIn[i] = &newTxIn
 	}
 
 	// Deep copy the old TxOut data.
-	for _, oldTxOut := range msg.TxOut {
-		// Deep copy the old LockingScript
-		var newScript []byte
-		oldScript := oldTxOut.LockingScript
-		oldScriptLen := len(oldScript)
-		if oldScriptLen > 0 {
-			newScript = make([]byte, oldScriptLen)
-			copy(newScript, oldScript[:oldScriptLen])
-		}
-
+	for i, oldTxOut := range msg.TxOut {
 		// Create new txOut with the deep copied data and append it to
 		// new Tx.
-		newTxOut := TxOut{
-			Value:         oldTxOut.Value,
-			LockingScript: newScript,
-		}
-		newTx.TxOut = append(newTx.TxOut, &newTxOut)
+		newTxOut := oldTxOut.Copy()
+		newTx.TxOut[i] = &newTxOut
 	}
 
-	return &newTx
+	return newTx
 }
 
 // BtcDecode decodes r using the bitcoin protocol encoding into the receiver.

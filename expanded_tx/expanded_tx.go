@@ -65,7 +65,8 @@ func (etx ExpandedTx) Copy() ExpandedTx {
 	}
 
 	if etx.Tx != nil {
-		result.Tx = etx.Tx.Copy()
+		c := etx.Tx.Copy()
+		result.Tx = &c
 	}
 
 	return result

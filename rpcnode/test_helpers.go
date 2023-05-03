@@ -92,7 +92,8 @@ func (r *MockRpcNode) SaveTX(ctx context.Context, tx *wire.MsgTx) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	r.txs[*tx.TxHash()] = tx.Copy()
+	c := tx.Copy()
+	r.txs[*tx.TxHash()] = &c
 	return nil
 }
 
@@ -100,7 +101,8 @@ func (r *MockRpcNode) SaveTx(ctx context.Context, tx *wire.MsgTx) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	r.txs[*tx.TxHash()] = tx.Copy()
+	c := tx.Copy()
+	r.txs[*tx.TxHash()] = &c
 	return nil
 }
 

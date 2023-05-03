@@ -88,7 +88,8 @@ func (tx AncestorTx) Copy() AncestorTx {
 	}
 
 	if tx.Tx != nil {
-		result.Tx = tx.Tx.Copy()
+		c := tx.Tx.Copy()
+		result.Tx = &c
 	}
 
 	return result

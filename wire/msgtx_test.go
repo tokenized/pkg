@@ -122,7 +122,9 @@ func TestTx(t *testing.T) {
 
 	// Ensure the copy produced an identical transaction message.
 	newMsg := msg.Copy()
-	if !reflect.DeepEqual(newMsg, msg) {
+	newTxHash := newMsg.TxHash()
+	txHash := msg.TxHash()
+	if !newTxHash.Equal(txHash) {
 		t.Errorf("Copy: mismatched tx messages - got %v, want %v",
 			spew.Sdump(newMsg), spew.Sdump(msg))
 	}

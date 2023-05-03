@@ -267,7 +267,8 @@ func (r SubmitTxRequest) Copy() SubmitTxRequest {
 	}
 
 	if r.Tx != nil {
-		result.Tx = r.Tx.Copy()
+		c := r.Tx.Copy()
+		result.Tx = &c
 	}
 
 	if r.CallBackURL != nil {

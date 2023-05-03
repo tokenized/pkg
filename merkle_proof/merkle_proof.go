@@ -59,7 +59,8 @@ func (mp MerkleProof) Copy() MerkleProof {
 	}
 
 	if mp.Tx != nil {
-		result.Tx = mp.Tx.Copy()
+		c := mp.Tx.Copy()
+		result.Tx = &c
 	}
 
 	if mp.TxID != nil {
