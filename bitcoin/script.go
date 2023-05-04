@@ -193,6 +193,7 @@ var (
 	ErrWrongOpCode           = errors.New("Wrong Op Code")
 	ErrInvalidScriptItemType = errors.New("Invalid Script Item Type")
 	ErrNotUnsigned           = errors.New("Not unsigned")
+	ErrNumberOverRun         = errors.New("Number Overrun")
 
 	// ErrNotVerifyScript means the script doesn't end with a verify so it isn't safe to embed in
 	// some other scripts.
@@ -1505,7 +1506,7 @@ func PushNumberScript(n int64) Script {
 // ParseScript.
 func ScriptNumberValue(item *ScriptItem) (int64, error) {
 	if item.Type == ScriptItemTypePushData {
-		return DecodeScriptLittleEndian(item.Data), nil
+		return DecodeScriptLittleEndian(item.Data)
 	}
 
 	if item.OpCode >= OP_1 && item.OpCode <= OP_16 {
@@ -1573,10 +1574,19 @@ func ParsePushNumberScript(b []byte) (int64, int, error) {
 	b = b[1:]
 
 	// Decode from little endian.
-	return DecodeScriptLittleEndian(b), length, nil
+	v, err := DecodeScriptLittleEndian(b)
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "decode")
+	}
+
+	return v, length, nil
 }
 
-func DecodeScriptLittleEndian(b []byte) int64 {
+func DecodeScriptLittleEndian(b []byte) (int64, error) {
+	if len(b) > 8 {
+		return 0, errors.Wrapf(ErrNumberOverRun, "%d bytes doesn't fit in int64", len(b))
+	}
+
 	var result int64
 	for i, val := range b {
 		result |= int64(val) << uint8(8*i)
@@ -1591,10 +1601,14 @@ func DecodeScriptLittleEndian(b []byte) int64 {
 		result = -result
 	}
 
-	return result
+	return result, nil
 }
 
 func DecodeScriptLittleEndianUnsigned(b []byte) (uint64, error) {
+	if len(b) > 8 {
+		return 0, errors.Wrapf(ErrNumberOverRun, "%d bytes doesn't fit in uint64", len(b))
+	}
+
 	var result uint64
 	for i, val := range b {
 		result |= uint64(val) << uint8(8*i)
