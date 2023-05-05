@@ -459,6 +459,22 @@ func (item ScriptItem) String() string {
 	return fmt.Sprintf("{0x%s}", hex.EncodeToString([]byte{item.OpCode}))
 }
 
+func (i ScriptItem) Equal(item ScriptItem) bool {
+	if i.Type != item.Type {
+		return false
+	}
+
+	if i.OpCode != item.OpCode {
+		return false
+	}
+
+	if !bytes.Equal(i.Data, item.Data) {
+		return false
+	}
+
+	return true
+}
+
 // isText returns true if the byte slice is more than one character, has a letter character, and
 // only consists of letters, digits, and spaces.
 func isText(bs []byte) bool {
