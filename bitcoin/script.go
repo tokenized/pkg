@@ -1161,6 +1161,19 @@ func (s *Script) Scan(data interface{}) error {
 	return nil
 }
 
+// PushDataSize returns the size of the script item needed to push data of a specified size.
+func PushDataSize(size int) int {
+	if size <= int(OP_MAX_SINGLE_BYTE_PUSH_DATA) {
+		return 1 + size
+	} else if uint64(size) < OP_PUSH_DATA_1_MAX {
+		return 2 + size
+	} else if uint64(size) < OP_PUSH_DATA_2_MAX {
+		return 3 + size
+	}
+
+	return 4 + size
+}
+
 // PushDataScriptSize returns the encoded push data script size op codes.
 func PushDataScriptSize(size uint64) []byte {
 	if size <= uint64(OP_MAX_SINGLE_BYTE_PUSH_DATA) {
