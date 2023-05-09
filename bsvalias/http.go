@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -459,10 +460,18 @@ func post(ctx context.Context, url string, request, response interface{}) error 
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
-		if httpResponse.StatusCode == 404 {
-			return errors.Wrap(ErrNotFound, httpResponse.Status)
+		message := httpResponse.Status
+		if httpResponse.Body != nil {
+			b, rerr := ioutil.ReadAll(httpResponse.Body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
 		}
-		return fmt.Errorf("%v %s", httpResponse.StatusCode, httpResponse.Status)
+
+		if httpResponse.StatusCode == 404 {
+			return errors.Wrap(ErrNotFound, message)
+		}
+		return fmt.Errorf("%v %s", httpResponse.StatusCode, message)
 	}
 
 	defer httpResponse.Body.Close()
@@ -496,7 +505,15 @@ func get(ctx context.Context, url string, response interface{}) error {
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
-		return fmt.Errorf("%v %s", httpResponse.StatusCode, httpResponse.Status)
+		message := httpResponse.Status
+		if httpResponse.Body != nil {
+			b, rerr := ioutil.ReadAll(httpResponse.Body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
+		}
+
+		return fmt.Errorf("%v %s", httpResponse.StatusCode, message)
 	}
 
 	defer httpResponse.Body.Close()
