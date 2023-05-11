@@ -281,6 +281,13 @@ func (t *TxOut) Deserialize(r io.Reader, pver uint32, version int32) error {
 	return readTxOut(r, pver, version, t)
 }
 
+// OutputHash returns the double SHA256 hash of the serialized output.
+func (t *TxOut) OutputHash() bitcoin.Hash32 {
+	hasher := sha256.New()
+	t.Serialize(hasher, 0, 0)
+	return bitcoin.Hash32(sha256.Sum256(hasher.Sum(nil)))
+}
+
 // SerializeSize returns the number of bytes it would take to serialize the
 // the transaction output.
 func (t *TxOut) SerializeSize() int {
