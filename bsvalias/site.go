@@ -38,7 +38,7 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 
 		url := fmt.Sprintf("%s/.well-known/bsvalias", host)
 
-		if err := get(ctx, url, &site.Capabilities); err == nil {
+		if err := get(ctx, DefaultDialTimeout, DefaultRequestTimeout, url, &site.Capabilities); err == nil {
 			site.URL = host
 			return site, nil
 		}
@@ -50,7 +50,8 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 	// use the default well known url, per the spec.
 	url := fmt.Sprintf("https://%s/.well-known/bsvalias", domain)
 
-	if err := get(ctx, url, &site.Capabilities); err != nil {
+	if err := get(ctx, DefaultDialTimeout, DefaultRequestTimeout, url,
+		&site.Capabilities); err != nil {
 		return site, errors.Wrap(ErrNotCapable, err.Error())
 	}
 

@@ -20,31 +20,56 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	DefaultDialTimeout    = time.Second * 10
+	DefaultRequestTimeout = time.Second * 20
+)
+
 // HTTPClient represents a client for a paymail/bsvalias service that uses HTTP for requests.
 type HTTPClient struct {
 	Handle   string
 	Site     Site
 	Alias    string
 	Hostname string
+
+	DialTimeout, RequestTimeout time.Duration
 }
 
 // HTTPFactory is a factory for creating HTTP clients.
-type HTTPFactory struct{}
+type HTTPFactory struct {
+	DialTimeout, RequestTimeout time.Duration
+}
 
 // NewHTTPFactory creates a new HTTP factory.
 func NewHTTPFactory() *HTTPFactory {
-	return &HTTPFactory{}
+	return &HTTPFactory{
+		DialTimeout:    DefaultDialTimeout,
+		RequestTimeout: DefaultRequestTimeout,
+	}
+}
+
+func (f *HTTPFactory) SetTimeouts(dialTimeout, requestTimeout time.Duration) {
+	f.DialTimeout = dialTimeout
+	f.RequestTimeout = requestTimeout
 }
 
 // NewClient creates a new client.
 func (f *HTTPFactory) NewClient(ctx context.Context, handle string) (Client, error) {
-	return NewHTTPClient(ctx, handle)
+	c, err := NewHTTPClient(ctx, handle)
+	if err != nil {
+		return nil, err
+	}
+
+	c.SetTimeouts(f.DialTimeout, f.RequestTimeout)
+	return c, nil
 }
 
 // NewHTTPClient creates a new HTTPClient.
 func NewHTTPClient(ctx context.Context, handle string) (*HTTPClient, error) {
 	result := HTTPClient{
-		Handle: handle,
+		DialTimeout:    DefaultDialTimeout,
+		RequestTimeout: DefaultRequestTimeout,
+		Handle:         handle,
 	}
 
 	fields := strings.Split(handle, "@")
@@ -62,6 +87,11 @@ func NewHTTPClient(ctx context.Context, handle string) (*HTTPClient, error) {
 	}
 
 	return &result, nil
+}
+
+func (c *HTTPClient) SetTimeouts(dialTimeout, requestTimeout time.Duration) {
+	c.DialTimeout = dialTimeout
+	c.RequestTimeout = requestTimeout
 }
 
 func (c *HTTPClient) IsCapable(url string) (bool, error) {
@@ -87,7 +117,7 @@ func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, erro
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	var response PublicKeyResponse
-	if err := get(ctx, url, &response); err != nil {
+	if err := get(ctx, c.DialTimeout, c.RequestTimeout, url, &response); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
 
@@ -137,7 +167,7 @@ func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, send
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	var response PaymentDestinationResponse
-	if err := post(ctx, url, request, &response); err != nil {
+	if err := post(ctx, c.DialTimeout, c.RequestTimeout, url, request, &response); err != nil {
 		return nil, errors.Wrap(err, "http post")
 	}
 
@@ -189,7 +219,7 @@ func (c *HTTPClient) GetPaymentRequest(ctx context.Context, senderName, senderHa
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	var response PaymentRequestResponse
-	if err := post(ctx, url, request, &response); err != nil {
+	if err := post(ctx, c.DialTimeout, c.RequestTimeout, url, request, &response); err != nil {
 		return nil, errors.Wrap(err, "http post")
 	}
 
@@ -243,7 +273,7 @@ func (c *HTTPClient) GetP2PPaymentDestination(ctx context.Context,
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	var response P2PPaymentDestinationResponse
-	if err := post(ctx, url, request, &response); err != nil {
+	if err := post(ctx, c.DialTimeout, c.RequestTimeout, url, request, &response); err != nil {
 		return nil, errors.Wrap(err, "http post")
 	}
 
@@ -299,7 +329,7 @@ func (c *HTTPClient) PostP2PTransaction(ctx context.Context, senderHandle, note,
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	var response P2PTransactionResponse
-	if err := post(ctx, url, request, &response); err != nil {
+	if err := post(ctx, c.DialTimeout, c.RequestTimeout, url, request, &response); err != nil {
 		return "", errors.Wrap(err, "http post")
 	}
 
@@ -321,7 +351,7 @@ func (c *HTTPClient) ListTokenizedInstruments(ctx context.Context) ([]Instrument
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	var response InstrumentAliasListResponse
-	if err := get(ctx, url, &response); err != nil {
+	if err := get(ctx, c.DialTimeout, c.RequestTimeout, url, &response); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
 
@@ -339,7 +369,7 @@ func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	response := &PublicProfile{}
-	if err := get(ctx, url, response); err != nil {
+	if err := get(ctx, c.DialTimeout, c.RequestTimeout, url, response); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
 
@@ -358,7 +388,7 @@ func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
 	url = strings.ReplaceAll(url, "{alias}", c.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
-	status, body, err := postRaw(ctx, url, tx)
+	status, body, err := postRaw(ctx, c.DialTimeout, c.RequestTimeout, url, tx)
 	if err != nil {
 		return nil, errors.Wrap(err, "http post")
 	}
@@ -402,23 +432,25 @@ func (c *HTTPClient) PostMerkleProofs(ctx context.Context, merkleProofs MerklePr
 	url = strings.ReplaceAll(url, "{alias}", c.Alias)
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
-	if err := post(ctx, url, merkleProofs, nil); err != nil {
+	if err := post(ctx, c.DialTimeout, c.RequestTimeout, url, merkleProofs, nil); err != nil {
 		return errors.Wrap(err, "http post")
 	}
 
 	return nil
 }
 
-func postRaw(ctx context.Context, url string, request interface{}) (int, io.ReadCloser, error) {
+func postRaw(ctx context.Context, dialTimeout, requestTimeout time.Duration, url string,
+	request interface{}) (int, io.ReadCloser, error) {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: dialTimeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
@@ -436,16 +468,18 @@ func postRaw(ctx context.Context, url string, request interface{}) (int, io.Read
 }
 
 // post sends a request to the HTTP server using the POST method.
-func post(ctx context.Context, url string, request, response interface{}) error {
+func post(ctx context.Context, dialTimeout, requestTimeout time.Duration, url string,
+	request, response interface{}) error {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: dialTimeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
@@ -486,16 +520,18 @@ func post(ctx context.Context, url string, request, response interface{}) error 
 }
 
 // get sends a request to the HTTP server using the GET method.
-func get(ctx context.Context, url string, response interface{}) error {
+func get(ctx context.Context, dialTimeout, requestTimeout time.Duration, url string,
+	response interface{}) error {
+
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: dialTimeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: dialTimeout,
 	}
 
 	var client = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
