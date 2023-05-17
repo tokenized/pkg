@@ -43,6 +43,10 @@ var (
 	// endpoint should be checked to verify the tx is valid.
 	MissingInputs = errors.New("Missing Inputs")
 
+	// ConflictingTx means there is a transaction that has conflicting inputs. In other words a
+	// double spend attempt.
+	ConflictingTx = errors.New("Mempool Conflict")
+
 	// InsufficientFee means the tx fee is too low to be mined.
 	InsufficientFee = errors.New("Insufficient Fee")
 
@@ -359,7 +363,7 @@ func translateResult(result, description string) error {
 		}
 
 		if strings.Contains(description, "txn-mempool-conflict") {
-			return errors.Wrap(AlreadyInMempool, description)
+			return errors.Wrap(ConflictingTx, description)
 		}
 
 		if strings.Contains(description, "Transaction already in the mempool") {
