@@ -1021,8 +1021,6 @@ func (s *Script) RemoveHardVerify() error {
 		return errors.Wrap(ErrNotVerifyScript, "last item not op code")
 	}
 
-	println("last op code", lastItem.String())
-
 	switch lastItem.OpCode {
 	case OP_EQUALVERIFY:
 		// Convert to non-verify op code
