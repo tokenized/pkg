@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -87,9 +88,6 @@ func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 	atomic.AddUint64(&s.readCount, 1)
 
 	delay := s.readDelay.Load().(time.Duration)
-	if delay > 0 {
-		time.Sleep(delay)
-	}
 
 	// s.Lock()
 	// defer s.Unlock()
@@ -103,9 +101,16 @@ func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 
 	v, exists := s.Data.Load(key)
 	if !exists {
+		if delay > 0 {
+			delay = delay / 10
+			time.Sleep(delay+time.Duration(rand.Int63n(int64(delay/10))))
+		}
 		return nil, ErrNotFound
 	}
 
+	if delay > 0 {
+		time.Sleep(delay+time.Duration(rand.Int63n(int64(delay))))
+	}
 	return v.([]byte), nil
 }
 
