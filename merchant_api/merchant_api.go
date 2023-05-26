@@ -548,9 +548,9 @@ func post(ctx context.Context, timeout time.Duration, url, authToken string,
 
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: timeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: timeout,
 	}
 
 	var client = &http.Client{
@@ -623,9 +623,9 @@ func get(ctx context.Context, timeout time.Duration, url, authToken string,
 
 	var transport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout: timeout,
 		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: timeout,
 	}
 
 	var client = &http.Client{
