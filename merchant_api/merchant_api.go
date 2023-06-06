@@ -389,6 +389,11 @@ func translateResult(result, description string) error {
 		if strings.Contains(description, "No such mempool or blockchain transaction") {
 			return errors.Wrap(NotFound, description)
 		}
+
+		if strings.Contains(description, "Transaction already submitted with different parameters") {
+			// Transactions seem to still confirm. I am not sure what parameters are different. --ce
+			return errors.Wrap(AlreadyInMempool, description)
+		}
 	}
 
 	return errors.Wrap(ErrUnsupportedFailure, result)
