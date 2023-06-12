@@ -77,10 +77,10 @@ const (
 )
 
 // IsRejectError returns true if the error represents the node actually rejecting the tx and saying
-// it will not be mined.
+// it will not be mined. It is only for hard rejects where a tx is not likely to be mined by anyone.
 func IsRejectError(err error) bool {
 	switch errors.Cause(err) {
-	case MissingInputs, InsufficientFee, ErrDoubleSpend:
+	case MissingInputs, ErrDoubleSpend:
 		return true
 	default:
 		return false
