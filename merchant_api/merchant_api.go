@@ -394,6 +394,12 @@ func translateResult(result, description string) error {
 			// Transactions seem to still confirm. I am not sure what parameters are different. --ce
 			return errors.Wrap(AlreadyInMempool, description)
 		}
+
+		description = strings.ToUpper(description)
+
+		if strings.Contains(description, "TIMEOUT") {
+			return errors.Wrap(ErrTimeout, description)
+		}
 	}
 
 	return errors.Wrap(ErrUnsupportedFailure, result)
