@@ -74,6 +74,9 @@ var (
 
 	// ErrNotSupported means that a requested feature or protocol was not supported.
 	ErrNotSupported = errors.New("Not Supported")
+
+	// ErrServiceFailure means the service sent an invalid response.
+	ErrServiceFailure = errors.New("Service Failure")
 )
 
 // Factory is the interface for creating new bsvalias clients.
@@ -87,6 +90,8 @@ type Factory interface {
 type Client interface {
 	// IsCapable returns true if the specified URL is supported by the paymail host.
 	IsCapable(url string) (bool, error)
+
+	RequiresNameSenderValidation() bool
 
 	// GetPublicKey gets the identity public key for the handle.
 	GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error)
@@ -121,8 +126,7 @@ type Client interface {
 	// GetPublicProfile returns the public profile for this paymail handle.
 	GetPublicProfile(ctx context.Context) (*PublicProfile, error)
 
-	PostNegotiationTx(ctx context.Context,
-		tx *NegotiationTransaction) (*NegotiationTransaction, error)
+	PostNegotiationTx(ctx context.Context, tx *NegotiationTransaction) error
 
 	PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error
 }

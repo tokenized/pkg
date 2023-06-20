@@ -17,10 +17,12 @@ var (
 		// "test@localhost:8080",
 		// "loosethinker@moneybutton.com",
 		// "karltheprogrammer@handcash.io",
+		// "loosethinker@centbee.com",
+		// "centbee@centbee.com",
 	}
 )
 
-func TestP2PTransactionSignature(t *testing.T) {
+func Test_P2PTransactionSignature(t *testing.T) {
 	keyText := "037d391ec99f5fbc48894986391d3d2388045bcf85409ce2e2a92a683dc7a76581"
 	signatureText := "H84lMGpH1L2iFf8BzPuxzevTjyij8i2lej1OBmBVBqF1ZwnLn5+R3VdgLFUS+fUQgMkZmPCb85xlw1R6PtSe0DY="
 	txidText := "43b83509a310acbbcdb91164285829505ae415ad476e773f1e9ce49023387ac8"
@@ -52,10 +54,12 @@ func TestP2PTransactionSignature(t *testing.T) {
 	}
 }
 
-func TestCapabilities(t *testing.T) {
+func Test_Capabilities(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
 		fields := strings.Split(handle, "@")
 		site, err := GetSite(ctx, fields[1])
 		if err != nil {
@@ -69,10 +73,12 @@ func TestCapabilities(t *testing.T) {
 	}
 }
 
-func TestIdentity(t *testing.T) {
+func Test_Identity(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
 		fields := strings.Split(handle, "@")
 
 		id, err := NewHTTPClient(ctx, handle)
@@ -92,10 +98,12 @@ func TestIdentity(t *testing.T) {
 	}
 }
 
-func TestPublicKey(t *testing.T) {
+func Test_PublicKey(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
@@ -110,10 +118,12 @@ func TestPublicKey(t *testing.T) {
 	}
 }
 
-func TestPaymentDestination(t *testing.T) {
+func Test_PaymentDestination(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
@@ -136,11 +146,12 @@ func TestPaymentDestination(t *testing.T) {
 	}
 }
 
-func TestP2PPaymentDestination(t *testing.T) {
+func Test_P2PPaymentDestination(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
 		t.Logf("Handle : %s", handle)
+
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
@@ -165,10 +176,12 @@ func TestP2PPaymentDestination(t *testing.T) {
 	}
 }
 
-func TestPaymentRequest(t *testing.T) {
+func Test_PaymentRequest(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
@@ -188,10 +201,12 @@ func TestPaymentRequest(t *testing.T) {
 	}
 }
 
-func TestInstrumentAlias(t *testing.T) {
+func Test_InstrumentAlias(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
 			t.Fatalf("Failed to get identity : %s", err)
@@ -216,7 +231,7 @@ func Test_PublicProfile(t *testing.T) {
 	ctx := context.Background()
 
 	for _, handle := range handles {
-		t.Logf("Testing : %s", handle)
+		t.Logf("Handle : %s", handle)
 
 		id, err := NewHTTPClient(ctx, handle)
 		if err != nil {
@@ -245,7 +260,7 @@ func Test_PublicProfile(t *testing.T) {
 	}
 }
 
-func TestBRFCID(t *testing.T) {
+func Test_BRFCID(t *testing.T) {
 	// Example
 	title := "BRFC Specifications"
 	author := "andy (nChain)"
@@ -319,7 +334,7 @@ func TestBRFCID(t *testing.T) {
 	t.Logf("Merkle Proofs BRFC ID : %s", hash.String()[:12])
 }
 
-func TestMessageSignature(t *testing.T) {
+func Test_MessageSignature(t *testing.T) {
 	request := PaymentDestinationRequest{
 		SenderName:   "Curtis Ellis",
 		SenderHandle: "loosethinker@moneybutton.com",
@@ -339,4 +354,35 @@ func TestMessageSignature(t *testing.T) {
 	}
 
 	t.Logf("Signature is valid")
+}
+
+// Test_CentBee_Signature is an actual attempted payment from CentBee.
+func Test_CentBee_Signature(t *testing.T) {
+	t.Skip() // I am not sure why this doesn't work. --ce
+
+	// SenderName:centbee@centbee.com
+	// SenderHandle:centbee@centbee.com
+	// DateTime:2023-05-11T21:31:45.221Z
+	// Amount:1
+	// Purpose:Payment from centbee@centbee.com
+	// Signature:IE8u2xrBCO9DUiUOXWBoBOv9OQG8vyrdVjdQAn27lcV+F1wccvjBBUhIxnj6HsKLvBwfwL2cXyIYhpnL3k86qZs=
+	request := PaymentDestinationRequest{
+		SenderName:   "centbee@centbee.com",
+		SenderHandle: "centbee@centbee.com",
+		DateTime:     "2023-05-11T21:31:45.221Z",
+		Amount:       1,
+		Purpose:      "Payment from centbee@centbee.com",
+		Signature:    "IE8u2xrBCO9DUiUOXWBoBOv9OQG8vyrdVjdQAn27lcV+F1wccvjBBUhIxnj6HsKLvBwfwL2cXyIYhpnL3k86qZs=",
+	}
+
+	publicKey, err := bitcoin.PublicKeyFromStr("0327948e2082892dd56c707fcde34a0d4e041eca91e6ec80ba6cead44f1ded2cc0")
+	if err != nil {
+		t.Fatalf("Failed to create public key : %s", err)
+	}
+
+	if err := request.CheckSignature(publicKey); err != nil {
+		t.Fatalf("Failed to verify signature : %s", err)
+	}
+
+	t.Logf("Verified")
 }

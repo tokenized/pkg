@@ -22,11 +22,6 @@ func TestGetFeeQuote(t *testing.T) {
 		// 	auth: "",
 		// },
 		// {
-		// 	name: "Taal",
-		// 	url:  "https://api.taal.com/",
-		// 	auth: "",
-		// },
-		// {
 		// 	name: "GorillaPool",
 		// 	url:  "https://mapi.gorillapool.io/",
 		// 	auth: "",

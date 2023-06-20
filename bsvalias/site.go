@@ -37,6 +37,7 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 		}
 
 		url := fmt.Sprintf("%s/.well-known/bsvalias", host)
+		println("using SRV path", url)
 
 		if err := get(ctx, DefaultDialTimeout, DefaultRequestTimeout, url, &site.Capabilities); err == nil {
 			site.URL = host
@@ -73,4 +74,18 @@ func (c Capabilities) GetURL(name string) (string, error) {
 	}
 
 	return url, nil
+}
+
+func (c Capabilities) RequiresNameSenderValidation() bool {
+	value, exists := c.Capabilities[RequireNameSenderValidation]
+	if !exists {
+		return false
+	}
+
+	result, ok := value.(bool)
+	if !ok {
+		return false
+	}
+
+	return result
 }

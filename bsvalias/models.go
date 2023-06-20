@@ -243,13 +243,33 @@ type PublicProfile struct {
 }
 
 type NegotiationTransaction struct {
-	ID string `json:"id"` // Unique ID for negotiation. Respond with same ID.
+	// ThreadID is a unique "conversation" ID for the negotiation. Responses should include the same
+	// ID. UUIDs are recommended.
+	ThreadID *string `json:"thread_id"`
 
-	Fees fees.FeeRequirements    `json:"fees"`
-	Tx   *expanded_tx.ExpandedTx `json:"expanded_tx"` // Tx containing current state of negotiation.
+	// Fees specifies any requirements for fees when modifying the transaction.
+	Fees fees.FeeRequirements `json:"fees"`
 
-	Handle       string                 `json:"handle"`        // Paymail handle to respond or callback to.
-	PeerChannels peer_channels.Channels `json:"peer_channels"` // Peer channels to respond or callback to.
+	// ReplyTo is information on how to respond to the message.
+	ReplyTo *ReplyTo `json:"reply_to"`
+
+	// Note is optional text that is displayed to the user.
+	Note *string `json:"note"`
+
+	// Expiry is the nanoseconds since the unix epoch until this transaction expires.
+	Expiry *uint64 `json:"expiry"`
+
+	// Timestamp is the nanoseconds since the unix epoch until when this transaction was created.
+	Timestamp *uint64 `json:"timestamp"`
+
+	// Tx is the current state of the negotiation. It will start as a partial transaction, likely
+	// missing inputs and/or outputs.
+	Tx *expanded_tx.ExpandedTx `json:"expanded_tx"`
+}
+
+type ReplyTo struct {
+	PeerChannel *peer_channels.Channel `json:"peer_channel"`
+	Handle      *string                `json:"handle"`
 }
 
 type MerkleProofs merkle_proof.MerkleProofs

@@ -103,13 +103,13 @@ func (s *MockStorage) Read(ctx context.Context, key string) ([]byte, error) {
 	if !exists {
 		if delay > 0 {
 			delay = delay / 10
-			time.Sleep(delay+time.Duration(rand.Int63n(int64(delay/10))))
+			time.Sleep(delay + time.Duration(rand.Int63n(int64(delay/10))))
 		}
 		return nil, ErrNotFound
 	}
 
 	if delay > 0 {
-		time.Sleep(delay+time.Duration(rand.Int63n(int64(delay))))
+		time.Sleep(delay + time.Duration(rand.Int63n(int64(delay))))
 	}
 	return v.([]byte), nil
 }

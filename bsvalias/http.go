@@ -106,6 +106,10 @@ func (c *HTTPClient) IsCapable(url string) (bool, error) {
 	return true, nil
 }
 
+func (c *HTTPClient) RequiresNameSenderValidation() bool {
+	return c.Site.Capabilities.RequiresNameSenderValidation()
+}
+
 // GetPublicKey gets the identity public key for the handle.
 func (c *HTTPClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error) {
 	url, err := c.Site.Capabilities.GetURL(URLNamePKI)
@@ -378,11 +382,11 @@ func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 }
 
 func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
-	tx *NegotiationTransaction) (*NegotiationTransaction, error) {
+	tx *NegotiationTransaction) error {
 
 	url, err := c.Site.Capabilities.GetURL(URLNameNegotiationTransaction)
 	if err != nil {
-		return nil, errors.Wrap(err, "capability url")
+		return errors.Wrap(err, "capability url")
 	}
 
 	url = strings.ReplaceAll(url, "{alias}", c.Alias)
@@ -390,36 +394,48 @@ func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
 
 	status, body, err := postRaw(ctx, c.DialTimeout, c.RequestTimeout, url, tx)
 	if err != nil {
-		return nil, errors.Wrap(err, "http post")
+		return errors.Wrap(err, "http post")
 	}
 	if body != nil {
 		defer body.Close()
 	}
 
 	switch status {
-	case http.StatusOK:
-		if body == nil {
-			return nil, errors.New("Missing body")
-		}
-
-		var response NegotiationTransaction
-		if err := json.NewDecoder(body).Decode(&response); err != nil {
-			return nil, errors.Wrap(err, "decode response")
-		}
-
-		return &response, nil
-
 	case http.StatusAccepted:
-		return nil, nil
+		return nil
 
 	case http.StatusNotAcceptable:
-		return nil, ErrNotSupported
+		message := http.StatusText(status)
+		if body != nil {
+			b, rerr := ioutil.ReadAll(body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
+		}
+
+		return errors.Wrap(ErrNotSupported, message)
 
 	case http.StatusNotFound:
-		return nil, ErrNotFound
+		message := http.StatusText(status)
+		if body != nil {
+			b, rerr := ioutil.ReadAll(body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
+		}
+
+		return errors.Wrap(ErrNotFound, message)
 
 	default:
-		return nil, fmt.Errorf("%d %s", status, http.StatusText(status))
+		message := http.StatusText(status)
+		if body != nil {
+			b, rerr := ioutil.ReadAll(body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
+		}
+
+		return errors.Wrapf(ErrServiceFailure, "(status %d) %s", status, message)
 	}
 }
 

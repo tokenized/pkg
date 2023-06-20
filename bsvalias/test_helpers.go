@@ -104,6 +104,10 @@ func (c *MockClient) IsCapable(url string) (bool, error) {
 	return true, nil
 }
 
+func (c *MockClient) RequiresNameSenderValidation() bool {
+	return false
+}
+
 // GetPublicKey gets the identity public key for the handle.
 func (c *MockClient) GetPublicKey(ctx context.Context) (*bitcoin.PublicKey, error) {
 	pk := c.user.identityKey.PublicKey()
@@ -229,7 +233,7 @@ func (c *MockClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 }
 
 func (c *MockClient) PostNegotiationTx(ctx context.Context,
-	negotiationTx *NegotiationTransaction) (*NegotiationTransaction, error) {
+	negotiationTx *NegotiationTransaction) error {
 
 	isSigned := false
 	for _, txin := range negotiationTx.Tx.Tx.TxIn {
@@ -240,7 +244,7 @@ func (c *MockClient) PostNegotiationTx(ctx context.Context,
 
 	if isSigned { // Assume this is just a final posting of the completed tx.
 		if err := negotiationTx.Tx.VerifyInputs(); err != nil {
-			return nil, errors.Wrap(err, "verify inputs")
+			return errors.Wrap(err, "verify inputs")
 		}
 
 		logger.InfoWithFields(ctx, []logger.Field{
@@ -253,12 +257,12 @@ func (c *MockClient) PostNegotiationTx(ctx context.Context,
 	return c.addBitcoinReceiver(negotiationTx)
 }
 
-func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) (*NegotiationTransaction, error) {
+func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) error {
 	inputValue := uint64(0)
 	for i := 0; i < negotiationTx.Tx.InputCount(); i++ {
 		output, err := negotiationTx.Tx.InputOutput(i)
 		if err != nil {
-			return nil, errors.Wrapf(err, "input %d", i)
+			return errors.Wrapf(err, "input %d", i)
 		}
 
 		inputValue += output.Value
@@ -270,14 +274,17 @@ func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) (
 	}
 
 	if outputValue >= inputValue {
-		return nil, errors.New("Sends Not Implemented")
+		return errors.New("Sends Not Implemented")
 	}
 
 	receiveAmount := inputValue - outputValue
 	lockingScript, _ := c.user.addressKey.LockingScript()
 	negotiationTx.Tx.Tx.AddTxOut(wire.NewTxOut(receiveAmount, lockingScript))
-	negotiationTx.Handle = c.user.handle
-	return negotiationTx, nil
+	negotiationTx.ReplyTo.Handle = &c.user.handle
+
+	// TODO Send to reply handle or peer channels. --ce
+
+	return nil
 }
 
 func (c *MockClient) PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error {

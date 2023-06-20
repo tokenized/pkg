@@ -2,46 +2,54 @@ package bsvalias
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/pkg/errors"
 )
 
 func TestGetSite(t *testing.T) {
-	t.Skip()
+	// t.Skip()
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
-		domain  string
-		wantErr error
-		wantURL string
+		name                     string
+		domain                   string
+		wantErr                  error
+		wantURL                  string
+		requiresSenderValidation bool
 	}{
+		// {
+		// 	name:    "moneybutton.com",
+		// 	domain:  "moneybutton.com",
+		// 	wantURL: "https://moneybutton.com",
+		// },
+		// {
+		// 	name:    "polynym.io",
+		// 	domain:  "polynym.io",
+		// 	wantURL: "https://api.polynym.io",
+		// },
+		// {
+		// 	name:    "handcash.io",
+		// 	domain:  "handcash.io",
+		// 	wantURL: "https://cloud.handcash.io",
+		// },
 		{
-			name:    "moneybutton.com",
-			domain:  "moneybutton.com",
-			wantURL: "https://moneybutton.com",
-		},
-		{
-			name:    "polynym.io",
-			domain:  "polynym.io",
-			wantURL: "https://api.polynym.io",
-		},
-		{
-			name:    "handcash.io",
-			domain:  "handcash.io",
-			wantURL: "https://cloud.handcash.io",
-		},
-		{
-			name:    "tokenized.id",
-			domain:  "tokenized.id",
+			name:    "tkz.id",
+			domain:  "tkz.id",
 			wantURL: "https://nexus-api.tokenized.com",
 		},
-		{
-			name:    "example.com",
-			domain:  "example.com",
-			wantErr: ErrNotCapable,
-		},
+		// {
+		// 	name:    "example.com",
+		// 	domain:  "example.com",
+		// 	wantErr: ErrNotCapable,
+		// },
+		// {
+		// 	name:                     "centbee.com",
+		// 	domain:                   "centbee.com",
+		// 	wantURL:                  "https://d1xxc9dtnjao6f.cloudfront.net",
+		// 	requiresSenderValidation: true,
+		// },
 	}
 
 	for _, tt := range tests {
@@ -59,6 +67,23 @@ func TestGetSite(t *testing.T) {
 
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			js, _ := json.MarshalIndent(site.Capabilities, "", "  ")
+			t.Logf("Capabilities : %s", js)
+
+			if site.Capabilities.RequiresNameSenderValidation() {
+				if !tt.requiresSenderValidation {
+					t.Errorf("Should not require sender validation")
+				} else {
+					t.Logf("Requires sender validation")
+				}
+			} else {
+				if tt.requiresSenderValidation {
+					t.Errorf("Should require sender validation")
+				} else {
+					t.Logf("Does not require sender validation")
+				}
 			}
 
 			if site.URL != tt.wantURL {

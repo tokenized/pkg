@@ -2,7 +2,7 @@
 
 ## Terms
 
-* BRFC (Bitcoin Request For Comments) is used to specify paymail features and endpoints. The BRFCID is used to uniquely identify paymail features.
+* BRFC (Bitcoin Request For Comments) is used to specify bsvalias features and endpoints. The BRFCID is used to uniquely identify features.
 
 ## Warnings
 
@@ -27,7 +27,7 @@ There is the risk that during exchange and modification of the negotiation trans
 | Version  | 1                        |
 | BRFCID   | 27d8bd77c113             |
 
-Negotiation Transaction is a dynamic endpoint that can be used to negotiate transfers of any sort.
+Negotiation Transaction is a dynamic endpoint that can be used to negotiate transfers of any kind.
 
 Features:
 
@@ -37,18 +37,17 @@ By tagging messages with a unique ID several messages can be exchanged and linke
 
 # Delayed Responses
 
-By including a paymail handle and/or peer channels the paymail service doesn't have to provide the response immediately. The paymail service can provide the message to the user and let the user respond.
+By including a handle and/or peer channels the service doesn't have to provide the response immediately. The service can provide the message to the user and let the user respond.
 
 # Callbacks
 
-Tokenized (T2) settlements, merkle proofs, and other data needed after a transaction is complete can be provided via the included paymail handle and peer channels.
+Tokenized (T2) settlements, merkle proofs, and other data needed after a transaction is complete can be provided via the included handle and peer channels.
 
 ### HTTP Response Codes
 
-* 200 (OK) If there is a body then it contains the next step of the negotiation transaction. If there is not body the negotiation completed successfully.
-* 202 (Accepted) The negotiation transaction requires interaction with the user so a response will be posted to the paymail handle provided.
+* 202 (Accepted) The data was accepted. If a response is appropriate then when it is available it will be posted to the reply handle or peer channels provided.
 * 400 (Bad Request) The request is invalid. The body will contain a text description of the issue.
-* 406 (Not Acceptable) The request contained protocols or scenarios not supported by this paymail service implementation. The body will contain a text description of the issue.
+* 406 (Not Acceptable) The request contained protocols or scenarios not supported by this service implementation. The body will contain a text description of the issue. For example if a request contains peer channels to reply to and the service doesn't have that implemented. Or if the request is asking for payment to be sent and the services doesn't support that.
 
 ### Data Structure
 
@@ -56,11 +55,11 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 
 ```
 {
-	"id": "Unique Conversation Identifier",
+	"thread_id": "Unique Conversation Identifier",
 	"fees":[
 		{
 			// The minimum number of satoshis per the number of bytes for the specified fee type.
-			"feeType": "standard or data",
+			"feeType": "<standard or data, same as merchant api>",
 			"satoshis": 50,
 			"bytes": 1000
 		}
@@ -85,13 +84,12 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 			}
 		]
 	},
-	"handle": "Callback Paymail Handle",
-	"peer_channels": [
-		{
-			"url": "peer channel post URL including channel id",
-			"write_token": "HTTP auth header that allows posting messages"
-		}
-	]
+	"expiry": <nano-seconds since unix epoch>,
+	"timestamp": <nano-seconds since unix epoch>,
+	"reply_to": {
+		"handle": "Callback Paymail Handle",
+		"peer_channel": "https://<host>/api/v1/channel/<channel_id>?token=<write_token>"
+	}
 }
 ```
 
@@ -104,11 +102,11 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 | Version  | 1                        |
 | BRFCID   | b38a1b09c3ce             |
 
-Merkle Proofs is an endpoint that allows posting of merkle proofs to paymail following an exchange of a transaction that one of the parties broadcast to the Bitcoin miners. The party that broadcast the transaction is expected to deliver all relevant merkle proofs to the other party. The transaction id (double SHA256) contained in the merkle proofs is considered enough identifying information for the paymail service to know what to do with it.
+Merkle Proofs is an endpoint that allows posting of merkle proofs to a handle following an exchange of a transaction that one of the parties broadcast to the Bitcoin miners. The party that broadcast the transaction is expected to deliver all relevant merkle proofs to the other party. The transaction id (double SHA256) contained in the merkle proofs is considered enough identifying information for the service to know what to do with it.
 
 ### HTTP Response Codes
 
-* 200 (OK) The merkle proofs were received successfully.
+* 202 (Accepted) The merkle proofs were received successfully.
 * 400 (Bad Request) One of the merkle proofs were invalid. The body will contain a text description of the issue.
 
 ### Data Structure
@@ -125,11 +123,12 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 
 ### Simple Unsolicited Tokenized Payment
 
-Sender wants to send some Tokenized tokens to a paymail recipient.
+Sender wants to send some Tokenized tokens to a recipient.
 
-1. The sender posts a negotiation transaction to recipient paymail that includes a unique ID, the sender's paymail handle, and a transaction containing a Tokenized (T1) Transfer action with senders and possibly change receivers. The sum of the quantity of the senders minus the sum of the quantity of the receivers is the quantity that is to be paid to the recipient. The transaction must contain at a minimum the outputs being spent by the inputs of the transaction and possibly full ancestor transactions for the inputs.
-2. The recipient paymail service verifies the token is supported and adds transfer receivers and responds to the HTTP request with 200 (OK) and the updated negotiation transaction containing the same unique ID and the recipient's paymail handle.
-3. The sender verifies that the negotiation transaction has all necessary receivers (Tokenized Transfers must have matching sender and receiver quantity sums) and updates the contract and tx fees, adds any inputs for transaction funding, signs all inputs, and posts the completed negotiation transaction back to recipient's paymail with the same unique ID and the sender's paymail handle.
-4. The recipient paymail service verifies the transfer tx is not malformed and broadcasts to the miners. If the broadcast fails the recipient paymail service responds to the HTTP request with a 400 (Bad Request) and a text body containing a description of the issue as received from the miners. If the broadcast succeeds then the recipient paymail service responds to the HTTP request with a 200 (OK).
-5. The recipient later receives the transaction containing the Tokenized (T2) Settlement action from the smart contract agent and posts it in a negotiation transaction to the sender's paymail handle.
-6. The recipient later receives merkle proofs for the transactions containing the Tokenized (T1) Transfer and Tokenized (T2) Settlement actions and posts to sender's paymail merkle proofs endpoint.
+1. The sender posts a negotiation transaction to recipient handle that includes a thread ID, the sender's handle, and a transaction containing a Tokenized (T1) Transfer action with senders and possibly change receivers. The sum of the quantity of the senders minus the sum of the quantity of the receivers is the quantity that is to be paid to the recipient. The transaction must contain at a minimum the outputs being spent by the inputs of the transaction and possibly full ancestor transactions for the inputs.
+2. The recipient service verifies all protocols in the transaction and the token are supported and responds with HTTP 202 Accepted.
+3. The recipient client sees the request and approves it by adding transfer receivers and responds to the request via the reply_handle or reply_peer_channels with the updated negotiation transaction containing the same thread ID and the recipient's handle for any further negotiations.
+3. The sender sees the response, verifies that the negotiation transaction has all necessary receivers (Tokenized Transfers must have matching sender and receiver quantity sums), and updates the contract and tx fees, adds any inputs for transaction funding, signs all inputs, and posts the completed negotiation transaction back to recipient's handle with the same thread ID and the same reply_handle or reply_peer_channels values.
+4. The recipient service verifies the transfer tx is not malformed and meets their requirements for fees and anything else and broadcasts to the miners. If the broadcast fails the recipient service responds to the HTTP request with a 400 (Bad Request) and a text body containing a description of the issue as received from the miners. If the broadcast succeeds then the recipient service responds to the HTTP request with a 200 (OK).
+5. The recipient later receives the transaction containing the Tokenized (T2) Settlement action from the smart contract agent and posts it in a negotiation transaction to the sender's reply_handle or reply_peer_channels.
+6. The recipient later receives merkle proofs for the transactions containing the Tokenized (T1) Transfer and Tokenized (T2) Settlement actions and posts to sender's merkle proofs endpoint for the reply_handle or reply_peer_channels.
