@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -134,6 +135,8 @@ func printScript(b []byte) error {
 		ad := bitcoin.NewAddressFromRawAddress(ra, bitcoin.MainNet)
 		fmt.Printf("Address: %s\n", ad)
 	}
+
+	fmt.Printf("Script hash : %s\n", bitcoin.Hash32(sha256.Sum256(b)))
 
 	return nil
 }

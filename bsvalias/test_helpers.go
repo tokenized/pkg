@@ -280,7 +280,9 @@ func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) e
 	receiveAmount := inputValue - outputValue
 	lockingScript, _ := c.user.addressKey.LockingScript()
 	negotiationTx.Tx.Tx.AddTxOut(wire.NewTxOut(receiveAmount, lockingScript))
-	negotiationTx.ReplyTo.Handle = &c.user.handle
+	negotiationTx.ReplyTo = &ReplyTo{
+		Handle: &c.user.handle,
+	}
 
 	// TODO Send to reply handle or peer channels. --ce
 

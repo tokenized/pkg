@@ -41,6 +41,22 @@ func ParseChannel(channelURL string) (*Channel, error) {
 	}, nil
 }
 
+func (c Channel) Equal(o Channel) bool {
+	if c.BaseURL != o.BaseURL {
+		return false
+	}
+
+	if c.ChannelID != o.ChannelID {
+		return false
+	}
+
+	if c.Token != o.Token {
+		return false
+	}
+
+	return true
+}
+
 func (v Channel) MarshalText() ([]byte, error) {
 	u, err := url.Parse(v.BaseURL)
 	if err != nil {

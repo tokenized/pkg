@@ -2,6 +2,7 @@ package bsvalias
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 
@@ -19,6 +20,9 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 	if len(records) > 0 {
 		// Strip period at end of target.
 		r := records[0]
+
+		js, _ := json.MarshalIndent(r, "", "  ")
+		println("srv:", string(js))
 
 		// get the domain name from the SRV record
 		l := len(r.Target)

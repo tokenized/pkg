@@ -174,6 +174,10 @@ func NewOutPoint(hash *bitcoin.Hash32, index uint32) *OutPoint {
 	}
 }
 
+func (op OutPoint) Equal(o OutPoint) bool {
+	return op.Hash.Equal(&o.Hash) && op.Index == o.Index
+}
+
 // OutPointFromStr parses a string into an outpoint. The format is "<txid:index>".
 func OutPointFromStr(s string) (*OutPoint, error) {
 	parts := strings.Split(s, ":")
@@ -264,6 +268,11 @@ func NewTxIn(prevOut *OutPoint, unlockingScript bitcoin.Script) *TxIn {
 	}
 }
 
+func (txin TxIn) Equal(otxin TxIn) bool {
+	return txin.PreviousOutPoint.Equal(otxin.PreviousOutPoint) &&
+		txin.UnlockingScript.Equal(otxin.UnlockingScript) && txin.Sequence == otxin.Sequence
+}
+
 // TxOut defines a bitcoin transaction output.
 type TxOut struct {
 	Value         uint64         `json:"value"`
@@ -346,6 +355,10 @@ func NewTxOut(value uint64, lockingScript bitcoin.Script) *TxOut {
 		Value:         value,
 		LockingScript: lockingScript,
 	}
+}
+
+func (txout TxOut) Equal(otxout TxOut) bool {
+	return txout.LockingScript.Equal(otxout.LockingScript) && txout.Value == otxout.Value
 }
 
 // MsgTx implements the Message interface and represents a bitcoin tx message.

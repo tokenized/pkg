@@ -9,7 +9,6 @@ import (
 )
 
 func TestGetSite(t *testing.T) {
-	// t.Skip()
 	ctx := context.Background()
 
 	tests := []struct {

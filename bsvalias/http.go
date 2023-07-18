@@ -94,8 +94,8 @@ func (c *HTTPClient) SetTimeouts(dialTimeout, requestTimeout time.Duration) {
 	c.RequestTimeout = requestTimeout
 }
 
-func (c *HTTPClient) IsCapable(url string) (bool, error) {
-	if _, err := c.Site.Capabilities.GetURL(url); err != nil {
+func (c *HTTPClient) IsCapable(name string) (bool, error) {
+	if _, err := c.Site.Capabilities.GetURL(name); err != nil {
 		if errors.Cause(err) == ErrNotCapable {
 			return false, nil
 		}

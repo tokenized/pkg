@@ -88,8 +88,8 @@ type Factory interface {
 
 // Client is the interface for interacting with an bsvalias oracle service.
 type Client interface {
-	// IsCapable returns true if the specified URL is supported by the paymail host.
-	IsCapable(url string) (bool, error)
+	// IsCapable returns true if the specified URL name is supported by the paymail host.
+	IsCapable(name string) (bool, error)
 
 	RequiresNameSenderValidation() bool
 

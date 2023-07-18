@@ -56,6 +56,28 @@ func (f FeeRequirement) Rate() float32 {
 	return float32(f.Satoshis) / float32(f.Bytes)
 }
 
+func (fr FeeRequirement) Copy() FeeRequirement {
+	return FeeRequirement{
+		FeeType:  fr.FeeType,
+		Satoshis: fr.Satoshis,
+		Bytes:    fr.Bytes,
+	}
+}
+
+func (frs FeeRequirements) Copy() FeeRequirements {
+	if len(frs) == 0 {
+		return nil
+	}
+
+	result := make(FeeRequirements, len(frs))
+	for i, fr := range frs {
+		c := fr.Copy()
+		result[i] = &c
+	}
+
+	return result
+}
+
 func (reqs FeeRequirements) GetRequirement(t merchant_api.FeeType) *FeeRequirement {
 	for _, req := range reqs {
 		if req.FeeType == t {
