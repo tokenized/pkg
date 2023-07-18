@@ -305,8 +305,9 @@ func CopyString(s string) string {
 }
 
 // When tx broadcast by someone else:
-//   "returnResult": "failure",
-//   "resultDescription": "Transaction already in the mempool",
+//
+//	"returnResult": "failure",
+//	"resultDescription": "Transaction already in the mempool",
 type SubmitTxResponse struct {
 	Version                string            `json:"apiVersion"`
 	Timestamp              time.Time         `json:"timestamp"`

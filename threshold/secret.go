@@ -50,8 +50,9 @@ func SecretShareTypeName(t int) string {
 }
 
 // NewTransientPolynomial generates a new private polynomial and does precalculation on it. This
-//   should be done before each step in an ephemeral key generation (littlek and alpha).
-func NewSecretShare(id uint64, secretType, degree, ordinalIndex int, ordinals []big.Int) (*SecretShare, error) {
+// should be done before each step in an ephemeral key generation (littlek and alpha).
+func NewSecretShare(id uint64, secretType, degree, ordinalIndex int,
+	ordinals []big.Int) (*SecretShare, error) {
 	result := SecretShare{
 		ID:   id,
 		Type: secretType,
@@ -76,7 +77,8 @@ func (s *SecretShare) ManualSetup(poly Polynomial, ordinalIndex int, ordinals []
 }
 
 // PolynomialPreCalculation calculates information about the private polynomial that is needed for
-//   the following steps of Joint Verifiable Random Secret Sharing (JVRSS).
+// the following steps of Joint Verifiable Random Secret Sharing (JVRSS).
+//
 // Evaluate the polynomial for all ordinals and hide (encrypt) them.
 // Hide (encrypt) the coefficients of the private polynomial.
 func (s *SecretShare) preCalculation(poly Polynomial, ordinalIndex int, ordinals []big.Int) error {
@@ -113,7 +115,7 @@ func (s *SecretShare) preCalculation(poly Polynomial, ordinalIndex int, ordinals
 
 // GetShare returns the data to share to the group.
 // This should be shared via broadcast to all members in the group, so everyone sees that everyone
-//   received the same data.
+// received the same data.
 func (s SecretShare) GetShare() ([]BigPair, []BigPair) {
 	return s.HiddenPolynomial, s.HiddenEvals
 }
@@ -154,9 +156,10 @@ func (s SecretShare) SharesComplete() bool {
 }
 
 // CreateSecret creates a secret from the shared data by adding the evaluations of our ordinal on
-//   all of the other member's private polynomials.
+// all of the other member's private polynomials.
+//
 // The unhidden evaluation of this member's ordinal should only be known by this member and the
-//   member that generated it.
+// member that generated it.
 func (s SecretShare) CreateSecret(ordinalIndex int, ordinals []big.Int) (big.Int, error) {
 	var result big.Int
 
@@ -179,7 +182,7 @@ func (s SecretShare) CreateSecret(ordinalIndex int, ordinals []big.Int) (big.Int
 }
 
 // CreatePublicKey creates the public key of the shared secret by adding all of the 0th hidden
-//   coefficients.
+// coefficients.
 func (s SecretShare) CreatePublicKey() *bitcoin.PublicKey {
 	var result BigPair
 	result.Set(s.SharedPolynomials[0][0])

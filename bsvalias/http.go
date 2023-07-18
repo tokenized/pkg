@@ -183,8 +183,10 @@ func (c *HTTPClient) GetPaymentDestination(ctx context.Context, senderName, send
 }
 
 // GetPaymentRequest gets a payment request from the identity.
-//   senderHandle is required.
-//   instrumentID can be empty or "BSV" to request bitcoin.
+//
+//	senderHandle is required.
+//	instrumentID can be empty or "BSV" to request bitcoin.
+//
 // If senderKey is not nil then it must be associated with senderHandle and will be used to add a
 // signature to the request.
 func (c *HTTPClient) GetPaymentRequest(ctx context.Context, senderName, senderHandle, purpose,

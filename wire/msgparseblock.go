@@ -13,11 +13,12 @@ import (
 )
 
 // MsgParseBlock is a more efficient version of MsgBlock. It initially just determines the complete
-//   data set for the block and calculates the merkle root hash. Then allows each tx to be parsed
-//   one at a time and builds them using the same memory as the block data where possible.
+// data set for the block and calculates the merkle root hash. Then allows each tx to be parsed
+// one at a time and builds them using the same memory as the block data where possible.
+//
 // The ReadMessageParse function must be used to receive a MsgParseBlock. The sole difference
-//   between ReadMessageParse and ReadMessage is that it returns a MsgParseBlock for CmdBlock
-//   commands.
+// between ReadMessageParse and ReadMessage is that it returns a MsgParseBlock for CmdBlock
+// commands.
 type MsgParseBlock struct {
 	Header     BlockHeader
 	MerkleRoot bitcoin.Hash32 // Calculated during initial parse
@@ -34,7 +35,7 @@ func (mpb *MsgParseBlock) GetHeader() BlockHeader {
 }
 
 // IsMerkleRootValid returns true if the decoded block's calculated merkle root hash matches the
-//   header.
+// header.
 func (mpb *MsgParseBlock) IsMerkleRootValid() bool {
 	return mpb.Header.MerkleRoot.Equal(&mpb.MerkleRoot)
 }
@@ -245,9 +246,9 @@ func ReadMessageParse(r io.Reader, pver uint32, btcnet BitcoinNet) (int, Message
 }
 
 // readTxId reads the data for a full tx and returns the double SHA256 hash of it. It must take an
-//   io.Reader so that it can read from a net.Conn and wait for the data to be received. This does
-//   make it less efficient though because there is no skip function, so memory must be allocated to
-//   read past values that we don't actually care about.
+// io.Reader so that it can read from a net.Conn and wait for the data to be received. This does
+// make it less efficient though because there is no skip function, so memory must be allocated to
+// read past values that we don't actually care about.
 func readTxId(r io.Reader, pver uint32) (bitcoin.Hash32, error) {
 	// Tee reader into a buffer to calculate hash after reading.
 	hasher := sha256.New()
@@ -261,9 +262,9 @@ func readTxId(r io.Reader, pver uint32) (bitcoin.Hash32, error) {
 }
 
 // readTxSize reads the data for a full tx and returns the size that it read. It must take an
-//   io.Reader so that it can read from a net.Conn and wait for the data to be received. This does
-//   make it less efficient though because there is no skip function, so memory must be allocated to
-//   read past values that we don't actually care about.
+// io.Reader so that it can read from a net.Conn and wait for the data to be received. This does
+// make it less efficient though because there is no skip function, so memory must be allocated to
+// read past values that we don't actually care about.
 func readTxSize(r io.Reader, pver uint32) (uint64, error) {
 	size := uint64(8) // fixed size of version and lock time
 	var fourbytes [4]byte
@@ -400,7 +401,7 @@ func readScriptSize(r io.Reader, pver uint32) (uint64, error) {
 }
 
 // ReadTxBytes reads a full tx and returns its size and the tx. It uses slices of the slice passed
-//   in to construct the slices within the tx.
+// in to construct the slices within the tx.
 func ReadTxBytes(b []byte, pver uint32) (uint64, *MsgTx, error) {
 	result := &MsgTx{}
 	l := uint64(len(b))
@@ -540,7 +541,7 @@ func ReadScriptBytes(b []byte, pver uint32) (uint64, []byte, error) {
 }
 
 // ReadVarIntBytes reads a variable length integer from a byte slice and returns it's size and value
-//   as uint64s.
+// as uint64s.
 func ReadVarIntBytes(b []byte, pver uint32) (uint64, uint64, error) {
 	discriminant := uint8(b[0])
 

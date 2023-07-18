@@ -25,7 +25,7 @@ func checkNonStandard(lockingScript Script) (RawAddress, error) {
 }
 
 // RawAddressFromLockingScript returns the script template associated with the specified locking
-//   script.
+// script.
 func RawAddressFromLockingScript(lockingScript Script) (RawAddress, error) {
 	var result RawAddress
 	if len(lockingScript) == 0 {
@@ -404,8 +404,7 @@ func (ra RawAddress) LockingScript() (Script, error) {
 }
 
 // PublicKeyFromLockingScript returns the serialized compressed public key from the locking script
-//   if there is one.
-// It only works for P2PK locking scripts.
+// if there is one. It only works for P2PK locking scripts.
 func PublicKeyFromLockingScript(lockingScript []byte) ([]byte, error) {
 	if len(lockingScript) < 2 {
 		return nil, ErrUnknownScriptTemplate

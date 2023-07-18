@@ -49,7 +49,7 @@ func (sch *Scheduler) ScheduleJob(ctx context.Context, job Task) error {
 }
 
 // CancelJob removes a job from the scheduler. The task passed in just needs to be equivalent based
-//   on the task's Equal function.
+// on the task's Equal function.
 func (sch *Scheduler) CancelJob(ctx context.Context, task Task) error {
 	sch.lock.Lock()
 	defer sch.lock.Unlock()

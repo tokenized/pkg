@@ -53,7 +53,7 @@ func (bp BigPair) String() string {
 }
 
 // BigOrdPair is an ordinal big number and a pair of big numbers used as a container for passing
-//   values.
+// values.
 type BigOrdPair struct {
 	Ord   big.Int
 	Point BigPair

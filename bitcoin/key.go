@@ -106,8 +106,7 @@ func (k *Key) DecodeString(s string) error {
 	return nil
 }
 
-// KeyFromBytes decodes a binary bitcoin key. It returns the key and an error if there was an
-//   issue.
+// KeyFromBytes decodes a binary bitcoin key. It returns the key and an error if there was an issue.
 func KeyFromBytes(b []byte, net Network) (Key, error) {
 	if b[0] != typeIntPrivKey {
 		return Key{}, ErrBadKeyType

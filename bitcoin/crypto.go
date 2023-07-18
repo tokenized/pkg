@@ -21,7 +21,7 @@ func ECDHSecret(k Key, pub PublicKey) ([]byte, error) {
 }
 
 // Encrypt generates a random IV prepends it to the output, then uses AES with the input keysize and
-//   CBC to encrypt the payload.
+// CBC to encrypt the payload.
 func Encrypt(payload, key []byte) ([]byte, error) {
 	// Generate random IV
 	iv := make([]byte, aes.BlockSize)
@@ -59,7 +59,7 @@ func EncryptIV(payload, key, iv []byte) ([]byte, error) {
 }
 
 // Decrypt reads the IV from the beginning of the output, then uses AES with the input keysize and
-//   CBC to decrypt the payload.
+// CBC to decrypt the payload.
 func Decrypt(payload, key []byte) ([]byte, error) {
 	size := len(payload)
 	if size == 0 {

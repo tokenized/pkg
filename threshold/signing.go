@@ -68,10 +68,11 @@ func (e *EphemeralKey) SignatureSharesComplete() bool {
 }
 
 // CreateSignature uses the signature shares to create a full signature. Each signature share value
-//   is paired with its ordinal. (ordinal, sig share).
+// is paired with its ordinal. (ordinal, sig share).
+//
 // At least 2t + 1 signature shares are required to create a valid signature, where t is the degree
-//   of the polynomials used. More than 2t + 1 will also create a valid signature, but if any shares
-//   are invalid, then the signature will be invalid even if 2t + 1 are valid.
+// of the polynomials used. More than 2t + 1 will also create a valid signature, but if any shares
+// are invalid, then the signature will be invalid even if 2t + 1 are valid.
 func (e *EphemeralKey) CreateSignature(sigHash big.Int,
 	publicKey bitcoin.PublicKey) (bitcoin.Signature, error) {
 

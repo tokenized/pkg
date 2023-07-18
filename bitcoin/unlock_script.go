@@ -15,7 +15,7 @@ func AddressFromUnlockingScript(unlockingScript []byte, net Network) (Address, e
 }
 
 // RawAddressFromUnlockingScript returns the raw address associated with the specified unlocking
-//   script.
+// script.
 func RawAddressFromUnlockingScript(unlockingScript []byte) (RawAddress, error) {
 	var result RawAddress
 
@@ -74,7 +74,9 @@ func RawAddressFromUnlockingScript(unlockingScript []byte) (RawAddress, error) {
 }
 
 // PublicKeyFromUnlockingScript returns the serialized compressed public key from the unlocking
-//   script if there is one.
+//
+//	script if there is one.
+//
 // It only works for P2PKH and P2RPH unlocking scripts.
 func PublicKeyFromUnlockingScript(unlockingScript []byte) ([]byte, error) {
 	if len(unlockingScript) < 2 {

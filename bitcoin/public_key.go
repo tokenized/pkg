@@ -29,7 +29,7 @@ func PublicKeyFromStr(s string) (PublicKey, error) {
 }
 
 // PublicKeyFromBytes decodes a binary bitcoin public key. It returns the key and an error if
-//   there was an issue.
+// there was an issue.
 func PublicKeyFromBytes(b []byte) (PublicKey, error) {
 	if len(b) != PublicKeyCompressedLength {
 		return PublicKey{}, fmt.Errorf("Invalid public key length : got %d, want %d", len(b),

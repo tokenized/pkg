@@ -31,13 +31,13 @@ func NewEphemeralKey(id uint64, degree int) *EphemeralKey {
 }
 
 // SignatureThreshold returns the number of signature shares required to construct a valid
-//   signature.
+// signature.
 func (e EphemeralKey) SignatureThreshold() int {
 	return (2 * e.Degree) + 1
 }
 
 // GetVWShare calculates and returns the vw share for this member from the current littlek and alpha
-//   values.
+// values.
 func (e *EphemeralKey) GetVWShare(ordinal big.Int) []big.Int {
 	if !e.LittleKIsSet || !e.AlphaIsSet {
 		return nil
@@ -73,7 +73,7 @@ func (e *EphemeralKey) VWSharesComplete() bool {
 
 // CalculateKey calculates an ephemeral key from the vw shares.
 // Before calling this function at least 3 rounds of polynomial data shares and calculations are
-//   required. One for each of private key, littlek, and alpha. Then an exchange of vw shares.
+// required. One for each of private key, littlek, and alpha. Then an exchange of vw shares.
 func (e *EphemeralKey) CalculateKey(ordinals []big.Int) error {
 	if !e.VWSharesComplete() {
 		return errors.New("Missing vw shares")

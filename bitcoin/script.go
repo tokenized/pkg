@@ -1356,9 +1356,9 @@ func ParsePushDataScriptSize(buf io.Reader) (uint64, error) {
 }
 
 // ParsePushDataScript will parse a bitcoin script for the next "object". It will return the next
-//   op code, and if that op code is a push data op code, it will return the data.
+// op code, and if that op code is a push data op code, it will return the data.
 // A bytes.Reader object is needed to check the size against the remaining length before allocating
-//   the memory to store the push.
+// the memory to store the push.
 func ParsePushDataScript(buf *bytes.Reader) (uint8, []byte, error) {
 	var opCode byte
 	err := binary.Read(buf, endian, &opCode)
@@ -1427,18 +1427,19 @@ func ParsePushDataScript(buf *bytes.Reader) (uint8, []byte, error) {
 
 // PushNumberScript returns a section of script that will push the specified number onto the stack.
 // Example encodings:
-//       127 -> [0x7f]
-//      -127 -> [0xff]
-//       128 -> [0x80 0x00]
-//      -128 -> [0x80 0x80]
-//       129 -> [0x81 0x00]
-//      -129 -> [0x81 0x80]
-//       256 -> [0x00 0x01]
-//      -256 -> [0x00 0x81]
-//     32767 -> [0xff 0x7f]
-//    -32767 -> [0xff 0xff]
-//     32768 -> [0x00 0x80 0x00]
-//    -32768 -> [0x00 0x80 0x80]
+//
+//	   127 -> [0x7f]
+//	  -127 -> [0xff]
+//	   128 -> [0x80 0x00]
+//	  -128 -> [0x80 0x80]
+//	   129 -> [0x81 0x00]
+//	  -129 -> [0x81 0x80]
+//	   256 -> [0x00 0x01]
+//	  -256 -> [0x00 0x81]
+//	 32767 -> [0xff 0x7f]
+//	-32767 -> [0xff 0xff]
+//	 32768 -> [0x00 0x80 0x00]
+//	-32768 -> [0x00 0x80 0x80]
 func PushNumberScriptItem(n int64) *ScriptItem {
 	// OP_FALSE, OP_0
 	if n == 0 {
@@ -1574,7 +1575,7 @@ func ScriptNumberValueUnsigned(item *ScriptItem) (uint64, error) {
 }
 
 // ParsePushNumberScript reads a number out of script and returns the value, the bytes of script it
-//   used, and an error if one occured.
+// used, and an error if one occured.
 func ParsePushNumberScript(b []byte) (int64, int, error) {
 	if len(b) == 0 {
 		return 0, 0, errors.New("Script empty")

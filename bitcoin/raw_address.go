@@ -25,7 +25,7 @@ const (
 // RawAddress represents a bitcoin address in raw format, with no check sum or encoding.
 // It represents a "script template" for common locking and unlocking scripts.
 // It enables parsing and creating of common locking and unlocking scripts as well as identifying
-//   participants involved in the scripts via public key hashes and other hashes.
+// participants involved in the scripts via public key hashes and other hashes.
 type RawAddress struct {
 	scriptType byte
 	data       []byte
@@ -302,7 +302,7 @@ func NewRawAddressCompressedPublicKey(pk []byte) (RawAddress, error) {
 }
 
 // SetCompressedPublicKey sets the type as ScriptTypePKH and sets the data to the specified
-//   compressed public key.
+// compressed public key.
 func (ra *RawAddress) SetCompressedPublicKey(pk []byte) error {
 	if len(pk) != PublicKeyCompressedLength {
 		return ErrBadScriptHashLength

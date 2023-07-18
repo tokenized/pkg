@@ -9,10 +9,11 @@ import (
 )
 
 // Prior to running test, set the following environment variables.
-//   RPC_HOST
-//   RPC_USERNAME
-//   RPC_PASSWORD
-//   TX_ID
+//
+//	RPC_HOST
+//	RPC_USERNAME
+//	RPC_PASSWORD
+//	TX_ID
 func ManualTestNode(test *testing.T) {
 	ctx := context.Background()
 

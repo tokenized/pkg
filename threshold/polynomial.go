@@ -17,8 +17,8 @@ func (p Polynomial) Degree() int {
 }
 
 // NewPolynomial generates a new random polynomial of the specified degree. The first coefficient
-//   will not be less than 1 and the last coefficient will not be zero. All other coefficients will
-//   be within the inclusive range of the min and max specified.
+// will not be less than 1 and the last coefficient will not be zero. All other coefficients will
+// be within the inclusive range of the min and max specified.
 func NewPolynomial(degree int, min, max big.Int) (Polynomial, error) {
 	if degree < 1 {
 		return Polynomial{}, errors.New("Degree must be one or more")
@@ -100,7 +100,7 @@ func (p Polynomial) Hide() []BigPair {
 }
 
 // LagrangeInterpolate uses scalar lagrange interpolation to evaluate x based on the points
-//   specified.
+// specified.
 func LagrangeInterpolate(points []BigPair, x, mod big.Int) (big.Int, error) {
 	// Sanity check the points.
 	if len(points) < 2 {
@@ -169,7 +169,7 @@ func lj(j int, jPoint BigPair, x big.Int, points []BigPair, mod big.Int) big.Int
 }
 
 // LagrangeECInterpolate uses elliptic point (EC) lagrange interpolation to evaluate x based on the
-//   points specified.
+// points specified.
 func LagrangeECInterpolate(points []BigOrdPair, x, mod big.Int) (BigPair, error) {
 	// Sanity check the points.
 	if len(points) < 2 {

@@ -17,7 +17,8 @@ const (
 )
 
 // Member represents one of the members in a group that is creating/using a shared secret via
-//   Joint Verifiable Random Secret Sharing (JVRSS).
+//
+//	Joint Verifiable Random Secret Sharing (JVRSS).
 type Member struct {
 	Degree       int       // degree of polynomials to use
 	OrdinalIndex int       // index into Ordinals for ordinal of this member
@@ -46,7 +47,8 @@ func NewEmptyMember(degree int) Member {
 }
 
 // NewMember creates a new threshold group member, generates the first private polynomial, and does
-//   precalculation on it.
+// precalculation on it.
+//
 // ordinal is the one identifying this member and must be included in ordinals.
 func NewMember(ordinal big.Int, ordinals []big.Int, degree int) (Member, error) {
 	result := NewEmptyMember(degree)
@@ -139,13 +141,13 @@ func (m Member) SignaturesSupported() bool {
 }
 
 // SignatureThreshold returns the number of signature shares required to construct a valid
-//   signature.
+// signature.
 func (m Member) SignatureThreshold() int {
 	return (2 * m.Degree) + 1
 }
 
 // StartEphemeralKey starts the process of generating a new ephemeral key. It creates pending secret
-//   shares for littlek and alpha.
+// shares for littlek and alpha.
 func (m *Member) StartEphemeralKey() ([]*SecretShare, error) {
 	key := NewEphemeralKey(m.NextEphemeralID, m.Degree)
 	m.EphemeralKeys = append(m.EphemeralKeys, key)

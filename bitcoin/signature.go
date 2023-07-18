@@ -43,7 +43,8 @@ func SignatureFromStr(s string) (Signature, error) {
 }
 
 // SignatureFromBytes decodes a binary bitcoin signature. It returns the signature and an error if
-//   there was an issue.
+//
+//	there was an issue.
 func SignatureFromBytes(b []byte) (Signature, error) {
 	// 0x30 <length of whole message> <0x02> <length of R> <R> 0x2
 	// <length of S> <S>.
