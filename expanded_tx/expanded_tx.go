@@ -186,12 +186,12 @@ func (etx ExpandedTx) StringWithAddresses(net bitcoin.Network) string {
 func (etx ExpandedTx) CalculateFee() (uint64, error) {
 	inputValue := uint64(0)
 	for index := range etx.Tx.TxIn {
-		value, err := etx.InputValue(index)
+		inputOutput, err := etx.InputOutput(index)
 		if err != nil {
-			return 0, errors.Wrapf(err, "input %d", index)
+			return 0, errors.Wrapf(err, "input output %d", index)
 		}
 
-		inputValue += value
+		inputValue += inputOutput.Value
 	}
 
 	outputValue := uint64(0)
@@ -297,7 +297,7 @@ func (etx ExpandedTx) InputLockingScript(index int) (bitcoin.Script, error) {
 
 	txin := etx.Tx.TxIn[index]
 
-	parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
+	parentTx := etx.Ancestors.GetTxUnsigned(txin.PreviousOutPoint.Hash)
 	if parentTx == nil {
 		return nil, errors.Wrap(MissingInput, "parent:"+txin.PreviousOutPoint.Hash.String())
 	}
@@ -325,7 +325,7 @@ func (etx ExpandedTx) InputValue(index int) (uint64, error) {
 
 	txin := etx.Tx.TxIn[index]
 
-	parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
+	parentTx := etx.Ancestors.GetTxUnsigned(txin.PreviousOutPoint.Hash)
 	if parentTx == nil {
 		return 0, errors.Wrap(MissingInput, "parent:"+txin.PreviousOutPoint.Hash.String())
 	}
@@ -360,7 +360,7 @@ func (etx ExpandedTx) InputOutput(index int) (*wire.TxOut, error) {
 
 	txin := etx.Tx.TxIn[index]
 
-	parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
+	parentTx := etx.Ancestors.GetTxUnsigned(txin.PreviousOutPoint.Hash)
 	if parentTx == nil {
 		return nil, errors.Wrap(MissingInput, "parent:"+txin.PreviousOutPoint.Hash.String())
 	}

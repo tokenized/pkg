@@ -44,6 +44,14 @@ func (tx AncestorTx) GetTxID() *bitcoin.Hash32 {
 	return nil
 }
 
+func (tx AncestorTx) GetUnsignedTxID() *bitcoin.Hash32 {
+	if tx.Tx != nil {
+		return tx.Tx.UnsignedTxHash()
+	}
+
+	return nil
+}
+
 func (tx AncestorTx) GetTx() *wire.MsgTx {
 	return tx.Tx
 }
@@ -143,6 +151,20 @@ func (txs AncestorTxs) GetTx(txid bitcoin.Hash32) *AncestorTx {
 		}
 
 		if ancestorTxID.Equal(&txid) {
+			return tx
+		}
+	}
+
+	return nil
+}
+
+func (txs AncestorTxs) GetTxUnsigned(txid bitcoin.Hash32) *AncestorTx {
+	for _, tx := range txs {
+		if ancestorTxID := tx.GetTxID(); ancestorTxID != nil && ancestorTxID.Equal(&txid) {
+			return tx
+		}
+
+		if ancestorTxID := tx.GetUnsignedTxID(); ancestorTxID != nil && ancestorTxID.Equal(&txid) {
 			return tx
 		}
 	}
