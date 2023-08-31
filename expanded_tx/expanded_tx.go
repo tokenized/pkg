@@ -253,6 +253,47 @@ func (etx ExpandedTx) VerifyInputs() error {
 	return nil
 }
 
+func (etx ExpandedTx) VerifyInputsFull(allowUnsigned bool) error {
+	if etx.Tx == nil {
+		return errors.Wrap(MissingInput, "missing tx")
+	}
+
+	for index, txin := range etx.Tx.TxIn {
+		if txin.PreviousOutPoint.Hash.IsZero() {
+			continue
+		}
+
+		if index < len(etx.SpentOutputs) {
+			continue // output in spent outputs
+		}
+
+		// Check for spent output in ancestors
+		parentTx := etx.Ancestors.GetTx(txin.PreviousOutPoint.Hash)
+		if parentTx == nil {
+			if !allowUnsigned {
+				return errors.Wrap(MissingInput, "parent: "+txin.PreviousOutPoint.Hash.String())
+			}
+
+			parentTx = etx.Ancestors.GetTxUnsigned(txin.PreviousOutPoint.Hash)
+			if parentTx == nil {
+				return errors.Wrap(MissingInput, "parent: "+txin.PreviousOutPoint.Hash.String())
+			}
+		}
+
+		tx := parentTx.GetTx()
+		if tx == nil {
+			return errors.Wrap(MissingInput, "parent tx: "+txin.PreviousOutPoint.Hash.String())
+		}
+
+		if txin.PreviousOutPoint.Index >= uint32(len(tx.TxOut)) {
+			return errors.Wrapf(MissingInput, "outpoint index out of range: %s",
+				txin.PreviousOutPoint)
+		}
+	}
+
+	return nil
+}
+
 // VerifyAncestors returns a wrapped MissingInput error if ancestors are not provided for all inputs
 // in the tx. Note that it will return in error even if spent outputs are provided since they are
 // harder to verify.
