@@ -115,6 +115,10 @@ func buildStructDefinition(typ reflect.Type, definitions *Definitions) error {
 	for i := 0; i < objectFieldCount; i++ {
 		field := typ.Field(i)
 
+		if !field.IsExported() {
+			continue // not exported, "private" lower case field name
+		}
+
 		idString := field.Tag.Get("bsor")
 		if len(idString) == 0 {
 			return errors.Wrap(ErrInvalidID, "missing \"bsor\" tag")
