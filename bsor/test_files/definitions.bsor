@@ -1,0 +1,47 @@
+version 0
+
+TestStruct {
+   1 IntField                    int64
+   2 StringField                 string
+   3 SubStruct                   TestSubStruct
+   4 SubStructPtr                *TestSubStruct
+   5 BinaryField                 binary
+   6 FixedBinaryField            binary(4)
+   7 PointerField                *string
+   8 ArrayPrimitiveField         []string
+   9 FixedArrayPrimitiveField    [2]int64
+  10 ArrayObjectField            []TestSubStruct
+  11 FixedArrayObjectField       [2]TestSubStruct
+  12 ArrayObjectPtrField         []*TestSubStruct
+  13 ArrayStringPtrField         []*string
+  14 PublicKeyField              binary(33)
+  15 PublicKeyPtrField           *binary(33)
+  16 PublicKeyPtrField2          *binary(33)
+  17 PublicKeyArrayField         [33]binary(33)
+  18 PublicKeyFixedArrayField    [2]binary(2)
+  19 PublicKeyPtrArrayField      [33]*binary(33)
+  20 PublicKeyPtrFixedArrayField [2]*binary(2)
+  21 IntPtrField                 *int64
+  22 IntPtrNilField              *int64
+  23 IntPtrZeroField             *int64
+  24 FixedStringField            string(5)
+}
+
+TestSubStruct {
+  1 SubIntField    int64
+  2 SubStringField string
+}
+
+TestStructSimple {
+   1 IntField            int64
+   2 StringField         string
+   3 IntZeroField        int64
+   4 SubStruct           TestSubStruct
+   5 BinaryField         binary
+   6 IntPointerField1    *int64
+   7 IntPointerField2    *int64
+   8 PublicKeyField      binary(33)
+  25 ArrayStringPtrField []*string
+}
+
+
