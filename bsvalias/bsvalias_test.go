@@ -321,6 +321,18 @@ func Test_BRFCID(t *testing.T) {
 	}
 	t.Logf("Negotiation Transaction BRFC ID : %s", hash.String()[:12])
 
+	// Paymail for capabilities within transaction negotiatiation BRFC ID
+	title = "Negotiation Capabilities"
+	author = "Curtis Ellis (Tokenized)"
+	version = "1"
+
+	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
+
+	if hash.String()[:12] != "f636191c8fe6" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "f636191c8fe6")
+	}
+	t.Logf("Negotiation Capabilities BRFC ID : %s", hash.String()[:12])
+
 	// Paymail for providing a merkle proof BRFC ID
 	title = "Merkle Proofs"
 	author = "Curtis Ellis (Tokenized)"

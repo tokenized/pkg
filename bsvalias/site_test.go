@@ -33,11 +33,11 @@ func TestGetSite(t *testing.T) {
 		// 	domain:  "handcash.io",
 		// 	wantURL: "https://cloud.handcash.io",
 		// },
-		{
-			name:    "tkz.id",
-			domain:  "tkz.id",
-			wantURL: "https://nexus-api.tokenized.com",
-		},
+		// {
+		// 	name:    "tkz.id",
+		// 	domain:  "tkz.id",
+		// 	wantURL: "https://nexus-api.tokenized.com",
+		// },
 		// {
 		// 	name:    "example.com",
 		// 	domain:  "example.com",

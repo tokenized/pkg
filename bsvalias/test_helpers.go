@@ -259,6 +259,15 @@ func (c *MockClient) PostNegotiationTx(ctx context.Context,
 	return c.addBitcoinReceiver(negotiationTx)
 }
 
+func (c *MockClient) GetNegotiationCapabilities(ctx context.Context) (*NegotiationCapabilities, error) {
+	return &NegotiationCapabilities{
+		Protocols: nil,
+		Options: NegotiationOptions{
+			AutoSendResponse: true,
+		},
+	}, nil
+}
+
 func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) error {
 	inputValue := uint64(0)
 	for i := 0; i < negotiationTx.Tx.InputCount(); i++ {

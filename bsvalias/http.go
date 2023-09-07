@@ -441,6 +441,23 @@ func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
 	}
 }
 
+func (c *HTTPClient) GetNegotiationCapabilities(ctx context.Context) (*NegotiationCapabilities, error) {
+	url, err := c.Site.Capabilities.GetURL(URLNameNegotiationCapabilities)
+	if err != nil {
+		return nil, errors.Wrap(err, "capability url")
+	}
+
+	url = strings.ReplaceAll(url, "{alias}", c.Alias)
+	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
+
+	response := &NegotiationCapabilities{}
+	if err := get(ctx, c.DialTimeout, c.RequestTimeout, url, response); err != nil {
+		return nil, errors.Wrap(err, "http get")
+	}
+
+	return response, nil
+}
+
 func (c *HTTPClient) PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error {
 	url, err := c.Site.Capabilities.GetURL(URLNameMerkleProof)
 	if err != nil {

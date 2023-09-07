@@ -51,6 +51,10 @@ const (
 	// tx.
 	URLNameNegotiationTransaction = "27d8bd77c113"
 
+	// URLNameNegotiationCapabilities is the name used to identify the URL used request negotiation
+	// capabilities.
+	URLNameNegotiationCapabilities = "f636191c8fe6"
+
 	// URLNameMerkleProof is the name used to identify the URL used to post merkle proofs to peers.
 	URLNameMerkleProof = "b38a1b09c3ce"
 )
@@ -127,6 +131,8 @@ type Client interface {
 	GetPublicProfile(ctx context.Context) (*PublicProfile, error)
 
 	PostNegotiationTx(ctx context.Context, tx *NegotiationTransaction) error
+
+	GetNegotiationCapabilities(ctx context.Context) (*NegotiationCapabilities, error)
 
 	PostMerkleProofs(ctx context.Context, merkleProofs MerkleProofs) error
 }

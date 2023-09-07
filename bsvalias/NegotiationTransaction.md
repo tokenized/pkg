@@ -46,6 +46,7 @@ Tokenized (T2) settlements, merkle proofs, and other data needed after a transac
 ### HTTP Response Codes
 
 * 202 (Accepted) The data was accepted. If a response is appropriate then when it is available it will be posted to the reply handle or peer channels provided.
+* 404 (Not Found) The specified handle is not found on this host.
 * 400 (Bad Request) The request is invalid. The body will contain a text description of the issue.
 * 406 (Not Acceptable) The request contained protocols or scenarios not supported by this service implementation. The body will contain a text description of the issue. For example if a request contains peer channels to reply to and the service doesn't have that implemented. Or if the request is asking for payment to be sent and the services doesn't support that.
 
@@ -89,6 +90,57 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 	"reply_to": {
 		"handle": "Callback Paymail Handle",
 		"peer_channel": "https://<host>/api/v1/channel/<channel_id>?token=<write_token>"
+	}
+}
+```
+
+## Negotiation Capabilities BRFC
+
+| Field    | Value                    |
+|----------|--------------------------|
+| Title    | Negotiation Capabilities |
+| Author   | Curtis Ellis (Tokenized) |
+| Version  | 1                        |
+| BRFCID   | f636191c8fe6             |
+
+Negotiation Capabilities is an endpoint that supplies capabilities specific to an alias for negotiating transactions.
+
+### HTTP Response Codes
+
+* 200 (Okay) Request is valid and handle is found
+* 404 (Not Found) The specified handle is not found on this host.
+
+### Protocols
+
+The protocols field declares which protocols are supported by this alias in negotiation messages. When using bsvalias and JSON as the communication protocol this will mainly be protocol identifiers for token or other protocols used within the transaction. When using peer channels and BSOR this also specifies which types of envelope encoding protocols can be used to wrap around the transaction.
+
+### Options
+
+The options field declares supported negotiation features. The values define which types of negotiation requests are acceptable and how some types of negotiation requests will be responded to.
+
+`send_disbled` is true when simple send requests are not supported. They are assumed to be supported by default.
+
+`auto_send_response` is true when a request to send will be responded to immediately without waiting for user approval. This provides receiving locking scripts from the recipient.
+
+`receive` means that simple receive requests are supported. Privacy can be retained if the initiator request has zeroized input hashes and indexes.
+
+`three_step_exchange` is true when the implementation supports 3 step exchanges.
+
+`four_step_exchange` is true when the implementation supports 4 step exchanges which seem like 2 step exchanges from the UX perspective if the second step is automated by an agent. If the initiator gets an immediate unsigned response from the counterparty then they can sign in the same user action leaving only one step left for the counterparty to sign. Privacy can be retained if the counterparty response has zeroized input hashes and indexes with locking information and the initiator just signs with "anyone can pay" sig hash flag so that the counterparty can update their inputs before signing.
+
+`auto_exchange_response` is true when a request to exchange will be responded to immediately without waiting for user approval. This provides receiving locking scripts and sending input information (that may be masked) from the recipient.
+
+
+```
+{
+	"protocols": ["S", "TKZ", "other protocol ids"],
+	"options": {
+		"send_disbled": false,
+		"auto_send_response": true,
+		"receive": true,
+		"three_step_exchange": false,
+		"four_step_exchange": true,
+		"auto_exchange_response": true
 	}
 }
 ```
