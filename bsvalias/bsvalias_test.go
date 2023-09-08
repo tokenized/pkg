@@ -260,6 +260,31 @@ func Test_PublicProfile(t *testing.T) {
 	}
 }
 
+func Test_NegotiationCapabilities(t *testing.T) {
+	ctx := context.Background()
+
+	for _, handle := range handles {
+		t.Logf("Handle : %s", handle)
+
+		id, err := NewHTTPClient(ctx, handle)
+		if err != nil {
+			t.Fatalf("Failed to get identity : %s", err)
+		}
+
+		request, err := id.GetNegotiationCapabilities(ctx)
+		if err != nil {
+			if errors.Cause(err) == ErrNotCapable {
+				t.Logf("Public Profile Not Supported")
+				continue
+			}
+			t.Fatalf("Failed to get Public Profile : %s", err)
+		}
+
+		js, _ := json.MarshalIndent(request, "", "  ")
+		t.Logf("Response : %s", js)
+	}
+}
+
 func Test_BRFCID(t *testing.T) {
 	// Example
 	title := "BRFC Specifications"
