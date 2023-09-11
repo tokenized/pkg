@@ -6,6 +6,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/tokenized/pkg/bitcoin"
 )
 
 func Test_Definition_TestStruct(t *testing.T) {
@@ -45,4 +47,21 @@ func Test_CreateDefinitions(t *testing.T) {
 		fmt.Printf("Failed to write file : %s", err)
 		return
 	}
+}
+
+type TestPublicKeyArray struct {
+	PublicKeyArrayField      []bitcoin.PublicKey   `bsor:"1"`
+	PublicKeyArrayArrayField [][]bitcoin.PublicKey `bsor:"2"`
+}
+
+func Test_CreateDefinition_TestPublicKeyArray(t *testing.T) {
+	defs, err := BuildDefinitions(
+		reflect.TypeOf(TestPublicKeyArray{}),
+	)
+	if err != nil {
+		fmt.Printf("Failed to create definitions : %s\n", err)
+		return
+	}
+
+	t.Logf("Definitions : %s", defs.String())
 }

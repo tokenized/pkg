@@ -57,11 +57,12 @@ type Definition interface {
 }
 
 type Type struct {
-	Type      BaseType `json:"base_type"`
-	TypeName  string   `json:"type_name,omitempty"`
-	IsArray   bool     `json:"is_array,omitempty"`
-	IsPointer bool     `json:"is_pointer,omitempty"`
-	FixedSize uint     `json:"fixed_size,omitempty"`
+	Type        BaseType `json:"base_type"`
+	TypeName    string   `json:"type_name,omitempty"`
+	IsArray     bool     `json:"is_array,omitempty"`
+	IsPointer   bool     `json:"is_pointer,omitempty"`
+	FixedSize   uint     `json:"fixed_size,omitempty"`
+	ElementType *Type    `json:"element_type,omitempty"`
 }
 
 type BaseType uint8
@@ -330,14 +331,16 @@ func buildType(typ reflect.Type, fixedSize uint,
 			}, nil
 		}
 
-		arrayType, err := buildType(elem, fixedSize, definitions)
+		elementType, err := buildType(elem, fixedSize, definitions)
 		if err != nil {
 			return nil, errors.Wrap(err, "array")
 		}
 
-		arrayType.IsArray = true
-		arrayType.FixedSize = uint(typ.Len())
-		return arrayType, nil
+		return &Type{
+			IsArray:     true,
+			FixedSize:   uint(typ.Len()),
+			ElementType: elementType,
+		}, nil
 
 	case reflect.Slice:
 		elem := typ.Elem()
@@ -348,13 +351,15 @@ func buildType(typ reflect.Type, fixedSize uint,
 			}, nil
 		}
 
-		sliceType, err := buildType(elem, fixedSize, definitions)
+		elementType, err := buildType(elem, fixedSize, definitions)
 		if err != nil {
 			return nil, errors.Wrap(err, "slice")
 		}
 
-		sliceType.IsArray = true
-		return sliceType, nil
+		return &Type{
+			IsArray:     true,
+			ElementType: elementType,
+		}, nil
 
 	default:
 		return nil, errors.Wrapf(ErrValueConversion, "unknown type: %s", typeName(typ))
@@ -420,6 +425,10 @@ func (v Type) String() string {
 		result = v.TypeName
 	} else {
 		result = v.Type.String()
+	}
+
+	if v.ElementType != nil {
+		result = v.ElementType.String()
 	}
 
 	if v.FixedSize > 0 && (v.Type == BaseTypeBinary || v.Type == BaseTypeString) {
