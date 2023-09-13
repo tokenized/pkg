@@ -327,6 +327,27 @@ type Conflict struct {
 	Tx   *wire.MsgTx     `json:"hex"`
 }
 
+func (r SubmitTxResponse) ConflictsWithSelf() bool {
+	if r.TxID == nil || len(r.Conflicts) == 0 {
+		return false
+	}
+
+	matchFound := false
+	for _, conflict := range r.Conflicts {
+		if conflict.TxID == nil {
+			continue
+		}
+
+		if !r.TxID.Equal(conflict.TxID) {
+			return false
+		}
+
+		matchFound = true
+	}
+
+	return matchFound
+}
+
 func (r SubmitTxResponse) Success() error {
 	if len(r.Conflicts) != 0 {
 		txids := make([]bitcoin.Hash32, len(r.Conflicts))
