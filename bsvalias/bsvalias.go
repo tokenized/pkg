@@ -47,9 +47,9 @@ const (
 	// (Not Implemented) URLNameVerifyPublicKey = "a9f510c16bde"
 	// :https://test.com/api/bsvalias/verifypubkey/{alias}@{domain.tld}/{pubkey}
 
-	// URLNameNegotiationTransaction is the name used to identify the URL used to post a negotiation
+	// URLNameTransactionNegotiation is the name used to identify the URL used to post a negotiation
 	// tx.
-	URLNameNegotiationTransaction = "27d8bd77c113"
+	URLNameTransactionNegotiation = "bc2add1aae8e"
 
 	// URLNameNegotiationCapabilities is the name used to identify the URL used request negotiation
 	// capabilities.

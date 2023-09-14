@@ -386,7 +386,7 @@ func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
 	tx *NegotiationTransaction) error {
 
-	url, err := c.Site.Capabilities.GetURL(URLNameNegotiationTransaction)
+	url, err := c.Site.Capabilities.GetURL(URLNameTransactionNegotiation)
 	if err != nil {
 		return errors.Wrap(err, "capability url")
 	}

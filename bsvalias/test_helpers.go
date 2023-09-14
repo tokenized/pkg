@@ -33,7 +33,7 @@ func (f *MockFactory) NewClient(ctx context.Context, handle string) (Client, err
 		}
 	}
 
-	return nil, errors.Wrap(ErrInvalidHandle, "not found")
+	return nil, ErrNotFound
 }
 
 // mockUser is a mock user for testing systems that use paymail.

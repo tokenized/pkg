@@ -335,14 +335,14 @@ func Test_BRFCID(t *testing.T) {
 	t.Logf("Public Profile BRFC ID : %s", hash.String()[:12])
 
 	// Paymail for a full tx used to negotiate a payment or payment request transaction BRFC ID
-	title = "Negotiation Transaction"
+	title = "Transaction Negotiation"
 	author = "Curtis Ellis (Tokenized)"
 	version = "1"
 
 	hash, _ = bitcoin.NewHash32(bitcoin.DoubleSha256([]byte(title + author + version)))
 
-	if hash.String()[:12] != "27d8bd77c113" {
-		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "27d8bd77c113")
+	if hash.String()[:12] != "bc2add1aae8e" {
+		t.Fatalf("Invalid ID : got %s, want %s", hash.String()[:12], "bc2add1aae8e")
 	}
 	t.Logf("Negotiation Transaction BRFC ID : %s", hash.String()[:12])
 

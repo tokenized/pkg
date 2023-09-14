@@ -1,33 +1,37 @@
-# Negotiation Transaction
+# Transaction Negotiation
+
+Transaction negotiation is a process of sending a partial transaction back and forth between two parties, an initiator and a counterparty, to negotiate a final version of the transaction. The initiator creates a partial transaction that contains enough information for the counterparty to know what is being requested. Then the counterparty can add their information to the transaction and send it back. There can be several rounds of communication before finalizing and signing the transaction.
+
+The data included in this structure include the partial transaction and other data to supplement it.
+* A thread ID is included to link a transaction to previous versions.
+* Ancestors are included so both parties can calculate fees, verify signatures, and see any relevant historical information.
+* Fee information can be included so both parties can adjust to the same tx fee rate.
+* An expiry is included so both parties know when the other will no longer want to continue the negoatiation.
+* A timestamp is included so both parties know when each update was made.
+* Reply to information is included so that each party knows where to send responses.
+
+Previous methods of interacting with another wallet have lacked the ability to do anything more than simple bitcoin payments and are not really peer to peer. Including a full transaction structure with ancestors allows much more dynamic and complex interactions like negotiating transfer and exchange of [Tokenized](https://tokenized.com/) tokens.
+
+Since this method establishes "reply to" information, rather than just returning results via REST API, followup information can be provided to the other party when it becomes available, like merkle proofs and token settlements. This also allows requests to be responded to directly by users rather than needing the service host to automatically respond to all requests.
+
+The specifics of how to structure transactions is explained [here](https://github.com/tokenized/channels/blob/master/negotiation/transactions.md).
 
 ## Terms
 
+* Initiator is the party that initiates the negotiation.
+* Counterparty is the party that is not the initiator.
 * BRFC (Bitcoin Request For Comments) is used to specify bsvalias features and endpoints. The BRFCID is used to uniquely identify features.
 
-## Warnings
-
-There is the risk that during exchange and modification of the negotiation transaction that the other party could try to get you to sign something that you don't want to.
-
-### Examples
-
-* If the other party knows your UTXOs, they could try to add your UTXOs as inputs and if you don't check you could sign it simply because your wallet recognizes it as yours and it is in the transaction. Depending on how your wallet does signing.
-* The other party could add some higher level protocol data that your wallet doesn't recognize to the transaction like agreeing to a legal contract or signing for a token protocol not supported by your software.
-
-### Safety Guidelines
-
-* Keep track of which inputs you add to the tx and make sure your wallet only signs those.
-* If there are any unrecognized output locking script formats, especially `OP_FALSE OP_RETURN`, then abort the negotiation with a 406 (Not Acceptable).
-
-## Negotiation Transaction BRFC
+## Transaction Negotiation BRFC
 
 | Field    | Value                    |
 |----------|--------------------------|
-| Title    | Negotiation Transaction  |
+| Title    | Transaction Negotiation  |
 | Author   | Curtis Ellis (Tokenized) |
 | Version  | 1                        |
-| BRFCID   | 27d8bd77c113             |
+| BRFCID   | bc2add1aae8e             |
 
-Negotiation Transaction is a dynamic endpoint that can be used to negotiate transfers of any kind.
+Transaction Negotiation is a dynamic endpoint that can be used to negotiate transfers of any kind.
 
 Features:
 
@@ -41,7 +45,7 @@ By including a handle and/or peer channels the service doesn't have to provide t
 
 # Callbacks
 
-Tokenized (T2) settlements, merkle proofs, and other data needed after a transaction is complete can be provided via the included handle and peer channels.
+[Tokenized (T2) settlements](https://tokenized.com/#/protocol/docs/protocol/actions/section/settlement), merkle proofs, and other data needed after a transaction is complete can be provided via the included handle and peer channels.
 
 ### HTTP Response Codes
 
@@ -52,7 +56,7 @@ Tokenized (T2) settlements, merkle proofs, and other data needed after a transac
 
 ### Data Structure
 
-The body of a Negotiation Transaction HTTP request uses the following JSON structure.
+The body of a Transaction Negotiation HTTP request uses the following JSON structure.
 
 ```
 {
@@ -163,7 +167,7 @@ Merkle Proofs is an endpoint that allows posting of merkle proofs to a handle fo
 
 ### Data Structure
 
-The body of a Negotiation Transaction HTTP request uses the following JSON structure.
+The body of a Transaction Negotiation HTTP request uses the following JSON structure.
 
 ```
 [
@@ -177,10 +181,26 @@ The body of a Negotiation Transaction HTTP request uses the following JSON struc
 
 Sender wants to send some Tokenized tokens to a recipient.
 
-1. The sender posts a negotiation transaction to recipient handle that includes a thread ID, the sender's handle, and a transaction containing a Tokenized (T1) Transfer action with senders and possibly change receivers. The sum of the quantity of the senders minus the sum of the quantity of the receivers is the quantity that is to be paid to the recipient. The transaction must contain at a minimum the outputs being spent by the inputs of the transaction and possibly full ancestor transactions for the inputs.
+![image](SendDialog.png "Send instruments")
+
+1. The sender posts a negotiation transaction to recipient handle that includes a thread ID, the sender's handle, and a transaction containing a [Tokenized (T1) Transfer](https://tokenized.com/#/protocol/docs/protocol/actions/section/transfer) action with senders and possibly change receivers. The sum of the quantity of the senders minus the sum of the quantity of the receivers is the quantity that is to be paid to the recipient. The transaction must contain at a minimum the outputs being spent by the inputs of the transaction and possibly full ancestor transactions for the inputs.
 2. The recipient service verifies all protocols in the transaction and the token are supported and responds with HTTP 202 Accepted.
 3. The recipient client sees the request and approves it by adding transfer receivers and responds to the request via the reply_handle or reply_peer_channels with the updated negotiation transaction containing the same thread ID and the recipient's handle for any further negotiations.
 3. The sender sees the response, verifies that the negotiation transaction has all necessary receivers (Tokenized Transfers must have matching sender and receiver quantity sums), and updates the contract and tx fees, adds any inputs for transaction funding, signs all inputs, and posts the completed negotiation transaction back to recipient's handle with the same thread ID and the same reply_handle or reply_peer_channels values.
 4. The recipient service verifies the transfer tx is not malformed and meets their requirements for fees and anything else and broadcasts to the miners. If the broadcast fails the recipient service responds to the HTTP request with a 400 (Bad Request) and a text body containing a description of the issue as received from the miners. If the broadcast succeeds then the recipient service responds to the HTTP request with a 200 (OK).
 5. The recipient later receives the transaction containing the Tokenized (T2) Settlement action from the smart contract agent and posts it in a negotiation transaction to the sender's reply_handle or reply_peer_channels.
 6. The recipient later receives merkle proofs for the transactions containing the Tokenized (T1) Transfer and Tokenized (T2) Settlement actions and posts to sender's merkle proofs endpoint for the reply_handle or reply_peer_channels.
+
+## Warnings
+
+There is the risk that during exchange and modification of the negotiation transaction that the other party could try to get you to sign something that you don't want to.
+
+### Examples
+
+* If the other party knows your UTXOs, they could try to add your UTXOs as inputs and if you don't check you could sign it simply because your wallet recognizes it as yours and it is in the transaction. Depending on how your wallet does signing.
+* The other party could add some higher level protocol data that your wallet doesn't recognize to the transaction like agreeing to a legal contract or signing for a token protocol not supported by your software.
+
+### Safety Guidelines
+
+* Keep track of which inputs you add to the tx and make sure your wallet only signs those.
+* If there are any unrecognized output locking script formats, especially `OP_FALSE OP_RETURN`, then abort the negotiation with a 406 (Not Acceptable).
