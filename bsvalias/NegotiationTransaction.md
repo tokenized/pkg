@@ -122,7 +122,7 @@ The protocols field declares which protocols are supported by this alias in nego
 
 The options field declares supported negotiation features. The values define which types of negotiation requests are acceptable and how some types of negotiation requests will be responded to.
 
-`send_disbled` is true when simple send requests are not supported. They are assumed to be supported by default.
+`send_disabled` is true when simple send requests are not supported. They are assumed to be supported by default.
 
 `auto_send_response` is true when a request to send will be responded to immediately without waiting for user approval. This provides receiving locking scripts from the recipient.
 
@@ -139,7 +139,7 @@ The options field declares supported negotiation features. The values define whi
 {
 	"protocols": ["S", "TKZ", "other protocol ids"],
 	"options": {
-		"send_disbled": false,
+		"send_disabled": false,
 		"auto_send_response": true,
 		"receive": true,
 		"three_step_exchange": false,
