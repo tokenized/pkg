@@ -36,6 +36,16 @@ func (f *MockFactory) NewClient(ctx context.Context, handle string) (Client, err
 	return nil, ErrNotFound
 }
 
+func (f *MockFactory) NewMockClient(ctx context.Context, handle string) (*MockClient, error) {
+	for _, user := range f.users {
+		if user.handle == handle {
+			return &MockClient{user: user}, nil
+		}
+	}
+
+	return nil, ErrNotFound
+}
+
 // mockUser is a mock user for testing systems that use paymail.
 type mockUser struct {
 	handle            string
@@ -43,6 +53,9 @@ type mockUser struct {
 	addressKey        bitcoin.Key
 	p2pTxs            map[string][]*wire.MsgTx
 	instrumentAliases []InstrumentAlias
+	name              *string
+	avatarURL         *string
+	profileHit bool
 }
 
 // AddMockUser adds a new mock user.
@@ -52,6 +65,18 @@ func (f *MockFactory) AddMockUser(handle string, identityKey, addressKey bitcoin
 		identityKey: identityKey,
 		addressKey:  addressKey,
 		p2pTxs:      make(map[string][]*wire.MsgTx),
+	})
+}
+
+func (f *MockFactory) AddMockUserWithProfile(handle string, identityKey, addressKey bitcoin.Key,
+	name, avatarURL string) {
+	f.users = append(f.users, &mockUser{
+		handle:      handle,
+		identityKey: identityKey,
+		addressKey:  addressKey,
+		p2pTxs:      make(map[string][]*wire.MsgTx),
+		name:        &name,
+		avatarURL:   &avatarURL,
 	})
 }
 
@@ -231,7 +256,20 @@ func (c *MockClient) ListTokenizedInstruments(ctx context.Context) ([]Instrument
 }
 
 func (c *MockClient) GetPublicProfile(ctx context.Context) (*PublicProfile, error) {
-	return nil, errors.New("Not implemented")
+	result := &PublicProfile{
+		Name:      c.user.name,
+		AvatarURL: c.user.avatarURL,
+	}
+	c.user.profileHit = true
+	return result, nil
+}
+
+func (c *MockClient) ClearPublicProfileHit() {
+	c.user.profileHit = false
+}
+
+func (c *MockClient) PublicProfileHit() bool {
+	return c.user.profileHit
 }
 
 func (c *MockClient) PostNegotiationTx(ctx context.Context,
