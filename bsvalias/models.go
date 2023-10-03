@@ -3,6 +3,7 @@ package bsvalias
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/tokenized/pkg/bitcoin"
 	"github.com/tokenized/pkg/expanded_tx"
@@ -276,6 +277,8 @@ type PublicProfile struct {
 	// AvatarURL is a URL that returns a 180 by 180 image. It can accept an optional parameter `s`
 	// to return an image of width and height `s`
 	AvatarURL *string `json:"avatar,omitempty"`
+
+	CacheExpiry *time.Time `json:"expiry,omitempty"`
 }
 
 type NegotiationTransaction struct {

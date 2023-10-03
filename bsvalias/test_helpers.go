@@ -55,7 +55,7 @@ type mockUser struct {
 	instrumentAliases []InstrumentAlias
 	name              *string
 	avatarURL         *string
-	profileHit bool
+	profileHit        bool
 }
 
 // AddMockUser adds a new mock user.

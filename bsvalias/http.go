@@ -375,9 +375,12 @@ func (c *HTTPClient) GetPublicProfile(ctx context.Context) (*PublicProfile, erro
 	url = strings.ReplaceAll(url, "{domain.tld}", c.Hostname)
 
 	response := &PublicProfile{}
-	if err := get(ctx, c.DialTimeout, c.RequestTimeout, url, response); err != nil {
+	var cacheExpiry *time.Time
+	if err := getWithCacheControl(ctx, c.DialTimeout, c.RequestTimeout, url, response,
+		cacheExpiry); err != nil {
 		return nil, errors.Wrap(err, "http get")
 	}
+	response.CacheExpiry = cacheExpiry
 
 	return response, nil
 
@@ -593,6 +596,82 @@ func get(ctx context.Context, dialTimeout, requestTimeout time.Duration, url str
 		if err := json.NewDecoder(httpResponse.Body).Decode(response); err != nil {
 			return errors.Wrap(err, "decode response")
 		}
+	}
+
+	return nil
+}
+
+// get sends a request to the HTTP server using the GET method.
+func getWithCacheControl(ctx context.Context, dialTimeout, requestTimeout time.Duration, url string,
+	response interface{}, cacheExpiry *time.Time) error {
+
+	var transport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: dialTimeout,
+		}).Dial,
+		TLSHandshakeTimeout: dialTimeout,
+	}
+
+	var client = &http.Client{
+		Timeout:   requestTimeout,
+		Transport: transport,
+	}
+
+	httpResponse, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+
+	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
+		message := httpResponse.Status
+		if httpResponse.Body != nil {
+			b, rerr := ioutil.ReadAll(httpResponse.Body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
+		}
+
+		return fmt.Errorf("%v %s", httpResponse.StatusCode, message)
+	}
+
+	cacheExpiry = parseCacheControl(httpResponse.Header.Get("Cache-Control"))
+
+	defer httpResponse.Body.Close()
+
+	if response != nil {
+		if err := json.NewDecoder(httpResponse.Body).Decode(response); err != nil {
+			return errors.Wrap(err, "decode response")
+		}
+	}
+
+	return nil
+}
+
+func parseCacheControl(s string) *time.Time {
+	if len(s) == 0 {
+		return nil
+	}
+
+	parts := strings.Split(s, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+
+		fields := strings.Split(part, "=")
+		if len(fields) != 2 {
+			continue
+		}
+
+		if strings.ToLower(fields[0]) != "max-age" {
+			continue
+		}
+
+		i, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		expiry := time.Unix(int64(i), 0)
+		return &expiry
 	}
 
 	return nil
