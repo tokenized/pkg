@@ -2,7 +2,6 @@ package bsvalias
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 
@@ -21,9 +20,6 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 		// Strip period at end of target.
 		r := records[0]
 
-		js, _ := json.MarshalIndent(r, "", "  ")
-		println("srv:", string(js))
-
 		// get the domain name from the SRV record
 		l := len(r.Target)
 		if r.Target[l-1] == '.' {
@@ -41,7 +37,6 @@ func GetSite(ctx context.Context, domain string) (Site, error) {
 		}
 
 		url := fmt.Sprintf("%s/.well-known/bsvalias", host)
-		println("using SRV path", url)
 
 		if err := get(ctx, DefaultDialTimeout, DefaultRequestTimeout, url, &site.Capabilities); err == nil {
 			site.URL = host

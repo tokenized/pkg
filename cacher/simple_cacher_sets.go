@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tokenized/pkg/bitcoin"
 
@@ -36,6 +37,7 @@ func (c *SimpleCacher) AddSetValue(ctx context.Context, typ reflect.Type, pathPr
 		pathID:     pathID,
 		values:     make(map[bitcoin.Hash32]SetValue),
 	}
+	emptySet.isModified.Store(true)
 
 	path := setPath(pathPrefix, pathID)
 
@@ -50,11 +52,14 @@ func (c *SimpleCacher) AddSetValue(ctx context.Context, typ reflect.Type, pathPr
 	if exists {
 		// Value already exists so return existing value to be updated.
 		set.Unlock()
+
+		value.ProvideMarkModified(set.MarkModified)
 		return result, nil
 	}
 
 	// Add value to set
 	set.values[hash] = value
+	value.ProvideMarkModified(set.MarkModified)
 	set.MarkModified()
 	set.Unlock()
 
@@ -78,6 +83,7 @@ func (c *SimpleCacher) AddMultiSetValue(ctx context.Context, typ reflect.Type, p
 			pathID:     set.pathID,
 			values:     make(map[bitcoin.Hash32]SetValue),
 		}
+		emptySet.isModified.Store(true)
 		paths[i] = set.path()
 
 		v, err := c.addValue(ctx, c.cacheSetType, paths[i], emptySet, set)
@@ -117,10 +123,12 @@ func (c *SimpleCacher) AddMultiSetValue(ctx context.Context, typ reflect.Type, p
 			if exists {
 				// Value exists so return existing value to be modified.
 				result[i] = gotValue
+				gotValue.ProvideMarkModified(set.MarkModified)
 			} else {
 				// Add new value to set.
 				result[i] = value
 				set.values[hash] = value
+				value.ProvideMarkModified(set.MarkModified)
 				set.MarkModified()
 			}
 		}
@@ -146,6 +154,7 @@ func (c *SimpleCacher) GetSetValue(ctx context.Context, typ reflect.Type, pathPr
 		pathID:     pathID,
 		values:     make(map[bitcoin.Hash32]SetValue),
 	}
+	emptySet.isModified.Store(false)
 
 	setValue, err := c.getValue(ctx, c.cacheSetType, path, emptySet)
 	if err != nil {
@@ -160,6 +169,7 @@ func (c *SimpleCacher) GetSetValue(ctx context.Context, typ reflect.Type, pathPr
 	set.Lock()
 	value, exists := set.values[hash]
 	set.Unlock()
+	value.ProvideMarkModified(set.MarkModified)
 
 	if !exists {
 		// If a set didn't have the value requested then we aren't returning a value, so there will
@@ -190,6 +200,7 @@ func (c *SimpleCacher) GetMultiSetValue(ctx context.Context, typ reflect.Type, p
 				pathID:     pathID,
 				values:     make(map[bitcoin.Hash32]SetValue),
 			}
+			emptySet.isModified.Store(false)
 
 			v, err := c.getValue(ctx, c.cacheSetType, path, emptySet)
 			if err != nil {
@@ -226,6 +237,7 @@ func (c *SimpleCacher) GetMultiSetValue(ctx context.Context, typ reflect.Type, p
 		}
 
 		setsUsed[setIndex] = true
+		value.ProvideMarkModified(set.MarkModified)
 		result[i] = value
 	}
 
@@ -290,6 +302,7 @@ func (c *SimpleCacher) ListMultiSetValue(ctx context.Context, typ reflect.Type,
 			pathID:     pathID,
 			values:     make(map[bitcoin.Hash32]SetValue),
 		}
+		emptySet.isModified.Store(false)
 
 		v, err := c.getValue(ctx, c.cacheSetType, path, emptySet)
 		if err != nil {
@@ -310,6 +323,7 @@ func (c *SimpleCacher) ListMultiSetValue(ctx context.Context, typ reflect.Type,
 		set.Lock()
 		for _, value := range set.values {
 			result = append(result, value.(SetValue))
+			value.ProvideMarkModified(set.MarkModified)
 			if first {
 				first = false
 			} else {
@@ -327,7 +341,7 @@ func (c *SimpleCacher) ListMultiSetValue(ctx context.Context, typ reflect.Type,
 }
 
 func (c *SimpleCacher) ReleaseSetValue(ctx context.Context, typ reflect.Type, pathPrefix string,
-	hash bitcoin.Hash32, valueIsModified bool) error {
+	hash bitcoin.Hash32) error {
 
 	pathID := hashPathID(hash)
 	path := setPath(pathPrefix, pathID)
@@ -341,9 +355,9 @@ func (c *SimpleCacher) ReleaseSetValue(ctx context.Context, typ reflect.Type, pa
 
 	set := item.value.(*cacheSet)
 	set.Lock()
-	if valueIsModified {
-		set.MarkModified()
-	}
+	// if valueIsModified {
+	// 	set.MarkModified()
+	// }
 	if set.extraUsers > 0 {
 		set.extraUsers--
 		set.Unlock()
@@ -357,10 +371,10 @@ func (c *SimpleCacher) ReleaseSetValue(ctx context.Context, typ reflect.Type, pa
 }
 
 func (c *SimpleCacher) ReleaseMultiSetValue(ctx context.Context, typ reflect.Type,
-	pathPrefix string, hashes []bitcoin.Hash32, valueIsModified []bool) error {
+	pathPrefix string, hashes []bitcoin.Hash32) error {
 
-	for i, hash := range hashes {
-		if err := c.ReleaseSetValue(ctx, typ, pathPrefix, hash, valueIsModified[i]); err != nil {
+	for _, hash := range hashes {
+		if err := c.ReleaseSetValue(ctx, typ, pathPrefix, hash); err != nil {
 			return errors.Wrapf(err, "set value hash: %s", hash)
 		}
 	}
@@ -383,22 +397,26 @@ type cacheSet struct {
 	// given out and there will be two release set value calls.
 	extraUsers uint
 
-	isModified bool
+	isModified atomic.Value
 	sync.Mutex
 }
 
 type cacheSets []*cacheSet
 
-func (set *cacheSet) IsModified() bool {
-	return set.isModified
+func (set *cacheSet) Initialize() {
+	set.isModified.Store(false)
 }
 
-func (set *cacheSet) ClearModified() {
-	set.isModified = false
+func (set *cacheSet) IsModified() bool {
+	return set.isModified.Load().(bool)
 }
 
 func (set *cacheSet) MarkModified() {
-	set.isModified = true
+	set.isModified.Store(true)
+}
+
+func (set *cacheSet) GetModified() bool {
+	return set.isModified.Swap(false).(bool)
 }
 
 func (set *cacheSet) path() string {
@@ -412,8 +430,8 @@ func (set *cacheSet) CacheCopy() Value {
 		pathID:     set.pathID,
 		values:     make(map[bitcoin.Hash32]SetValue),
 		extraUsers: 0,
-		isModified: false,
 	}
+	copy.isModified.Store(true)
 
 	for hash, value := range set.values {
 		value.Lock()
@@ -500,6 +518,8 @@ func (sets *cacheSets) add(pathPrefix string, typ reflect.Type, value SetValue) 
 		pathID:     pathID,
 		values:     make(map[bitcoin.Hash32]SetValue),
 	}
+	set.isModified.Store(true)
+	value.ProvideMarkModified(set.MarkModified)
 
 	set.values[hash] = value
 	*sets = append(*sets, set)

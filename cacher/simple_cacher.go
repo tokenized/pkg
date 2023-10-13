@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +47,7 @@ func (c *SimpleCacher) Add(ctx context.Context, typ reflect.Type, path string,
 	emptyTypeValue := reflect.New(typ.Elem())
 	emptyValueInterface := emptyTypeValue.Interface()
 	emptyValue := emptyValueInterface.(Value)
+	emptyValue.Initialize()
 	return c.addValue(ctx, typ, path, emptyValue, value)
 }
 
@@ -57,6 +59,7 @@ func (c *SimpleCacher) AddMulti(ctx context.Context, typ reflect.Type, paths []s
 		emptyTypeValue := reflect.New(typ.Elem())
 		emptyValueInterface := emptyTypeValue.Interface()
 		emptyValue := emptyValueInterface.(Value)
+		emptyValue.Initialize()
 
 		v, err := c.addValue(ctx, typ, paths[i], emptyValue, value)
 		if err != nil {
@@ -73,6 +76,7 @@ func (c *SimpleCacher) Get(ctx context.Context, typ reflect.Type, path string) (
 	emptyTypeValue := reflect.New(typ.Elem())
 	emptyValueInterface := emptyTypeValue.Interface()
 	emptyValue := emptyValueInterface.(Value)
+	emptyValue.Initialize()
 	return c.getValue(ctx, typ, path, emptyValue)
 }
 
@@ -84,6 +88,7 @@ func (c *SimpleCacher) GetMulti(ctx context.Context, typ reflect.Type,
 		emptyTypeValue := reflect.New(typ.Elem())
 		emptyValueInterface := emptyTypeValue.Interface()
 		emptyValue := emptyValueInterface.(Value)
+		emptyValue.Initialize()
 
 		v, err := c.getValue(ctx, typ, path, emptyValue)
 		if err != nil {
@@ -91,6 +96,50 @@ func (c *SimpleCacher) GetMulti(ctx context.Context, typ reflect.Type,
 		}
 
 		result[i] = v
+	}
+
+	return result, nil
+}
+
+func (c *SimpleCacher) List(ctx context.Context, pathPrefix, regExPath string) ([]string, error) {
+	regex, err := regexp.Compile(regExPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "regex")
+	}
+
+	set := make(map[string]bool)
+
+	// Get any items that are in the cache.
+	c.itemsLock.Lock()
+	for path, _ := range c.items {
+		if !regex.MatchString(path) {
+			continue
+		}
+
+		set[path] = true
+	}
+	c.itemsLock.Unlock()
+
+	allPaths, err := c.store.List(ctx, pathPrefix)
+	if err != nil {
+		return nil, errors.Wrap(err, "list sets")
+	}
+
+	if len(allPaths) == 0 && len(set) == 0 {
+		return nil, nil
+	}
+
+	for _, path := range allPaths {
+		if !regex.MatchString(path) {
+			continue
+		}
+
+		set[path] = true
+	}
+
+	result := make([]string, len(set))
+	for path, _ := range set {
+		result = append(result, path)
 	}
 
 	return result, nil
@@ -160,7 +209,7 @@ func (c *SimpleCacher) Release(ctx context.Context, path string) {
 	c.release(ctx, path)
 }
 
-func (c *SimpleCacher) IsEmpty() bool {
+func (c *SimpleCacher) IsEmpty(ctx context.Context) bool {
 	c.itemsLock.Lock()
 	count := len(c.items)
 	c.itemsLock.Unlock()
@@ -313,7 +362,7 @@ func (c *SimpleCacher) saveItem(ctx context.Context, path string, value Value) e
 	value.Lock()
 	defer value.Unlock()
 
-	if !value.IsModified() {
+	if !value.GetModified() {
 		return nil
 	}
 
@@ -324,7 +373,6 @@ func (c *SimpleCacher) saveItem(ctx context.Context, path string, value Value) e
 		return err
 	}
 
-	value.ClearModified()
 	return nil
 }
 
