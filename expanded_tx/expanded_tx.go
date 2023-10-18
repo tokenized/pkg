@@ -392,7 +392,7 @@ func (etx ExpandedTx) InputOutput(index int) (*wire.TxOut, error) {
 		return nil, errors.New("Index out of range")
 	}
 
-	if index < len(etx.SpentOutputs) {
+	if index < len(etx.SpentOutputs) && etx.SpentOutputs[index] != nil {
 		return &wire.TxOut{
 			LockingScript: etx.SpentOutputs[index].LockingScript,
 			Value:         etx.SpentOutputs[index].Value,

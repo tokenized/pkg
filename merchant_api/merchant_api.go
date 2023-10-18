@@ -380,51 +380,56 @@ func translateResult(result, description string) error {
 	}
 
 	if result == "failure" {
-		if strings.Contains(description, "txn-already-known") {
-			return errors.Wrap(ExistingTx, description)
-		}
-
-		if strings.Contains(description, "txn-mempool-conflict") {
-			return errors.Wrap(ConflictingTx, description)
-		}
-
-		if strings.Contains(description, "Transaction already in the mempool") {
-			return errors.Wrap(AlreadyInMempool, description)
-		}
-
-		if strings.Contains(description, "Missing inputs") {
-			return errors.Wrap(MissingInputs, description)
-		}
-
-		if strings.Contains(description, "Not enough fees") {
-			return errors.Wrap(InsufficientFee, description)
-		}
-
-		if strings.Contains(description, "Error while submitting") {
-			return errors.Wrap(ErrServiceFailure, description)
-		}
-
-		if strings.Contains(description, "Safe mode") {
-			return errors.Wrap(ErrSafeMode, description)
-		}
-
-		if strings.Contains(description, "No such mempool or blockchain transaction") {
-			return errors.Wrap(NotFound, description)
-		}
-
-		if strings.Contains(description, "Transaction already submitted with different parameters") {
-			// Transactions seem to still confirm. I am not sure what parameters are different. --ce
-			return errors.Wrap(AlreadyInMempool, description)
-		}
-
-		description = strings.ToUpper(description)
-
-		if strings.Contains(description, "TIMEOUT") {
-			return errors.Wrap(ErrTimeout, description)
-		}
+		return translateDescription(description)
 	}
 
-	return errors.Wrap(ErrUnsupportedFailure, result)
+	return errors.Wrapf(ErrUnsupportedFailure, "result: %s", result)
+}
+
+func translateDescription(description string) error {
+	if strings.Contains(description, "txn-already-known") {
+		return errors.Wrap(ExistingTx, description)
+	}
+
+	if strings.Contains(description, "txn-mempool-conflict") {
+		return errors.Wrap(ConflictingTx, description)
+	}
+
+	if strings.Contains(description, "Transaction already in the mempool") {
+		return errors.Wrap(AlreadyInMempool, description)
+	}
+
+	if strings.Contains(description, "Missing inputs") ||
+		strings.Contains(description, "No previous transaction found") {
+		return errors.Wrap(MissingInputs, description)
+	}
+
+	if strings.Contains(description, "Not enough fees") {
+		return errors.Wrap(InsufficientFee, description)
+	}
+
+	if strings.Contains(description, "Error while submitting") {
+		return errors.Wrap(ErrServiceFailure, description)
+	}
+
+	if strings.Contains(description, "Safe mode") {
+		return errors.Wrap(ErrSafeMode, description)
+	}
+
+	if strings.Contains(description, "No such mempool or blockchain transaction") {
+		return errors.Wrap(NotFound, description)
+	}
+
+	if strings.Contains(description, "Transaction already submitted with different parameters") {
+		// Transactions seem to still confirm. I am not sure what parameters are different. --ce
+		return errors.Wrap(AlreadyInMempool, description)
+	}
+
+	if strings.Contains(strings.ToUpper(description), "TIMEOUT") {
+		return errors.Wrap(ErrTimeout, description)
+	}
+
+	return errors.Wrapf(ErrUnsupportedFailure, "description: %s", description)
 }
 
 func translateHTTPError(err error) error {
@@ -433,15 +438,11 @@ func translateHTTPError(err error) error {
 		return err
 	}
 
-	if httpError.Status != 400 { // HTTP 400 Bad Request
-		return err
-	}
-
-	if strings.Contains(httpError.Message, "Insufficient fees") {
+	if httpError.Status == 400 && strings.Contains(httpError.Message, "Insufficient fees") {
 		return errors.Wrap(InsufficientFee, err.Error())
 	}
 
-	return err
+	return translateDescription(httpError.Message)
 }
 
 // SubmitTxCallbackResponse is the message posted to the SPV channel specified in the
