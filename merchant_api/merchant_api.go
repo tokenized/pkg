@@ -400,11 +400,13 @@ func translateDescription(description string) error {
 	}
 
 	if strings.Contains(description, "Missing inputs") ||
+		strings.Contains(description, "missing-inputs") ||
 		strings.Contains(description, "No previous transaction found") {
 		return errors.Wrap(MissingInputs, description)
 	}
 
-	if strings.Contains(description, "Not enough fees") {
+	if strings.Contains(description, "Not enough fees") ||
+		strings.Contains(description, "Insufficient fees") {
 		return errors.Wrap(InsufficientFee, description)
 	}
 
@@ -493,7 +495,19 @@ func SubmitTxFull(ctx context.Context, baseURL string, timeout time.Duration,
 
 	envelope := &json_envelope.JSONEnvelope{}
 	if err := post(ctx, timeout, baseURL+"/mapi/tx", authToken, request, envelope); err != nil {
-		return nil, nil, translateHTTPError(errors.Wrap(err, "http post"))
+		if errors.Cause(err) == ErrTimeout {
+			return nil, nil, errors.Wrap(err, "http post")
+		}
+
+		err := translateHTTPError(err)
+		result := &SubmitTxResponse{
+			Timestamp:         time.Now(),
+			TxID:              request.Tx.TxHash(),
+			Result:            "failure",
+			ResultDescription: err.Error(),
+		}
+
+		return nil, result, nil
 	}
 
 	if envelope.MimeType != "application/json" {
@@ -557,7 +571,19 @@ func GetTxStatusFull(ctx context.Context, baseURL string, timeout time.Duration,
 	envelope := &json_envelope.JSONEnvelope{}
 	if err := get(ctx, timeout, baseURL+"/mapi/tx/"+txid.String(), authToken,
 		envelope); err != nil {
-		return nil, nil, translateHTTPError(errors.Wrap(err, "http get"))
+		if errors.Cause(err) == ErrTimeout {
+			return nil, nil, errors.Wrap(err, "http get")
+		}
+
+		err := translateHTTPError(err)
+		result := &GetTxStatusResponse{
+			Timestamp:         time.Now(),
+			TxID:              &txid,
+			Result:            "failure",
+			ResultDescription: err.Error(),
+		}
+
+		return nil, result, nil
 	}
 
 	if envelope.MimeType != "application/json" {
