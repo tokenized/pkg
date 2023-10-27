@@ -124,7 +124,6 @@ func CreateStorage(bucket, root string, maxRetries, retryDelay int) (Storage, er
 	}
 }
 
-// CreateStreamStorage builds an appropriate Storage from the details.
 func CreateStreamStorage(bucket, root string, maxRetries, retryDelay int) (StreamStorage, error) {
 	if len(bucket) == 0 {
 		return nil, errors.New("Bucket value required")
@@ -143,5 +142,19 @@ func CreateStreamStorage(bucket, root string, maxRetries, retryDelay int) (Strea
 		return NewMockStorage(), nil
 	} else {
 		return NewS3Storage(config), nil
+	}
+}
+
+func CreateStreamStorageFromConfig(cfg Config) (StreamStorage, error) {
+	if len(cfg.Bucket) == 0 {
+		return nil, errors.New("Bucket value required")
+	}
+
+	if strings.ToLower(cfg.Bucket) == "standalone" {
+		return NewFilesystemStorage(cfg), nil
+	} else if strings.ToLower(cfg.Bucket) == "mock" {
+		return NewMockStorage(), nil
+	} else {
+		return NewS3Storage(cfg), nil
 	}
 }

@@ -16,7 +16,7 @@ const (
 // Config is geared towards "bucket" style storage, where you have a
 // specific root (the Bucket).
 type Config struct {
-	Bucket     string `envconfig:"STORAGE_BUCKET" json:"bucket"`
+	Bucket     string `default:"standalone" envconfig:"STORAGE_BUCKET" json:"bucket"`
 	Root       string `envconfig:"STORAGE_ROOT" json:"root"`
 	MaxRetries int    `default:"10" envconfig:"STORAGE_MAX_RETRIES" json:"max_retries"`
 	RetryDelay int    `default:"2000" envconfig:"STORAGE_RETRY_DELAY" json:"retry_delay"`
