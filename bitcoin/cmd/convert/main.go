@@ -68,6 +68,12 @@ func convertBytes(ctx context.Context, b []byte) error {
 		return nil
 	}
 
+	if len(b) == 20 {
+		fmt.Printf("Hash : %x\n", b)
+		fmt.Printf("Reverse Hash : %x\n", reverseEndian(b))
+		return nil
+	}
+
 	if ra, err := bitcoin.DecodeRawAddress(b); err == nil {
 		if err := printRawAddress(ra); err != nil {
 			return errors.Wrap(err, "print raw address")
