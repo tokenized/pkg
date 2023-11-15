@@ -406,7 +406,8 @@ func translateDescription(description string) error {
 	}
 
 	if strings.Contains(description, "Not enough fees") ||
-		strings.Contains(description, "Insufficient fees") {
+		strings.Contains(description, "Insufficient fees") ||
+		strings.Contains(description, "min fee not met") {
 		return errors.Wrap(InsufficientFee, description)
 	}
 
