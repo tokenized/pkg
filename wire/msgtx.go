@@ -989,6 +989,11 @@ func writeTxInUnsigned(w io.Writer, pver uint32, version int32, ti *TxIn) error 
 		return err
 	}
 
+	err = WriteVarBytes(w, pver, nil)
+	if err != nil {
+		return err
+	}
+
 	return binary.Write(w, endian, uint32(ti.Sequence))
 }
 
