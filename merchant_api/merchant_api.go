@@ -50,6 +50,10 @@ var (
 	// InsufficientFee means the tx fee is too low to be mined.
 	InsufficientFee = errors.New("Insufficient Fee")
 
+	// ScriptVerifyFailed means a script in the transaction did not verify. For example, an invalid
+	// signature or just invalid unlock.
+	ScriptVerifyFailed = errors.New("Script Verify Failed")
+
 	// ErrServiceFailure means that the service failed to process the request.
 	ErrServiceFailure = errors.New("Service Failure")
 
@@ -80,7 +84,7 @@ const (
 // it will not be mined. It is only for hard rejects where a tx is not likely to be mined by anyone.
 func IsRejectError(err error) bool {
 	switch errors.Cause(err) {
-	case MissingInputs, ErrDoubleSpend:
+	case MissingInputs, ErrDoubleSpend, ScriptVerifyFailed:
 		return true
 	default:
 		return false
@@ -393,6 +397,10 @@ func translateDescription(description string) error {
 
 	if strings.Contains(description, "txn-mempool-conflict") {
 		return errors.Wrap(ConflictingTx, description)
+	}
+
+	if strings.Contains(description, "script-verify") {
+		return errors.Wrap(ScriptVerifyFailed, description)
 	}
 
 	if strings.Contains(description, "Transaction already in the mempool") {
