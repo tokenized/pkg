@@ -25,6 +25,9 @@ var (
 	ErrWrongPublicKey = errors.New("Wrong Public Key")
 	ErrTimeout        = errors.New("Timeout")
 
+	// ErrSystemFailure means that there was a system failure by the merchant API endpoint.
+	ErrSystemFailure = errors.New("System Failure")
+
 	// NotFound means the tx is not known by the service. Most likely from a tx status request.
 	NotFound = errors.New("Not Found")
 
@@ -452,6 +455,14 @@ func translateHTTPError(err error) error {
 
 	if httpError.Status == 400 && strings.Contains(httpError.Message, "Insufficient fees") {
 		return errors.Wrap(InsufficientFee, err.Error())
+	}
+
+	if httpError.Status == http.StatusGatewayTimeout {
+		return errors.Wrap(ErrTimeout, err.Error())
+	}
+
+	if httpError.Status >= 500 {
+		return errors.Wrap(ErrSystemFailure, err.Error())
 	}
 
 	return translateDescription(httpError.Message)
