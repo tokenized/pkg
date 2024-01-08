@@ -427,7 +427,8 @@ func translateDescription(description string) error {
 		return errors.Wrap(ErrSafeMode, description)
 	}
 
-	if strings.Contains(description, "No such mempool or blockchain transaction") {
+	if strings.Contains(description, "No such mempool or blockchain transaction") ||
+		strings.Contains(description, "No such mempool transaction") {
 		return errors.Wrap(NotFound, description)
 	}
 
