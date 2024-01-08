@@ -663,17 +663,20 @@ func post(ctx context.Context, timeout time.Duration, url, authToken string,
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
+		result := HTTPError{Status: httpResponse.StatusCode}
+
 		if httpResponse.Body != nil {
 			b, rerr := ioutil.ReadAll(httpResponse.Body)
 			if rerr == nil {
-				return HTTPError{
-					Status:  httpResponse.StatusCode,
-					Message: string(b),
-				}
+				result.Message = string(b)
 			}
 		}
 
-		return HTTPError{Status: httpResponse.StatusCode}
+		if httpResponse.StatusCode == http.StatusGatewayTimeout {
+			return errors.Wrap(ErrTimeout, errors.Wrap(result, "http post").Error())
+		}
+
+		return result
 	}
 
 	defer httpResponse.Body.Close()
@@ -719,17 +722,20 @@ func get(ctx context.Context, timeout time.Duration, url, authToken string,
 	}
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode > 299 {
+		result := HTTPError{Status: httpResponse.StatusCode}
+
 		if httpResponse.Body != nil {
 			b, rerr := ioutil.ReadAll(httpResponse.Body)
 			if rerr == nil {
-				return HTTPError{
-					Status:  httpResponse.StatusCode,
-					Message: string(b),
-				}
+				result.Message = string(b)
 			}
 		}
 
-		return HTTPError{Status: httpResponse.StatusCode}
+		if httpResponse.StatusCode == http.StatusGatewayTimeout {
+			return errors.Wrap(ErrTimeout, errors.Wrap(result, "http post").Error())
+		}
+
+		return result
 	}
 
 	defer httpResponse.Body.Close()
