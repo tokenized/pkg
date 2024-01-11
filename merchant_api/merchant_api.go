@@ -57,6 +57,10 @@ var (
 	// signature or just invalid unlock.
 	ScriptVerifyFailed = errors.New("Script Verify Failed")
 
+	// ErrIndeterminant means that the result is not a success or failure and should basically be
+	// ignored. Either wait for another endpoint to confirm validity or wait for confirmation.
+	ErrIndeterminant = errors.New("Indeterminant")
+
 	// ErrServiceFailure means that the service failed to process the request.
 	ErrServiceFailure = errors.New("Service Failure")
 
@@ -444,28 +448,30 @@ func translateDescription(description string) error {
 		return errors.Wrap(ErrTimeout, description)
 	}
 
+	if strings.Contains(strings.ToUpper(description), "Mixed results") {
+		// Supposedly this means that the miner is using multiple nodes and they disagreed on
+		// whether the transaction was accepted. In practice it seems like this means one of their
+		// nodes is having technical difficulties. --ce
+		return errors.Wrap(ErrIndeterminant, description)
+	}
+
 	return errors.Wrapf(ErrUnsupportedFailure, "description: %s", description)
 }
 
-func translateHTTPError(err error) error {
-	httpError, ok := errors.Cause(err).(HTTPError)
-	if !ok {
-		return err
+func translateHTTPError(httpError HTTPError, fullErr error) error {
+	if httpError.Status < 400 || httpError.Status > 499 {
+		// Anything but a 4xx error is not a translatable error but is a failure to call the
+		// endpoint.
+		return nil
 	}
 
-	if httpError.Status == 400 && strings.Contains(httpError.Message, "Insufficient fees") {
-		return errors.Wrap(InsufficientFee, err.Error())
+	terr := translateDescription(httpError.Message)
+	if cause := errors.Cause(terr); cause == ErrUnsupportedFailure || cause == ErrIndeterminant {
+		// Don't convert an unknown error into a translateable error. Just return the http error.
+		return nil
 	}
 
-	if httpError.Status == http.StatusGatewayTimeout {
-		return errors.Wrap(ErrTimeout, err.Error())
-	}
-
-	if httpError.Status >= 500 {
-		return errors.Wrap(ErrSystemFailure, err.Error())
-	}
-
-	return translateDescription(httpError.Message)
+	return terr
 }
 
 // SubmitTxCallbackResponse is the message posted to the SPV channel specified in the
@@ -516,19 +522,32 @@ func SubmitTxFull(ctx context.Context, baseURL string, timeout time.Duration,
 
 	envelope := &json_envelope.JSONEnvelope{}
 	if err := post(ctx, timeout, baseURL+"/mapi/tx", authToken, request, envelope); err != nil {
-		if errors.Cause(err) == ErrTimeout {
-			return nil, nil, errors.Wrap(err, "http post")
+		if httpError, ok := errors.Cause(err).(HTTPError); ok {
+			if httpError.Status == http.StatusGatewayTimeout {
+				return nil, nil, errors.Wrap(ErrTimeout, err.Error())
+			}
+
+			if httpError.Status >= 500 {
+				return nil, nil, errors.Wrap(ErrSystemFailure, err.Error())
+			}
+
+			if translatedErr := translateHTTPError(httpError, err); translatedErr != nil {
+				if c := errors.Cause(translatedErr); c == ErrTimeout {
+					return nil, nil, translatedErr
+				}
+
+				result := &SubmitTxResponse{
+					Timestamp:         time.Now(),
+					TxID:              request.Tx.TxHash(),
+					Result:            "failure",
+					ResultDescription: httpError.Message,
+				}
+
+				return nil, result, nil
+			}
 		}
 
-		err := translateHTTPError(err)
-		result := &SubmitTxResponse{
-			Timestamp:         time.Now(),
-			TxID:              request.Tx.TxHash(),
-			Result:            "failure",
-			ResultDescription: err.Error(),
-		}
-
-		return nil, result, nil
+		return nil, nil, err
 	}
 
 	if envelope.MimeType != "application/json" {
@@ -592,19 +611,33 @@ func GetTxStatusFull(ctx context.Context, baseURL string, timeout time.Duration,
 	envelope := &json_envelope.JSONEnvelope{}
 	if err := get(ctx, timeout, baseURL+"/mapi/tx/"+txid.String(), authToken,
 		envelope); err != nil {
-		if errors.Cause(err) == ErrTimeout {
-			return nil, nil, errors.Wrap(err, "http get")
+
+		if httpError, ok := errors.Cause(err).(HTTPError); ok {
+			if httpError.Status == http.StatusGatewayTimeout {
+				return nil, nil, errors.Wrap(ErrTimeout, err.Error())
+			}
+
+			if httpError.Status >= 500 {
+				return nil, nil, errors.Wrap(ErrSystemFailure, err.Error())
+			}
+
+			if translatedErr := translateHTTPError(httpError, err); translatedErr != nil {
+				if c := errors.Cause(translatedErr); c == ErrTimeout {
+					return nil, nil, translatedErr
+				}
+
+				result := &GetTxStatusResponse{
+					Timestamp:         time.Now(),
+					TxID:              &txid,
+					Result:            "failure",
+					ResultDescription: httpError.Message,
+				}
+
+				return nil, result, nil
+			}
 		}
 
-		err := translateHTTPError(err)
-		result := &GetTxStatusResponse{
-			Timestamp:         time.Now(),
-			TxID:              &txid,
-			Result:            "failure",
-			ResultDescription: err.Error(),
-		}
-
-		return nil, result, nil
+		return nil, nil, err
 	}
 
 	if envelope.MimeType != "application/json" {
