@@ -81,6 +81,12 @@ var (
 
 	// ErrServiceFailure means the service sent an invalid response.
 	ErrServiceFailure = errors.New("Service Failure")
+
+	// ErrNotAccepted means that a request was not accepted.
+	ErrNotAccepted = errors.New("Not Accepted")
+
+	// ErrInvalid means that a request was invalid.
+	ErrInvalid = errors.New("Invalid")
 )
 
 // Factory is the interface for creating new bsvalias clients.

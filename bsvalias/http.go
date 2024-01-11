@@ -418,7 +418,18 @@ func (c *HTTPClient) PostNegotiationTx(ctx context.Context,
 			}
 		}
 
-		return errors.Wrap(ErrNotSupported, message)
+		return errors.Wrap(ErrNotAccepted, message)
+
+	case http.StatusBadRequest:
+		message := http.StatusText(status)
+		if body != nil {
+			b, rerr := ioutil.ReadAll(body)
+			if rerr == nil && len(b) > 0 {
+				message = string(b)
+			}
+		}
+
+		return errors.Wrap(ErrInvalid, message)
 
 	case http.StatusNotFound:
 		message := http.StatusText(status)
