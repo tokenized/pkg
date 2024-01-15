@@ -112,6 +112,10 @@ func (c *SimpleCacher) List(ctx context.Context, pathPrefix, regExPath string) (
 	// Get any items that are in the cache.
 	c.itemsLock.Lock()
 	for path, _ := range c.items {
+		if !strings.HasPrefix(path, pathPrefix) {
+			continue
+		}
+
 		if !regex.MatchString(path) {
 			continue
 		}
@@ -138,8 +142,10 @@ func (c *SimpleCacher) List(ctx context.Context, pathPrefix, regExPath string) (
 	}
 
 	result := make([]string, len(set))
+	i := 0
 	for path, _ := range set {
-		result = append(result, path)
+		result[i] = path
+		i++
 	}
 
 	return result, nil
@@ -215,6 +221,17 @@ func (c *SimpleCacher) IsEmpty(ctx context.Context) bool {
 	c.itemsLock.Unlock()
 
 	return count == 0
+}
+
+func (c *SimpleCacher) ListCached(ctx context.Context) []string {
+	var result []string
+	c.itemsLock.Lock()
+	for path, _ := range c.items {
+		result = append(result, path)
+	}
+	c.itemsLock.Unlock()
+
+	return result
 }
 
 func (c *SimpleCacher) getValue(ctx context.Context, typ reflect.Type, path string,
