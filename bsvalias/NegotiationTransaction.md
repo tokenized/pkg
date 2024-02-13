@@ -137,7 +137,7 @@ The options field declares supported negotiation features. The values define whi
 
 ```
 {
-	"protocols": ["S", "TKZ", "other protocol ids"],
+	"protocols": ["TKN", "test.TKN", "S", "UL", other protocol ids"],
 	"options": {
 		"send_disabled": false,
 		"auto_send_response": true,
