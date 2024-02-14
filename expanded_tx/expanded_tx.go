@@ -129,6 +129,11 @@ func NewExpandedTxFromTransactionWithOutputs(tx TransactionWithOutputs) (*Expand
 	// Setup inputs
 	var missingErr error
 	for index := 0; index < inputCount; index++ {
+		input := tx.Input(index)
+		if input.PreviousOutPoint.Hash.IsZero() {
+			continue
+		}
+
 		output, err := tx.InputOutput(index)
 		if err != nil {
 			return nil, errors.Wrapf(err, "input %d output", index)

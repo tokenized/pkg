@@ -212,6 +212,8 @@ func Listen(ctx context.Context, args []string) {
 				js, _ := json.MarshalIndent(msg, "", "  ")
 				fmt.Printf("Received message : %s\n", js)
 
+				printMessage(ctx, msg)
+
 				// processMessage(ctx, msg)
 
 				if err := client.MarkMessages(ctx, msg.ChannelID, token, msg.Sequence, true,
@@ -244,6 +246,20 @@ func Listen(ctx context.Context, args []string) {
 	close(incoming)
 
 	wait.Wait()
+}
+
+func printMessage(ctx context.Context, msg peer_channels.Message) {
+	switch msg.ContentType {
+	case peer_channels.ContentTypeJSON:
+		buf := &bytes.Buffer{}
+		if err := json.Indent(buf, msg.Payload, "", "  "); err != nil {
+			fmt.Printf("Failed to indent JSON : %s\n", err)
+		} else {
+			fmt.Printf("JSON : %s\n", buf.Bytes())
+		}
+	case peer_channels.ContentTypeText:
+		fmt.Printf("Text : %s\n", msg.Payload)
+	}
 }
 
 func processMerchantAPIMessage(ctx context.Context, msg peer_channels.Message) {
