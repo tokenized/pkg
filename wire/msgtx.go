@@ -273,6 +273,17 @@ func (txin TxIn) Equal(otxin TxIn) bool {
 		txin.UnlockingScript.Equal(otxin.UnlockingScript) && txin.Sequence == otxin.Sequence
 }
 
+// Serialize encodes to into the bitcoin protocol encoding for a transaction
+// output (TxOut) to w.
+func (txin *TxIn) Serialize(w io.Writer, pver uint32, version int32) error {
+	return writeTxIn(w, pver, version, txin)
+}
+
+// Deserialize decodes t from the bitcoin protocol encoding for a TxOut.
+func (txin *TxIn) Deserialize(r io.Reader, pver uint32, version int32) error {
+	return readTxIn(r, pver, version, txin)
+}
+
 // TxOut defines a bitcoin transaction output.
 type TxOut struct {
 	Value         uint64         `json:"value"`
