@@ -2,6 +2,7 @@ package expanded_tx
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -58,72 +59,13 @@ type Output struct {
 
 type Outputs []*Output
 
-func (etx ExpandedTx) Copy() ExpandedTx {
-	result := ExpandedTx{
-		Ancestors:    etx.Ancestors.Copy(),
-		SpentOutputs: etx.SpentOutputs.Copy(),
-	}
-
-	if etx.Tx != nil {
-		c := etx.Tx.Copy()
-		result.Tx = &c
-	}
-
-	return result
-}
-
-func (o Output) Copy() Output {
-	return Output{
-		Value:         o.Value,
-		LockingScript: o.LockingScript.Copy(),
-	}
-}
-
-func (os Outputs) Copy() Outputs {
-	result := make(Outputs, len(os))
-	for i, o := range os {
-		c := o.Copy()
-		result[i] = &c
-	}
-	return result
-}
-
-func (o Output) String() string {
-	return fmt.Sprintf("%d: %s", o.Value, o.LockingScript)
-}
-
-func (o Output) MarshalText() ([]byte, error) {
-	return []byte(o.String()), nil
-}
-
-func (o *Output) UnmarshalText(text []byte) error {
-	parts := strings.Split(string(text), ":")
-	if len(parts) != 2 {
-		return errors.New("Wrong \":\" count")
-	}
-
-	value, err := strconv.ParseUint(strings.TrimSpace(parts[0]), 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "value")
-	}
-	o.Value = value
-
-	script, err := bitcoin.StringToScript(strings.TrimSpace(parts[1]))
-	if err != nil {
-		return errors.Wrap(err, "locking script")
-	}
-	o.LockingScript = script
-
-	return nil
-}
-
 // NewExpandedTxFromTransactionWithOutputs creates a simple expanded tx from a
 // TransactionWithOutputs interface. It will only have spent outputs and not ancestors.
 func NewExpandedTxFromTransactionWithOutputs(tx TransactionWithOutputs) (*ExpandedTx, error) {
 	inputCount := tx.InputCount()
 	result := &ExpandedTx{
 		Tx:           tx.GetMsgTx(),
-		SpentOutputs: make([]*Output, inputCount),
+		SpentOutputs: make(Outputs, inputCount),
 	}
 
 	// Setup inputs
@@ -429,4 +371,90 @@ func (etx ExpandedTx) OutputCount() int {
 
 func (etx ExpandedTx) Output(index int) *wire.TxOut {
 	return etx.Tx.TxOut[index]
+}
+
+func (etx ExpandedTx) Copy() ExpandedTx {
+	result := ExpandedTx{
+		Ancestors:    etx.Ancestors.Copy(),
+		SpentOutputs: etx.SpentOutputs.Copy(),
+	}
+
+	if etx.Tx != nil {
+		c := etx.Tx.Copy()
+		result.Tx = &c
+	}
+
+	return result
+}
+
+func (o Output) Copy() Output {
+	return Output{
+		Value:         o.Value,
+		LockingScript: o.LockingScript.Copy(),
+	}
+}
+
+func (os Outputs) Copy() Outputs {
+	result := make(Outputs, len(os))
+	for i, o := range os {
+		c := o.Copy()
+		result[i] = &c
+	}
+	return result
+}
+
+func (o Output) String() string {
+	return fmt.Sprintf("%d: %s", o.Value, o.LockingScript)
+}
+
+func (o Output) MarshalText() ([]byte, error) {
+	return []byte(o.String()), nil
+}
+
+func (o *Output) UnmarshalText(text []byte) error {
+	parts := strings.Split(string(text), ":")
+	if len(parts) != 2 {
+		return errors.New("Wrong \":\" count")
+	}
+
+	value, err := strconv.ParseUint(strings.TrimSpace(parts[0]), 10, 64)
+	if err != nil {
+		return errors.Wrap(err, "value")
+	}
+	o.Value = value
+
+	script, err := bitcoin.StringToScript(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return errors.Wrap(err, "locking script")
+	}
+	o.LockingScript = script
+
+	return nil
+}
+
+// jsonOutput is used by Output.UnmarshalJSON to prevent calling itself in an infinite loop.
+type jsonOutput struct {
+	Value         uint64         `bsor:"1" json:"value"`
+	LockingScript bitcoin.Script `bsor:"2" json:"locking_script"`
+}
+
+func (o Output) MarshalJSON() ([]byte, error) {
+	jo := &jsonOutput{
+		Value:         o.Value,
+		LockingScript: o.LockingScript,
+	}
+
+	return json.Marshal(jo)
+}
+
+// UnmarshalJSON ensures that UnmarshalText is not called in the JSON unmarshaller for outputs.
+// json.Unmarshal fails on expanded txs with spent outputs otherwise.
+func (o *Output) UnmarshalJSON(data []byte) error {
+	jo := &jsonOutput{}
+	if err := json.Unmarshal(data, jo); err != nil {
+		return err
+	}
+	o.Value = jo.Value
+	o.LockingScript = jo.LockingScript
+	return nil
 }
