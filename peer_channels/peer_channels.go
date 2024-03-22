@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"io"
+	"mime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -70,6 +71,15 @@ type Message struct {
 	ContentType string      `bsor:"3" json:"content_type"`
 	ChannelID   string      `bsor:"4" json:"channel_id"`
 	Payload     bitcoin.Hex `bsor:"5" json:"payload"`
+}
+
+func (m Message) BaseContentType() string {
+	baseType, _, err := mime.ParseMediaType(m.ContentType)
+	if err != nil {
+		return ""
+	}
+
+	return baseType
 }
 
 type Messages []*Message
