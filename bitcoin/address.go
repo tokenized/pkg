@@ -14,6 +14,7 @@ var (
 	ErrWrongType             = errors.New("Address type wrong")
 	ErrUnknownScriptTemplate = errors.New("Unknown script template")
 	ErrNotEnoughData         = errors.New("Not enough data")
+	ErrWrongNetwork          = errors.New("Wrong network")
 )
 
 const (

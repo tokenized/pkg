@@ -6,6 +6,42 @@ import (
 	"github.com/pkg/errors"
 )
 
+func DecodeToLockingScript(text string, net Network) (Script, error) {
+	ad, err := DecodeAddress(text)
+	if err == nil {
+		if !DecodeNetMatches(ad.Network(), net) {
+			return nil, errors.Wrap(ErrWrongNetwork, ad.Network().String())
+		}
+
+		ls, err := NewRawAddressFromAddress(ad).LockingScript()
+		if err != nil {
+			return nil, errors.Wrap(err, "locking script from address")
+		}
+
+		return ls, nil
+	}
+
+	decodedNet, prefix, data, err := BIP0276Decode(text)
+	if err == nil {
+		if !DecodeNetMatches(decodedNet, net) {
+			return nil, errors.Wrap(ErrWrongNetwork, decodedNet.String())
+		}
+
+		if prefix != BIP0276_ScriptPrefix {
+			return nil, errors.Wrap(ErrWrongPrefix, prefix)
+		}
+
+		return Script(data), nil
+	}
+
+	script, err := StringToScript(text)
+	if err != nil {
+		return nil, err
+	}
+
+	return script, nil
+}
+
 // AddressFromLockingScript returns the address associated with the specified locking script.
 func AddressFromLockingScript(lockingScript Script, net Network) (Address, error) {
 	ra, err := RawAddressFromLockingScript(lockingScript)

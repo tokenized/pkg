@@ -17,6 +17,7 @@ var (
 	ErrCheckHashInvalid = errors.New("Check Hash Invalid")
 	ErrInvalidVersion   = errors.New("Invalid Version")
 	ErrInvalidNetwork   = errors.New("Invalid Network")
+	ErrWrongPrefix      = errors.New("Wrong Prefix")
 )
 
 // Base64 returns the Bas64 encoding of the input.
@@ -81,13 +82,16 @@ func BIP0276Decode(url string) (Network, string, []byte, error) {
 	if len(url) <= 8 {
 		return InvalidNet, "", nil, errors.New("Too Short")
 	}
-	hash := DoubleSha256([]byte(url[:len(url)-8]))
+
+	hashHex := url[len(url)-8:]
+	dataHex := url[:len(url)-8]
+	hash := DoubleSha256([]byte(dataHex))
 	check := hex.EncodeToString(hash[:4])
-	if check != url[len(url)-8:] {
+	if check != hashHex {
 		return InvalidNet, "", nil, ErrCheckHashInvalid
 	}
 
-	parts := strings.Split(url, ":")
+	parts := strings.Split(dataHex, ":")
 
 	if len(parts) != 2 {
 		return InvalidNet, "", nil, errors.New("To many colons in xkey")
