@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -49,12 +50,16 @@ func main() {
 }
 
 func CreateAccount(ctx context.Context, args []string) {
-	if len(args) != 2 {
-		logger.Fatal(ctx, "Wrong argument count: create_account [URL] [Token]")
+	if len(args) != 3 {
+		logger.Fatal(ctx, "Wrong argument count: create_account [URL] [Token] [Channel count]")
 	}
 
 	url := args[0]
 	token := args[1]
+	channelCount, err := strconv.ParseUint(args[2], 10, 64)
+	if err != nil {
+		logger.Fatal(ctx, "Invalid count : %s", err)
+	}
 
 	account, err := peer_channels.HTTPCreateAccount(ctx, url, token)
 	if err != nil {
@@ -63,6 +68,36 @@ func CreateAccount(ctx context.Context, args []string) {
 	}
 
 	fmt.Printf("Created Account : %s\n", account)
+
+	factory := peer_channels.NewFactory()
+	accountClient, err := factory.NewAccountClient(*account)
+	if err != nil {
+		fmt.Printf("Failed to create peer channels client : %s\n", err)
+		return
+	}
+
+	for i := uint64(0); i < channelCount; i++ {
+		channel, err := accountClient.CreateChannel(ctx)
+		if err != nil {
+			fmt.Printf("Failed to create channel : %s\n", err)
+			return
+		}
+
+		js, _ := json.MarshalIndent(*channel, "", "  ")
+		fmt.Printf("Created Channel : %s\n", js)
+
+		readChannel, err := channel.ReadChannel(accountClient.BaseURL())
+		if err != nil {
+			fmt.Printf("Failed to create read channel : %s\n", err)
+		}
+		fmt.Printf("Read Channel : %s\n", readChannel)
+
+		writeChannel, err := channel.WriteChannel(accountClient.BaseURL())
+		if err != nil {
+			fmt.Printf("Failed to create write channel : %s\n", err)
+		}
+		fmt.Printf("Write Channel : %s\n", writeChannel)
+	}
 }
 
 func CreateChannel(ctx context.Context, args []string) {
