@@ -48,14 +48,15 @@ func (f *MockFactory) NewMockClient(ctx context.Context, handle string) (*MockCl
 
 // mockUser is a mock user for testing systems that use paymail.
 type mockUser struct {
-	handle            string
-	identityKey       bitcoin.Key
-	addressKey        bitcoin.Key
-	p2pTxs            map[string][]*wire.MsgTx
-	instrumentAliases []InstrumentAlias
-	name              *string
-	avatarURL         *string
-	profileHit        bool
+	handle                  string
+	identityKey             bitcoin.Key
+	addressKey              bitcoin.Key
+	p2pTxs                  map[string][]*wire.MsgTx
+	instrumentAliases       []InstrumentAlias
+	name                    *string
+	avatarURL               *string
+	profileHit              bool
+	negotiationCapabilities *NegotiationCapabilities
 }
 
 // AddMockUser adds a new mock user.
@@ -65,6 +66,12 @@ func (f *MockFactory) AddMockUser(handle string, identityKey, addressKey bitcoin
 		identityKey: identityKey,
 		addressKey:  addressKey,
 		p2pTxs:      make(map[string][]*wire.MsgTx),
+		negotiationCapabilities: &NegotiationCapabilities{
+			Protocols: []string{"BSV", "test.TKN"},
+			Options: NegotiationOptions{
+				AutoSendResponse: true,
+			},
+		},
 	})
 }
 
@@ -77,6 +84,23 @@ func (f *MockFactory) AddMockUserWithProfile(handle string, identityKey, address
 		p2pTxs:      make(map[string][]*wire.MsgTx),
 		name:        &name,
 		avatarURL:   &avatarURL,
+		negotiationCapabilities: &NegotiationCapabilities{
+			Protocols: []string{"BSV", "test.TKN"},
+			Options: NegotiationOptions{
+				AutoSendResponse: true,
+			},
+		},
+	})
+}
+
+func (f *MockFactory) AddMockUserWithCapabilities(handle string, identityKey, addressKey bitcoin.Key,
+	negotiationCapabilities *NegotiationCapabilities) {
+	f.users = append(f.users, &mockUser{
+		handle:                  handle,
+		identityKey:             identityKey,
+		addressKey:              addressKey,
+		p2pTxs:                  make(map[string][]*wire.MsgTx),
+		negotiationCapabilities: negotiationCapabilities,
 	})
 }
 
@@ -102,6 +126,12 @@ func (f *MockFactory) GenerateMockUser(host string,
 	result := &mockUser{
 		handle: uuid.New().String() + "@" + host,
 		p2pTxs: make(map[string][]*wire.MsgTx),
+		negotiationCapabilities: &NegotiationCapabilities{
+			Protocols: []string{"BSV", "test.TKN"},
+			Options: NegotiationOptions{
+				AutoSendResponse: true,
+			},
+		},
 	}
 
 	var err error
@@ -298,12 +328,7 @@ func (c *MockClient) PostNegotiationTx(ctx context.Context,
 }
 
 func (c *MockClient) GetNegotiationCapabilities(ctx context.Context) (*NegotiationCapabilities, error) {
-	return &NegotiationCapabilities{
-		Protocols: nil,
-		Options: NegotiationOptions{
-			AutoSendResponse: true,
-		},
-	}, nil
+	return c.user.negotiationCapabilities, nil
 }
 
 func (c *MockClient) addBitcoinReceiver(negotiationTx *NegotiationTransaction) error {

@@ -327,6 +327,11 @@ type Response struct {
 }
 
 type NegotiationCapabilities struct {
+	// Protocols specifies which protocols are supported by the negotiation implementation.
+	// "TKN" for Tokenized
+	// "test.TKN" for Tokenized test protocol
+	// "BSV" is used to specify transfers of BSV are supported as some implementations may only
+	// support tokens.
 	Protocols []string           `json:"protocols"`
 	Options   NegotiationOptions `json:"options"`
 }
