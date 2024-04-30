@@ -27,7 +27,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	btcwire "github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	"github.com/pkg/errors"
 )
 
@@ -461,7 +460,7 @@ func (r *RPCNode) ListTransactions(ctx context.Context) ([]btcjson.ListTransacti
 		}
 
 		id := r.client.NextID()
-		marshalledJSON, err = btcjson.MarshalCmd(id, cmd)
+		marshalledJSON, err = btcjson.MarshalCmd(btcjson.RpcVersion1, id, cmd)
 		if err != nil {
 			logger.Error(ctx, "RPCCallFailed ListTransactions MarshalCmd : %v", err)
 			continue
@@ -493,44 +492,6 @@ func (r *RPCNode) ListTransactions(ctx context.Context) ([]btcjson.ListTransacti
 	var result []btcjson.ListTransactionsResult
 	if err = json.Unmarshal(response, &result); err != nil {
 		return nil, err
-	}
-
-	return result, nil
-}
-
-// ListUnspent returns unspent transactions
-func (r *RPCNode) ListUnspent(ctx context.Context,
-	address bitcoin.Address) ([]btcjson.ListUnspentResult, error) {
-
-	// Make address known to node without rescan
-	if err := r.WatchAddress(ctx, address); err != nil {
-		return nil, err
-	}
-
-	btcaddress, _ := btcutil.DecodeAddress(address.String(),
-		bitcoin.NewChainParams(bitcoin.NetworkName(address.Network())))
-	addresses := []btcutil.Address{btcaddress}
-
-	var err error
-	var result []btcjson.ListUnspentResult
-	for i := 0; i <= r.Config.MaxRetries; i++ {
-		if i != 0 {
-			time.Sleep(time.Duration(r.Config.RetryDelay) * time.Millisecond)
-		}
-
-		// out []btcjson.ListUnspentResult
-		result, err = r.client.ListUnspentMinMaxAddresses(0, 999999, addresses)
-		if err != nil {
-			logger.Error(ctx, "RPCCallFailed ListUnspent %s : %s", address, err)
-			continue
-		}
-
-		break
-	}
-
-	if err != nil {
-		logger.Error(ctx, "RPCCallAborted ListUnspent %s: %s", address, err)
-		return nil, errors.Wrap(err, fmt.Sprintf("Failed to ListUnspent %s", address))
 	}
 
 	return result, nil
