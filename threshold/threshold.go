@@ -3,7 +3,7 @@ package threshold
 import (
 	"encoding/binary"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/bitcoin-sv/go-sdk/ec"
 	"github.com/pkg/errors"
 )
 
@@ -19,5 +19,5 @@ var (
 
 	DefaultEndian = binary.LittleEndian
 
-	curveS256 = btcec.S256()
+	curveS256 = ec.S256()
 )

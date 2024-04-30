@@ -10,12 +10,12 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/bitcoin-sv/go-sdk/ec"
 	"github.com/pkg/errors"
 )
 
 var (
-	curveS256       = btcec.S256()
+	curveS256       = ec.S256()
 	curveS256Params = curveS256.Params()
 	curveHalfOrder  = new(big.Int).Rsh(curveS256.N, 1)
 
