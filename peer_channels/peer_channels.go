@@ -24,6 +24,7 @@ const (
 
 var (
 	ErrWrongContentType = errors.New("Wrong Content Type")
+	ErrChannelTimeout   = errors.New("Channel Timeout")
 )
 
 const (
@@ -48,13 +49,13 @@ type Client interface {
 
 	// Notify writes message notifications to `incoming` as they are posted to the service.
 	// `incoming` will not be closed by this function.
-	Notify(ctx context.Context, token string, sendUnread bool, incoming chan<- MessageNotification,
-		interrupt <-chan interface{}) error
+	Notify(ctx context.Context, token string, sendUnread bool, channelTimeout time.Duration,
+		incoming chan<- MessageNotification, interrupt <-chan interface{}) error
 
 	// Listen writes messages to `incoming` as they are posted to the service.
 	// `incoming` will not be closed by this function.
-	Listen(ctx context.Context, token string, sendUnread bool, incoming chan<- Message,
-		interrupt <-chan interface{}) error
+	Listen(ctx context.Context, token string, sendUnread bool, channelTimeout time.Duration,
+		incoming chan<- Message, interrupt <-chan interface{}) error
 }
 
 type ChannelData struct {

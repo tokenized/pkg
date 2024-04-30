@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -140,16 +141,16 @@ func (c *HTTPAccountClient) DeleteMessage(ctx context.Context, channelID string,
 	return nil
 }
 
-func (c *HTTPAccountClient) Notify(ctx context.Context, autosend bool,
+func (c *HTTPAccountClient) Notify(ctx context.Context, autosend bool, channelTimeout time.Duration,
 	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
 
 	client := NewHTTPClient(c.BaseURL())
-	return client.Notify(ctx, c.Token(), autosend, incoming, interrupt)
+	return client.Notify(ctx, c.Token(), autosend, channelTimeout, incoming, interrupt)
 }
 
-func (c *HTTPAccountClient) Listen(ctx context.Context, autosend bool, incoming chan<- Message,
-	interrupt <-chan interface{}) error {
+func (c *HTTPAccountClient) Listen(ctx context.Context, autosend bool, channelTimeout time.Duration,
+	incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	client := NewHTTPClient(c.BaseURL())
-	return client.Listen(ctx, c.Token(), autosend, incoming, interrupt)
+	return client.Listen(ctx, c.Token(), autosend, channelTimeout, incoming, interrupt)
 }

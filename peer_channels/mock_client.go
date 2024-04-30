@@ -299,7 +299,8 @@ func (c *MockClient) DeleteMessage(ctx context.Context, channelID, token string,
 }
 
 func (c *MockClient) Notify(ctx context.Context, token string, sendUnread bool,
-	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
+	channelTimeout time.Duration, incoming chan<- MessageNotification,
+	interrupt <-chan interface{}) error {
 
 	var notifier *mockNotifier
 	var newMessages Messages
@@ -364,11 +365,15 @@ func (c *MockClient) Notify(ctx context.Context, token string, sendUnread bool,
 	}
 
 	for _, message := range newMessages {
-		notifier.incoming <- MessageNotification{
+		select {
+		case notifier.incoming <- MessageNotification{
 			Sequence:    message.Sequence,
 			Received:    message.Received,
 			ContentType: message.ContentType,
 			ChannelID:   message.ChannelID,
+		}:
+		case <-time.After(channelTimeout):
+			return ErrChannelTimeout
 		}
 	}
 
@@ -389,7 +394,7 @@ func (c *MockClient) Notify(ctx context.Context, token string, sendUnread bool,
 }
 
 func (c *MockClient) Listen(ctx context.Context, token string, sendUnread bool,
-	incoming chan<- Message, interrupt <-chan interface{}) error {
+	channelTimeout time.Duration, incoming chan<- Message, interrupt <-chan interface{}) error {
 
 	var listener *mockListener
 	var newMessages Messages
@@ -454,7 +459,11 @@ func (c *MockClient) Listen(ctx context.Context, token string, sendUnread bool,
 	}
 
 	for _, message := range newMessages {
-		listener.incoming <- *message
+		select {
+		case listener.incoming <- *message:
+		case <-time.After(channelTimeout):
+			return ErrChannelTimeout
+		}
 	}
 
 	select {
@@ -657,16 +666,17 @@ func (c *MockAccountClient) DeleteMessage(ctx context.Context, channelID string,
 
 // Notify receives incoming messages for the peer channel account.
 func (c *MockAccountClient) Notify(ctx context.Context, sendUnread bool,
-	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
+	channelTimeout time.Duration, incoming chan<- MessageNotification,
+	interrupt <-chan interface{}) error {
 
-	return c.client.Notify(ctx, c.Token(), sendUnread, incoming, interrupt)
+	return c.client.Notify(ctx, c.Token(), sendUnread, channelTimeout, incoming, interrupt)
 }
 
 // Listen receives incoming messages for the peer channel account.
-func (c *MockAccountClient) Listen(ctx context.Context, sendUnread bool, incoming chan<- Message,
-	interrupt <-chan interface{}) error {
+func (c *MockAccountClient) Listen(ctx context.Context, sendUnread bool,
+	channelTimeout time.Duration, incoming chan<- Message, interrupt <-chan interface{}) error {
 
-	return c.client.Listen(ctx, c.Token(), sendUnread, incoming, interrupt)
+	return c.client.Listen(ctx, c.Token(), sendUnread, channelTimeout, incoming, interrupt)
 }
 
 func (a *mockAccount) ID() string {

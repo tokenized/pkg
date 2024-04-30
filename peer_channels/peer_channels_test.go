@@ -236,7 +236,8 @@ func Test_ChannelListen(t *testing.T) {
 		}
 	}()
 
-	if err := client.Listen(ctx, channel.ReadToken, true, incoming, interrupt); err != nil &&
+	if err := client.Listen(ctx, channel.ReadToken, true, time.Second, incoming,
+		interrupt); err != nil &&
 		errors.Cause(err) != threads.Interrupted {
 		t.Fatalf("Failed to listen : %s", err)
 	}
@@ -303,7 +304,8 @@ func Test_AccountListen(t *testing.T) {
 		}
 	}()
 
-	if err := client.Listen(ctx, account.Token, true, incoming, interrupt); err != nil &&
+	if err := client.Listen(ctx, account.Token, true, time.Second, incoming,
+		interrupt); err != nil &&
 		errors.Cause(err) != threads.Interrupted {
 		t.Fatalf("Failed to listen : %s", err)
 	}

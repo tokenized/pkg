@@ -3,6 +3,7 @@ package peer_channels
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -27,12 +28,12 @@ type AccountClient interface {
 	DeleteMessage(ctx context.Context, channelID string, sequence uint64, older bool) error
 
 	// Notify receives incoming messages for the peer channel account.
-	Notify(ctx context.Context, sendUnread bool, incoming chan<- MessageNotification,
-		interrupt <-chan interface{}) error
+	Notify(ctx context.Context, sendUnread bool, channelTimeout time.Duration,
+		incoming chan<- MessageNotification, interrupt <-chan interface{}) error
 
 	// Listen receives incoming messages for the peer channel account.
-	Listen(ctx context.Context, sendUnread bool, incoming chan<- Message,
-		interrupt <-chan interface{}) error
+	Listen(ctx context.Context, sendUnread bool, channelTimeout time.Duration,
+		incoming chan<- Message, interrupt <-chan interface{}) error
 }
 
 type AccountClientFactory interface {

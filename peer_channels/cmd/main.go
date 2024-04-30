@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/tokenized/logger"
 	"github.com/tokenized/pkg/bitcoin"
@@ -238,7 +239,7 @@ func Listen(ctx context.Context, args []string) {
 
 	listenThread, listenComplete := threads.NewInterruptableThreadComplete("Listen",
 		func(ctx context.Context, interrupt <-chan interface{}) error {
-			return client.Listen(ctx, token, true, incoming, interrupt)
+			return client.Listen(ctx, token, true, time.Second, incoming, interrupt)
 		}, &wait)
 
 	handleThread, handleComplete := threads.NewUninterruptableThreadComplete("Handle",

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tokenized/logger"
@@ -145,9 +146,10 @@ func (c *HTTPClient) DeleteMessage(ctx context.Context, channelID, token string,
 }
 
 func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
-	incoming chan<- MessageNotification, interrupt <-chan interface{}) error {
+	channelTimeout time.Duration, incoming chan<- MessageNotification,
+	interrupt <-chan interface{}) error {
 
-	translator := newNotificationTranslator(incoming)
+	translator := newNotificationTranslator(incoming, channelTimeout)
 
 	params := url.Values{}
 	params.Add("token", token)
@@ -163,9 +165,9 @@ func (c *HTTPClient) Notify(ctx context.Context, token string, sendUnread bool,
 }
 
 func (c *HTTPClient) Listen(ctx context.Context, token string, sendUnread bool,
-	incoming chan<- Message, interrupt <-chan interface{}) error {
+	channelTimeout time.Duration, incoming chan<- Message, interrupt <-chan interface{}) error {
 
-	translator := newMessageTranslator(incoming)
+	translator := newMessageTranslator(incoming, channelTimeout)
 
 	params := url.Values{}
 	params.Add("token", token)
@@ -185,13 +187,19 @@ type Translator interface {
 }
 
 type messageTranslator struct {
-	incoming chan<- Message
+	incoming       chan<- Message
+	channelTimeout atomic.Value
 }
 
-func newMessageTranslator(incoming chan<- Message) *messageTranslator {
-	return &messageTranslator{
+func newMessageTranslator(incoming chan<- Message,
+	channelTimeout time.Duration) *messageTranslator {
+
+	result := &messageTranslator{
 		incoming: incoming,
 	}
+
+	result.channelTimeout.Store(channelTimeout)
+	return result
 }
 
 func (t *messageTranslator) Translate(ctx context.Context, msg websocketMessage) error {
@@ -206,7 +214,11 @@ func (t *messageTranslator) Translate(ctx context.Context, msg websocketMessage)
 			return errors.Wrap(err, "json unmarshal")
 		}
 
-		t.incoming <- message
+		select {
+		case t.incoming <- message:
+		case <-time.After(t.channelTimeout.Load().(time.Duration)):
+			return ErrChannelTimeout
+		}
 
 	case websocket.BinaryMessage:
 		logger.InfoWithFields(ctx, []logger.Field{
@@ -223,20 +235,30 @@ func (t *messageTranslator) Translate(ctx context.Context, msg websocketMessage)
 			return errors.Wrap(err, "bsor unmarshal")
 		}
 
-		t.incoming <- message
+		select {
+		case t.incoming <- message:
+		case <-time.After(t.channelTimeout.Load().(time.Duration)):
+			return ErrChannelTimeout
+		}
 	}
 
 	return nil
 }
 
 type notificationTranslator struct {
-	incoming chan<- MessageNotification
+	incoming       chan<- MessageNotification
+	channelTimeout atomic.Value
 }
 
-func newNotificationTranslator(incoming chan<- MessageNotification) *notificationTranslator {
-	return &notificationTranslator{
+func newNotificationTranslator(incoming chan<- MessageNotification,
+	channelTimeout time.Duration) *notificationTranslator {
+
+	result := &notificationTranslator{
 		incoming: incoming,
 	}
+
+	result.channelTimeout.Store(channelTimeout)
+	return result
 }
 
 func (t *notificationTranslator) Translate(ctx context.Context, msg websocketMessage) error {
@@ -251,7 +273,11 @@ func (t *notificationTranslator) Translate(ctx context.Context, msg websocketMes
 			return errors.Wrap(err, "json unmarshal")
 		}
 
-		t.incoming <- message
+		select {
+		case t.incoming <- message:
+		case <-time.After(t.channelTimeout.Load().(time.Duration)):
+			return ErrChannelTimeout
+		}
 
 	case websocket.BinaryMessage:
 		logger.InfoWithFields(ctx, []logger.Field{
@@ -268,7 +294,11 @@ func (t *notificationTranslator) Translate(ctx context.Context, msg websocketMes
 			return errors.Wrap(err, "bsor unmarshal")
 		}
 
-		t.incoming <- message
+		select {
+		case t.incoming <- message:
+		case <-time.After(t.channelTimeout.Load().(time.Duration)):
+			return ErrChannelTimeout
+		}
 	}
 
 	return nil
