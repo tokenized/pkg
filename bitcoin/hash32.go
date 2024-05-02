@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -226,4 +227,54 @@ func reverse32(h, rh []byte) {
 		h[i] = b
 		i--
 	}
+}
+
+func Hash32ValuesKey(values ...interface{}) (Key, error) {
+	hash, err := Hash32Values(values...)
+	if err != nil {
+		return Key{}, errors.Wrap(err, "hash")
+	}
+
+	return KeyFromNumber(hash[:], MainNet)
+}
+
+func Hash32Values(values ...interface{}) (Hash32, error) {
+	hasher := sha256.New()
+
+	for _, value := range values {
+		switch v := value.(type) {
+		case Key:
+			if _, err := hasher.Write(v.Number()); err != nil {
+				return Hash32{}, errors.Wrap(err, "hash key")
+			}
+
+		case PublicKey:
+			x, y := v.Numbers()
+			if _, err := hasher.Write(x); err != nil {
+				return Hash32{}, errors.Wrap(err, "hash x")
+			}
+			if _, err := hasher.Write(y); err != nil {
+				return Hash32{}, errors.Wrap(err, "hash y")
+			}
+
+		case int:
+			n := big.NewInt(int64(v))
+			if _, err := hasher.Write(n.Bytes()); err != nil {
+				return Hash32{}, errors.Wrap(err, "hash n")
+			}
+
+		case string:
+			if _, err := hasher.Write([]byte(v)); err != nil {
+				return Hash32{}, errors.Wrap(err, "hash n")
+			}
+
+		default:
+			return Hash32{}, errors.New("Unknown value to hash")
+		}
+	}
+
+	hash := hasher.Sum(nil)
+	var result Hash32
+	copy(result[:], hash)
+	return result, nil
 }

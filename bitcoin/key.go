@@ -222,11 +222,15 @@ func (k Key) Serialize(w io.Writer) error {
 
 // Number returns 32 bytes representing the 256 bit big-endian integer of the private key.
 func (k Key) Number() []byte {
-	b := k.value.Bytes()
+	return pad32(k.value.Bytes())
+}
+
+func pad32(b []byte) []byte {
 	if len(b) < 32 {
 		extra := make([]byte, 32-len(b))
-		b = append(extra, b...)
+		return append(extra, b...)
 	}
+
 	return b
 }
 
@@ -256,6 +260,12 @@ func (k Key) Sign(hash Hash32) (Signature, error) {
 	return signRFC6979(k.value, hash[:])
 }
 
+func (k Key) HashValue() Hash32 {
+	var result Hash32
+	copy(result[:], k.Number())
+	return result
+}
+
 // AddHash implements the WP42 method of deriving a private key from a private key and a hash.
 func (k Key) AddHash(hash Hash32) (Key, error) {
 	// Add hash to key value
@@ -264,15 +274,86 @@ func (k Key) AddHash(hash Hash32) (Key, error) {
 	return KeyFromNumber(b, k.Network())
 }
 
-// Subtract subtracts one key from the other and returns the hash that can be passed into AddHash of
+// SubtractHash subtracts one key from the other and returns the hash that can be passed into AddHash of
 // the baseKey to create the first key.
-func (k Key) Subtract(baseKey Key) (Hash32, error) {
+func (k Key) SubtractHash(baseKey Key) (Hash32, error) {
 	hash, err := NewHash32(subtractPrivateKeys(k.value.Bytes(), baseKey.value.Bytes()))
 	if err != nil {
 		return Hash32{}, errors.Wrap(err, "hash")
 	}
 
 	return *hash, nil
+}
+
+func (k Key) Add(other Key) (Key, error) {
+	b := addPrivateKeys(k.value.Bytes(), other.value.Bytes())
+
+	return KeyFromNumber(b, k.Network())
+}
+
+func (k Key) Subtract(other Key) (Key, error) {
+	b := subtractPrivateKeys(k.value.Bytes(), other.value.Bytes())
+
+	return KeyFromNumber(b, k.Network())
+}
+
+func (k Key) AddPublicKey(publicKey PublicKey) (PublicKey, error) {
+	var result PublicKey
+
+	// Multiply by G
+	x, y := curveS256.ScalarBaseMult(k.value.Bytes())
+
+	// Add to public key
+	x, y = curveS256.Add(&publicKey.X, &publicKey.Y, x, y)
+
+	// Check validity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return result, ErrOutOfRangeKey
+	}
+
+	result.X.Set(x)
+	result.Y.Set(y)
+
+	return result, nil
+}
+
+func (k Key) Multiply(other Key) (Key, error) {
+	var value big.Int
+	value.Set(&k.value)
+
+	value.Mul(&value, &other.value)
+	value.Mod(&value, curveS256Params.N)
+
+	return Key{
+		value: value,
+		net:   k.net,
+	}, nil
+}
+
+func (k Key) Mod(other Key) (Key, error) {
+	var value big.Int
+	value.Set(&k.value)
+
+	value.Mod(&value, &other.value)
+
+	return Key{
+		value: value,
+		net:   k.net,
+	}, nil
+}
+
+func (k Key) MultiplyPublicKey(publicKey PublicKey) (PublicKey, error) {
+	x, y := curveS256.ScalarMult(&publicKey.X, &publicKey.Y, k.value.Bytes())
+
+	// Check validity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return PublicKey{}, ErrOutOfRangeKey
+	}
+
+	return PublicKey{
+		X: *x,
+		Y: *y,
+	}, nil
 }
 
 // MarshalJSONMasked outputs "masked" data that is safe for "masked" configs that are output to logs

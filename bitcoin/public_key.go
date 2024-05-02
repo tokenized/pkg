@@ -18,6 +18,13 @@ type PublicKey struct {
 	X, Y big.Int
 }
 
+func G() PublicKey {
+	var result PublicKey
+	result.X.Set(curveS256Params.Gx)
+	result.Y.Set(curveS256Params.Gy)
+	return result
+}
+
 // PublicKeyFromString converts key text to a key.
 func PublicKeyFromStr(s string) (PublicKey, error) {
 	b, err := hex.DecodeString(s)
@@ -52,6 +59,41 @@ func (k PublicKey) AddHash(hash Hash32) (PublicKey, error) {
 
 	// Add to public key
 	x, y = curveS256.Add(&k.X, &k.Y, x, y)
+
+	// Check validity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return result, ErrOutOfRangeKey
+	}
+
+	result.X.Set(x)
+	result.Y.Set(y)
+
+	return result, nil
+}
+
+func (k PublicKey) Add(other PublicKey) (PublicKey, error) {
+	var result PublicKey
+
+	x, y := curveS256.Add(&k.X, &k.Y, &other.X, &other.Y)
+
+	// Check validity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return result, ErrOutOfRangeKey
+	}
+
+	result.X.Set(x)
+	result.Y.Set(y)
+
+	return result, nil
+}
+
+func (k PublicKey) Subtract(other PublicKey) (PublicKey, error) {
+	var result PublicKey
+	var otherNegative PublicKey
+	otherNegative.X.Neg(&other.X)
+	otherNegative.Y.Neg(&other.Y)
+
+	x, y := curveS256.Add(&k.X, &k.Y, &otherNegative.X, &otherNegative.Y)
 
 	// Check validity
 	if x.Sign() == 0 || y.Sign() == 0 {
@@ -113,7 +155,7 @@ func (k PublicKey) Bytes() []byte {
 
 // Numbers returns the 32 byte values representing the 256 bit big-endian integer of the x and y coordinates.
 func (k PublicKey) Numbers() ([]byte, []byte) {
-	return k.X.Bytes(), k.Y.Bytes()
+	return pad32(k.X.Bytes()), pad32(k.Y.Bytes())
 }
 
 // IsEmpty returns true if the value is zero.
