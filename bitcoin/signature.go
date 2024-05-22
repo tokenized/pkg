@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -387,6 +388,11 @@ func (s Signature) Bytes() []byte {
 	b[offset+1] = byte(len(sb))
 	copy(b[offset+2:], sb)
 	return b
+}
+
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (s Signature) Value() (driver.Value, error) {
+	return s.Bytes(), nil
 }
 
 // MarshalJSON converts to json.

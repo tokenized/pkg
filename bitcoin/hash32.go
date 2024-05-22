@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -52,6 +53,11 @@ func (h Hash32) Bytes() []byte {
 	return h[:]
 }
 
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (h Hash32) Value() (driver.Value, error) {
+	return h.Bytes(), nil
+}
+
 // Bytes returns the bytes in reverse order (big endian).
 func (h Hash32) ReverseBytes() []byte {
 	b := make([]byte, Hash32Size)
@@ -59,7 +65,7 @@ func (h Hash32) ReverseBytes() []byte {
 	return b
 }
 
-func (h Hash32) Value() *big.Int {
+func (h Hash32) Int() *big.Int {
 	value := &big.Int{}
 	value.SetBytes(h.ReverseBytes())
 	return value

@@ -1,6 +1,7 @@
 package bitcoin
 
 import (
+	"database/sql/driver"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -109,6 +110,11 @@ func (k *PublicKey) SetBytes(b []byte) error {
 // Bytes returns serialized compressed key data.
 func (k PublicKey) Bytes() []byte {
 	return compressPublicKey(k.X, k.Y)
+}
+
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (k PublicKey) Value() (driver.Value, error) {
+	return k.Bytes(), nil
 }
 
 // Numbers returns the 32 byte values representing the 256 bit big-endian integer of the x and y coordinates.

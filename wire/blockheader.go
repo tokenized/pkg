@@ -58,7 +58,7 @@ func (h *BlockHeader) BlockHash() *bitcoin.Hash32 {
 }
 
 func (h BlockHeader) WorkIsValid() bool {
-	value := h.BlockHash().Value()
+	value := h.BlockHash().Int()
 	target := bitcoin.ConvertToDifficulty(h.Bits)
 
 	// Hash value must be less than target to be valid

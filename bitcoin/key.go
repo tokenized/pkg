@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"database/sql/driver"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -204,6 +205,11 @@ func (k Key) Bytes() []byte {
 	}
 
 	return append([]byte{typeIntPrivKey}, b...)
+}
+
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (k Key) Value() (driver.Value, error) {
+	return k.Bytes(), nil
 }
 
 func (k *Key) Deserialize(r io.Reader) error {

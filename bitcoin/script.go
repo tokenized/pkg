@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -639,6 +640,11 @@ func (items ScriptItems) Write(w io.Writer) error {
 
 func NewScript(b []byte) Script {
 	return Script(b)
+}
+
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (s Script) Value() (driver.Value, error) {
+	return []byte(s), nil
 }
 
 func (s Script) PubKeyCount() uint32 {

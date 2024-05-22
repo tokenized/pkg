@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -464,6 +465,11 @@ func (ra RawAddress) Bytes() []byte {
 		return nil
 	}
 	return append([]byte{ra.scriptType}, ra.data...)
+}
+
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (ra RawAddress) Value() (driver.Value, error) {
+	return ra.Bytes(), nil
 }
 
 func (ra RawAddress) Equal(other RawAddress) bool {

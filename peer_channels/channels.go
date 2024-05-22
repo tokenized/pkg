@@ -1,6 +1,7 @@
 package peer_channels
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"net/url"
 	"strings"
@@ -55,6 +56,11 @@ func (c Channel) Equal(o Channel) bool {
 	}
 
 	return true
+}
+
+// Value returns a value that can be handled by a database driver to put values in the database.
+func (c Channel) Value() (driver.Value, error) {
+	return c.String(), nil
 }
 
 func (v Channel) MarshalText() ([]byte, error) {
