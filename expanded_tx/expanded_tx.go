@@ -387,6 +387,42 @@ func (etx ExpandedTx) Copy() ExpandedTx {
 	return result
 }
 
+func (etx ExpandedTx) IsFullySigned() bool {
+	if etx.Tx == nil {
+		return false
+	}
+
+	if len(etx.Tx.TxIn) == 0 {
+		return false
+	}
+
+	for _, txin := range etx.Tx.TxIn {
+		if len(txin.UnlockingScript) == 0 || txin.UnlockingScript.IsFalseOpReturn() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (etx ExpandedTx) HasSignatures() bool {
+	if etx.Tx == nil {
+		return false
+	}
+
+	if len(etx.Tx.TxIn) == 0 {
+		return false
+	}
+
+	for _, txin := range etx.Tx.TxIn {
+		if len(txin.UnlockingScript) > 0 && !txin.UnlockingScript.IsFalseOpReturn() {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (o Output) Copy() Output {
 	return Output{
 		Value:         o.Value,
