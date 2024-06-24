@@ -37,6 +37,9 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	golang.org/x/sys v0.19.0 // indirect
-	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
+	launchpad.net/gocheck v0.0.0-00010101000000-000000000000 // indirect
 )
+
+replace launchpad.net/gocheck => gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
