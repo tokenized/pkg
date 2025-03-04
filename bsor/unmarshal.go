@@ -14,6 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO There is an issue with unmarshalling a slice of struct pointers. It unmarshals them as nil.
+
 type FieldIndexes map[uint64]FieldIndex
 type FieldIndex struct {
 	Index     int
@@ -429,6 +431,10 @@ func readBytes(scriptItems *bitcoin.ScriptItems) ([]byte, error) {
 		return item.Data, nil
 
 	case bitcoin.ScriptItemTypeOpCode:
+		if item.OpCode == bitcoin.OP_FALSE {
+			return nil, nil
+		}
+
 		return []byte{item.OpCode}, nil
 
 	default:

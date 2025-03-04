@@ -200,7 +200,7 @@ func marshalPrimitive(value reflect.Value, fixedSize uint,
 				"Fixed string wrong size : got %d, want %d", len(s), fixedSize)
 		}
 
-		return bitcoin.ScriptItems{bitcoin.NewPushDataScriptItem([]byte(value.String()))}, nil
+		return bitcoin.ScriptItems{bitcoin.NewPushDataScriptItem([]byte(s))}, nil
 
 	case reflect.Bool:
 		// IsZero was already checked above so we know it is a true boolean value.
